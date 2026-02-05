@@ -1,0 +1,23 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            // "label": "build_copy_run",
+            "label": "custom_run",
+            "type": "shell",
+            // "options": {
+            //     "env": {
+            //         "CARGO_LOG": "cargo::core::compiler::fingerprint=info",
+            //     }
+            // },
+            "command": "cargo embed",
+            "problemMatcher": []
+        },
+        {
+            "label": "custom_run2",
+            "type": "shell",
+            "command": "cargo embed --release",
+            "problemMatcher": []
+        }
+    ]
+}
