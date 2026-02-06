@@ -1,10 +1,13 @@
 use as5600::As5600;
 
-use crate::simplefoc::{
-    bldc::BLDCMotor,
-    lowpass::LowPassFilter,
-    pid::PIDController,
-    types::{PhaseVoltages, SensorDirection, TorqueControlType},
+use crate::{
+    hardware::mt_6701::MT6701,
+    simplefoc::{
+        bldc::BLDCMotor,
+        lowpass::LowPassFilter,
+        pid::PIDController,
+        types::{PhaseVoltages, SensorDirection, TorqueControlType},
+    },
 };
 
 #[derive(defmt::Format)]
@@ -28,8 +31,10 @@ pub enum FOCStatus {
 }
 
 pub struct SimpleFOC<'a> {
+    // encoder:
+    //     As5600<embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>>,
     encoder:
-        As5600<embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>>,
+        MT6701<embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>>,
     pwm_driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
 
     pub motor_status: FOCStatus,
@@ -60,7 +65,10 @@ pub struct SimpleFOC<'a> {
 /// new, control
 impl<'a> SimpleFOC<'a> {
     pub fn new(
-        encoder: As5600<
+        // encoder: As5600<
+        //     embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>,
+        // >,
+        encoder: MT6701<
             embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>,
         >,
         driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
@@ -304,11 +312,12 @@ impl<'a> SimpleFOC<'a> {
 
     /// ignore full rotations for now
     fn get_shaft_angle(&mut self) -> f32 {
-        let Ok(angle) = self.encoder.angle() else {
-            self.motor_status = FOCStatus::MotorError;
-            // return 0;
-            panic!()
-        };
+        // let Ok(angle) = self.encoder.get_angle() else {
+        //     self.motor_status = FOCStatus::MotorError;
+        //     // return 0;
+        //     panic!()
+        // };
+        let angle = self.encoder.get_angle();
 
         // convert from 12 bit to float
         let angle = (angle as f32) * 2.0 * core::f32::consts::PI / 4096.0;

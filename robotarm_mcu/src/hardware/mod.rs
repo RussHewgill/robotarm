@@ -1,1 +1,1 @@
-pub mod mt6701;
+pub mod mt_6701;

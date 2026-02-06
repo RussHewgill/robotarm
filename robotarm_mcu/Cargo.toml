@@ -29,6 +29,7 @@ as5600 = { version = "0.8.0", features = ["defmt", "async"] }
 fixed = { version = "1.30.0", default-features = false, features = ["defmt"] }
 
 libm = "0.2.16"
+embedded-hal = "1.0.0"
 
 [patch.crates-io]
 as5600 = { git = "https://github.com/barafael/as5600-rs" }
