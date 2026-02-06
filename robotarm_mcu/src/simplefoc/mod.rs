@@ -1,4 +1,5 @@
 pub mod bldc;
+pub mod foc;
 pub mod lowpass;
 pub mod pid;
 pub mod shaft_position;

@@ -10,6 +10,18 @@ pub struct DQCurrents {
     pub q: f32,
 }
 
+pub enum SensorDirection {
+    Unknown,
+    Normal,
+    Inverted,
+}
+
+pub enum TorqueControlType {
+    Voltage,
+    DCCurrent,
+    FOCCurrent,
+}
+
 pub enum FOCMotorStatus {
     Uninitialized = 0x00, // Motor is not yet initialized
     Initializing = 0x01,  // Motor intiialization is in progress
