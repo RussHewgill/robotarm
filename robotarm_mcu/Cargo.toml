@@ -24,3 +24,9 @@ cortex-m-rt = "0.7.5"
 
 defmt = "1.0.1"
 defmt-rtt = "1.0"
+
+as5600 = { version = "0.8.0", features = ["defmt", "async"] }
+fixed = { version = "1.30.0", default-features = false, features = ["defmt"] }
+
+[patch.crates-io]
+as5600 = { git = "https://github.com/barafael/as5600-rs" }
