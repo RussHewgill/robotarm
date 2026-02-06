@@ -12,6 +12,8 @@ pub const _3PI_2: f32 = 4.71238898038;
 pub const _PI_6: f32 = 0.52359877559;
 pub const _RPM_TO_RADS: f32 = 0.10471975512;
 
+pub const NOT_SET: f32 = -12345.0;
+
 #[derive(defmt::Format)]
 pub struct DQVoltages {
     pub d: f32,
@@ -41,17 +43,6 @@ pub enum SensorDirection {
 #[derive(defmt::Format, Clone, Copy, PartialEq)]
 pub enum TorqueControlType {
     Voltage,
-    DCCurrent,
-    FOCCurrent,
-}
-
-pub enum FOCMotorStatus {
-    Uninitialized = 0x00, // Motor is not yet initialized
-    Initializing = 0x01,  // Motor intiialization is in progress
-    Uncalibrated = 0x02,  // Motor is initialized, but not calibrated (open loop possible)
-    Calibrating = 0x03,   // Motor calibration in progress
-    Ready = 0x04,         // Motor is initialized and calibrated (closed loop possible)
-    Error = 0x08, // Motor is in error state (recoverable, e.g. overcurrent protection active)
-    CalibFailed = 0x0E, // Motor calibration failed (possibly recoverable)
-    InitFailed = 0x0F, // Motor initialization failed (not recoverable)
+    // DCCurrent,
+    // FOCCurrent,
 }

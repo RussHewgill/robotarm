@@ -15,11 +15,10 @@ pub struct BLDCMotor {
     pub phase_inductance: Option<f32>,
 
     // pub(super) target: f32,
-    pub(super) feed_forward_velocity: f32,
+    // pub(super) feed_forward_velocity: f32,
     // pub(super) shaft_angle: f32,
     // pub(super) electrical_angle: f32,
-    pub(super) shaft_velocity: f32,
-
+    // pub(super) shaft_velocity: f32,
     /// target current (q current)
     pub(super) target_current: f32,
     pub(super) target_shaft_velocity: f32,
@@ -54,10 +53,10 @@ impl BLDCMotor {
             phase_inductance,
 
             // target: 0.0,
-            feed_forward_velocity: 0.0,
+            // feed_forward_velocity: 0.0,
             // shaft_angle: 0.0,
             // electrical_angle: 0.0,
-            shaft_velocity: 0.0,
+            // shaft_velocity: 0.0,
             target_current: 0.0,
             target_shaft_velocity: 0.0,
             target_shaft_angle: 0.0,

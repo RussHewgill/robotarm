@@ -20,12 +20,65 @@ pub struct MT6701<I2C> {
 pub enum MT6701Error {
     I2CWriteError,
     I2CReadError,
-    Unknown,
+    // Unknown,
 }
+
+// impl<I2C> MT6701<I2C>
+// where
+//     I2C: embedded_hal_async::i2c::I2c,
+// {
+//     pub fn new(i2c: I2C, address: u8) -> Self {
+//         Self { i2c, address }
+//     }
+
+//     /// get angle in radians, range [0, 2PI)
+//     pub async fn get_angle(&mut self) -> Result<f32, MT6701Error> {
+//         let raw_angle = self.read_raw_angle().await?;
+
+//         Ok((raw_angle as f32 / 16384_f32) * _2PI)
+//     }
+
+//     async fn read_raw_angle(&mut self) -> Result<u16, MT6701Error> {
+//         let mut buffer: [u8; 2] = [0; 2];
+
+//         self.i2c
+//             .write(self.address, &[0x03])
+//             .await
+//             .map_err(|_| MT6701Error::I2CWriteError)?;
+
+//         self.i2c
+//             .read(self.address, &mut buffer[..1])
+//             .await
+//             .map_err(|_| MT6701Error::I2CReadError)?;
+
+//         // if let Err(e) = self.i2c.write(self.address, &[0x04]) {
+//         //     defmt::error!("Failed to write to MT6701");
+//         //     return 0;
+//         // };
+//         // if let Err(e) = self.i2c.read(self.address, &mut buffer[1..]) {
+//         //     defmt::error!("Failed to read from MT6701");
+//         //     return 0;
+//         // };
+
+//         self.i2c
+//             .write(self.address, &[0x04])
+//             .await
+//             .map_err(|_| MT6701Error::I2CWriteError)?;
+
+//         self.i2c
+//             .read(self.address, &mut buffer[1..])
+//             .await
+//             .map_err(|_| MT6701Error::I2CReadError)?;
+
+//         defmt::warn!("TODO: check if this is correct");
+//         // Ok((buffer[0] >> 1) & 0x3FFF)
+//         Ok((u16::from_be_bytes(buffer) >> 1) & 0x3FFF)
+//     }
+// }
 
 impl<I2C> MT6701<I2C>
 where
-    I2C: embedded_hal::i2c::I2c,
+    I2C: embedded_hal_async::i2c::I2c,
 {
     pub fn new(i2c: I2C, address: u8) -> Self {
         Self {
@@ -57,32 +110,27 @@ where
         self.position_prev = self.position;
     }
 
-    fn read_raw_angle(&mut self) -> Result<u16, MT6701Error> {
+    async fn read_raw_angle(&mut self) -> Result<u16, MT6701Error> {
         let mut buffer: [u8; 2] = [0; 2];
 
         self.i2c
             .write(self.address, &[0x03])
+            .await
             .map_err(|_| MT6701Error::I2CWriteError)?;
 
         self.i2c
             .read(self.address, &mut buffer[..1])
+            .await
             .map_err(|_| MT6701Error::I2CReadError)?;
-
-        // if let Err(e) = self.i2c.write(self.address, &[0x04]) {
-        //     defmt::error!("Failed to write to MT6701");
-        //     return 0;
-        // };
-        // if let Err(e) = self.i2c.read(self.address, &mut buffer[1..]) {
-        //     defmt::error!("Failed to read from MT6701");
-        //     return 0;
-        // };
 
         self.i2c
             .write(self.address, &[0x04])
+            .await
             .map_err(|_| MT6701Error::I2CWriteError)?;
 
         self.i2c
             .read(self.address, &mut buffer[1..])
+            .await
             .map_err(|_| MT6701Error::I2CReadError)?;
 
         defmt::warn!("TODO: check if this is correct");
@@ -90,8 +138,8 @@ where
         Ok((u16::from_be_bytes(buffer) >> 1) & 0x3FFF)
     }
 
-    fn update(&mut self, ts_us: u64) -> Result<(), MT6701Error> {
-        let raw_angle = self.read_raw_angle()?;
+    pub async fn update(&mut self, ts_us: u64) -> Result<(), MT6701Error> {
+        let raw_angle = self.read_raw_angle().await?;
 
         self.angle = (raw_angle as f32 / 16384_f32) * _2PI;
         let move_angle = self.angle - self.angle_prev;

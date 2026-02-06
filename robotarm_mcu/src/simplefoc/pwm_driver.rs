@@ -63,19 +63,19 @@ impl<'a> PWMDriver<'a> {
         let dc_b = (vb / self.voltage_supply).clamp(0., 1.);
         let dc_c = (vc / self.voltage_supply).clamp(0., 1.);
 
-        if let Err(e) = self
+        if let Err(_e) = self
             .pwm0
             .set_duty_cycle((dc_a * self.max_duty_cycle as f32) as u16)
         {
             debug!("Failed to set duty cycle for PWM0");
         }
-        if let Err(e) = self
+        if let Err(_e) = self
             .pwm1
             .set_duty_cycle((dc_b * self.max_duty_cycle as f32) as u16)
         {
             debug!("Failed to set duty cycle for PWM1");
         }
-        if let Err(e) = self
+        if let Err(_e) = self
             .pwm2
             .set_duty_cycle((dc_c * self.max_duty_cycle as f32) as u16)
         {

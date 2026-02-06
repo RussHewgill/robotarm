@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
-#![allow(unused_imports, dead_code, unused_variables, unused_mut)]
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unused_mut)]
 
 mod hardware;
 mod simplefoc;
@@ -36,50 +38,48 @@ bind_interrupts!(struct Irqs {
 async fn main(_spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    // let sda = p.PIN_14; // orange
-    // let scl = p.PIN_15; // yellow
+    let sda = p.PIN_14; // orange
+    let scl = p.PIN_15; // yellow
 
-    // info!("set up i2c ");
-    // let mut i2c =
-    //     embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, embassy_rp::i2c::Config::default());
+    info!("set up i2c ");
+    let i2c =
+        embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, embassy_rp::i2c::Config::default());
 
     // let mut encoder = as5600::asynch::As5600::new(i2c);
+    let encoder = crate::hardware::mt_6701::MT6701::new(i2c, 0x06);
 
-    // let foc = SimpleFOC::new(encoder);
+    let c = embassy_rp::pwm::Config::default();
+    let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
+    // let mut pwm1 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE2, p.PIN_4, c.clone());
+    // let mut pwm2 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE3, p.PIN_6, c.clone());
+    let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
+    let pwm_driver = crate::simplefoc::pwm_driver::PWMDriver::new(pwm0, pwm12, 2., 12.);
 
-    let mut c = embassy_rp::pwm::Config::default();
-    let mut pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
-    let mut pwm1 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE2, p.PIN_4, c.clone());
-    let mut pwm2 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE3, p.PIN_6, c.clone());
+    let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
+        7,    // pole pairs
+        11.2, // phase resistance (TODO: measure this)
+        90.,  // motor kv
+        // Some(0.00035), // phase inductance
+        None,
+    );
 
-    // let mut pwm_driver = crate::simplefoc::pwm_driver::PWMDriver::new(pwm0, pwm1, pwm2);
+    let mut foc = crate::simplefoc::foc::SimpleFOC::new(encoder, pwm_driver, motor_config);
 
-    // let config = encoder.config().unwrap();
-    // info!("{:?}", config);
+    foc.sensor_direction = crate::simplefoc::types::SensorDirection::Normal;
 
-    // Timer::after_millis(2000).await;
+    info!("Starting init");
 
-    // let status = encoder.magnet_status().unwrap();
-    // let agc = encoder.automatic_gain_control().unwrap();
-    // let mag = encoder.magnitude().unwrap();
-    // let zmco = encoder.zmco().unwrap();
+    foc.init();
 
-    // info!("{:?}", status);
-    // info!("{:?}", agc);
-    // info!("{:?}", mag);
-    // info!("{:?}", zmco);
+    info!("Starting FOC init");
 
-    info!("Hello, World!");
-    warn!("test");
+    foc.init_foc().await;
+
+    info!("Starting main loop");
     loop {
-        // led.set_high();
-        Timer::after_millis(250).await;
-
-        // let value = encoder.angle().unwrap();
-        // info!("Angle: {}", value);
-        info!("Tick 1");
-
-        // led.set_low();
+        // // led.set_high();
         // Timer::after_millis(250).await;
+
+        foc.update_foc().await;
     }
 }
