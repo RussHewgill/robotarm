@@ -1,1 +1,1 @@
-pub mod pwm_driver;
+pub mod mt6701;

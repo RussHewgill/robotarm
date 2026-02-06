@@ -4,7 +4,7 @@ use crate::simplefoc::{
     bldc::BLDCMotor,
     lowpass::LowPassFilter,
     pid::PIDController,
-    types::{SensorDirection, TorqueControlType},
+    types::{PhaseVoltages, SensorDirection, TorqueControlType},
 };
 
 #[derive(defmt::Format)]
@@ -30,19 +30,19 @@ pub enum FOCStatus {
 pub struct SimpleFOC<'a> {
     encoder:
         As5600<embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>>,
-    driver: crate::hardware::pwm_driver::PWMDriver<'a>,
+    pwm_driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
 
     pub motor_status: FOCStatus,
 
     pub motor: BLDCMotor,
+
+    pub phase_v: PhaseVoltages,
 
     pub sensor_direction: SensorDirection,
     pub sensor_offset: f32,
     pub zero_electric_angle: f32,
 
     pub torque_controller: TorqueControlType,
-
-    pub phase_voltages: [f32; 3],
 
     pub pid_current_q: PIDController,
     pub pid_current_d: PIDController,
@@ -63,7 +63,7 @@ impl<'a> SimpleFOC<'a> {
         encoder: As5600<
             embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>,
         >,
-        driver: crate::hardware::pwm_driver::PWMDriver<'a>,
+        driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
 
         motor: BLDCMotor,
     ) -> Self {
@@ -88,7 +88,7 @@ impl<'a> SimpleFOC<'a> {
 
         SimpleFOC {
             encoder,
-            driver,
+            pwm_driver: driver,
             motor,
 
             motor_status: FOCStatus::MotorUninitialized,
@@ -99,7 +99,7 @@ impl<'a> SimpleFOC<'a> {
 
             torque_controller: TorqueControlType::Voltage,
 
-            phase_voltages: [0.0; 3],
+            phase_v: PhaseVoltages::default(),
 
             pid_current_q: PIDController::new(
                 PID_CURRENT_KP,
@@ -138,13 +138,13 @@ impl<'a> SimpleFOC<'a> {
         unimplemented!()
     }
 
-    pub fn set_position(&self, position: ()) {
+    pub fn set_position_target(&self, position: ()) {
         unimplemented!()
     }
 
-    pub fn set_torque(&self, torque: ()) {
-        unimplemented!()
-    }
+    // pub fn set_torque(&self, torque: ()) {
+    //     unimplemented!()
+    // }
 
     pub fn set_acceleration(&self, acceleration: ()) {
         unimplemented!()
@@ -154,8 +154,8 @@ impl<'a> SimpleFOC<'a> {
         unimplemented!()
     }
 
-    pub fn get_position_requested(&self) -> () {
-        unimplemented!()
+    pub fn get_position_requested(&self) -> f32 {
+        self.motor.target_shaft_angle
     }
 }
 
@@ -182,13 +182,124 @@ impl<'a> SimpleFOC<'a> {
     }
 
     fn align_sensor(&mut self) {
+        if self.sensor_direction == SensorDirection::Unknown {
+            // find natural direction
+            // move one electrical revolution forward
+
+            for i in 0..500 {
+                let angle = crate::simplefoc::types::_3PI_2
+                    + crate::simplefoc::types::_2PI * (i as f32) / 500.0;
+                self.set_phase_voltages(self.motor.voltage_sensor_align, 0., angle);
+            }
+
+            //
+        }
         unimplemented!()
     }
 
+    /// main loop
     pub fn update_foc(&mut self) {
         let electrical_angle = self.get_electrical_angle();
 
-        unimplemented!()
+        match self.torque_controller {
+            TorqueControlType::Voltage => {
+                // unimplemented!()
+            }
+            _ => {
+                unimplemented!()
+            }
+        }
+
+        let shaft_angle = self.get_shaft_angle();
+
+        // calculate the back-emf voltage if KV_rating available U_bemf = vel*(1/KV)
+        let voltage_bemf = self.motor.shaft_velocity
+            / (self.motor.motor_kv * super::types::_SQRT3)
+            / super::types::_RPM_TO_RADS;
+
+        // estimate the motor current if phase reistance available and current_sense not available
+        self.motor.current.q = (self.motor.voltage.q - voltage_bemf) / self.motor.phase_resistance;
+
+        // set current
+        // shaft_velocity_sp = feed_forward_velocity + P_angle( shaft_angle_sp - shaft_angle );
+        // shaft_velocity_sp = _constrain(shaft_velocity_sp,-velocity_limit, velocity_limit);
+        self.motor.target_shaft_velocity = self.motor.feed_forward_velocity
+            + self
+                .pid_angle
+                .update(self.motor.target_shaft_angle - shaft_angle);
+
+        self.motor.target_shaft_velocity = self
+            .motor
+            .target_shaft_velocity
+            .clamp(-self.motor.limit_velocity, self.motor.limit_velocity);
+
+        // calculate the torque command - sensor precision: this calculation is ok, but based on bad value from previous calculation
+        // current_sp = PID_velocity(shaft_velocity_sp - shaft_velocity); // if voltage torque control
+
+        self.motor.target_current = self
+            .pid_velocity
+            .update(self.motor.target_shaft_velocity - self.motor.shaft_velocity);
+
+        if self.torque_controller == TorqueControlType::Voltage {
+            self.motor.voltage.q = (self.motor.target_current * self.motor.phase_resistance
+                + voltage_bemf)
+                .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+
+            // voltage.d = _constrain( -current_sp*shaft_velocity*pole_pairs*phase_inductance, -voltage_limit, voltage_limit);
+
+            match self.motor.phase_inductance {
+                Some(phase_inductance) => {
+                    self.motor.voltage.d = (-self.motor.target_current
+                        * self.motor.shaft_velocity
+                        * (self.motor.pole_pairs as f32)
+                        * phase_inductance)
+                        .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+                }
+                None => {
+                    self.motor.voltage.d = 0.0;
+                }
+            }
+        }
+
+        //
+    }
+
+    // Method using FOC to set Uq and Ud to the motor at the optimal angle
+    // Function implementing Space Vector PWM and Sine PWM algorithms
+    //
+    // Function using sine approximation
+    // regular sin + cos ~300us    (no memory usage)
+    // approx  _sin + _cos ~110us  (400Byte ~ 20% of memory)
+    fn set_phase_voltages(&mut self, uq: f32, ud: f32, angle_el: f32) {
+        // Sinusoidal PWM modulation
+        // Inverse Park + Clarke transformation
+        let sa = libm::sinf(angle_el);
+        let ca = libm::cosf(angle_el);
+
+        // // Inverse park transform
+        let u_alpha = ca * ud - sa * uq; // -sin(angle) * Uq;
+        let u_beta = sa * ud + ca * uq; //  cos(angle) * Uq;
+
+        // // Clarke transform
+        // Ua = Ualpha;
+        // Ub = -0.5f * Ualpha + _SQRT3_2 * Ubeta;
+        // Uc = -0.5f * Ualpha - _SQRT3_2 * Ubeta;
+
+        // Clarke transform
+        self.phase_v.a = u_alpha;
+        self.phase_v.b = -0.5 * u_alpha + super::types::_SQRT3_2 * u_beta;
+        self.phase_v.c = -0.5 * u_alpha - super::types::_SQRT3_2 * u_beta;
+
+        let center = self.pwm_driver.voltage_limit / 2.0;
+
+        // if (!modulation_centered)
+
+        self.phase_v.a += center;
+        self.phase_v.b += center;
+        self.phase_v.c += center;
+
+        self.pwm_driver
+            .set_duty_cycles_f32(self.phase_v.a, self.phase_v.b, self.phase_v.c);
     }
 
     /// ignore full rotations for now
@@ -204,7 +315,7 @@ impl<'a> SimpleFOC<'a> {
 
         let angle = self.lpf_angle.filter(angle);
 
-        self.motor.shaft_angle = angle;
+        // self.motor.shaft_angle = angle;
 
         angle
     }
@@ -212,7 +323,19 @@ impl<'a> SimpleFOC<'a> {
     fn get_electrical_angle(&mut self) -> f32 {
         // _normalizeAngle( (float)(sensor_direction * pole_pairs) * sensor->getMechanicalAngle()  - zero_electric_angle );
         // Self::normalize_angle()
-        unimplemented!()
+
+        let dir = if self.sensor_direction == SensorDirection::Normal {
+            1.0
+        } else if self.sensor_direction == SensorDirection::Inverted {
+            -1.0
+        } else {
+            0.0
+        };
+
+        let angle =
+            dir * self.motor.pole_pairs as f32 * self.get_shaft_angle() - self.zero_electric_angle;
+
+        Self::normalize_angle(angle)
     }
 }
 

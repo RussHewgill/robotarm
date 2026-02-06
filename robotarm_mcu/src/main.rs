@@ -52,7 +52,7 @@ async fn main(_spawner: Spawner) {
     let mut pwm1 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE2, p.PIN_4, c.clone());
     let mut pwm2 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE3, p.PIN_6, c.clone());
 
-    let mut pwm_driver = crate::hardware::pwm_driver::PWMDriver::new(pwm0, pwm1, pwm2);
+    // let mut pwm_driver = crate::simplefoc::pwm_driver::PWMDriver::new(pwm0, pwm1, pwm2);
 
     // let config = encoder.config().unwrap();
     // info!("{:?}", config);

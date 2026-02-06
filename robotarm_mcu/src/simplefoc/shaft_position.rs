@@ -9,6 +9,7 @@ pub struct ShaftPosition {
     jump: bool, // set when the angle jumps with a difference bigger than TAU/6
     inversed: bool,
 }
+
 impl ShaftPosition {
     pub fn new() -> Self {
         ShaftPosition {
@@ -20,13 +21,16 @@ impl ShaftPosition {
             inversed: false,
         }
     }
+
     /// mark the sensor for this motor as inversed or not inversed.
     pub fn set_inversed(&mut self, inv: bool) {
         self.inversed = inv;
     }
+
     pub fn is_inversed(&self) -> bool {
         self.inversed
     }
+
     pub fn inc(&mut self, increment: I16F16) {
         self.jump = false;
         self.angle += increment;
@@ -42,27 +46,34 @@ impl ShaftPosition {
             self.jump = true;
         }
     }
+
     pub fn has_jumped(&self) -> bool {
         self.jump
     }
+
     pub fn get_angle(&self) -> I16F16 {
         self.angle
     }
+
     pub fn set_angle(&mut self, angle: I16F16) {
         self.angle = angle
     }
+
     pub fn get_rotations(&self) -> i32 {
         self.rotations
     }
+
     pub fn reset(&mut self) {
         self.rotations = 0;
         self.angle = I16F16::ZERO;
         self.jump = false;
     }
+
     pub fn set_shaft(&mut self, rotations: i32, angle: I16F16) {
         self.rotations = rotations;
         self.angle = angle;
     }
+
     pub fn get_position(&self) -> I48F16 {
         I48F16::from_num(self.rotations) * I48F16::TAU + I48F16::from_num(self.angle)
     }
@@ -78,12 +89,14 @@ impl ShaftPosition {
         }
         result
     }
+
     /// compare this shaftposition with other. Return difference as an I16F16. Ohter is substracted from this
     pub fn compare(&self, other: &ShaftPosition) -> I16F16 {
         let rotations_diff = I16F16::from_num(self.rotations - other.get_rotations()) * I16F16::TAU;
         let angle_diff = self.angle - other.get_angle();
         rotations_diff + angle_diff
     }
+
     /// Get the delta shaftposition compared with previous stored one. Set the previous to now
     pub fn delta(&mut self) -> I16F16 {
         let rotations_diff = I16F16::from_num(self.rotations - self.rotations_prev) * I16F16::TAU;
