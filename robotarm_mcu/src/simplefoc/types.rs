@@ -46,3 +46,10 @@ pub enum TorqueControlType {
     // DCCurrent,
     // FOCCurrent,
 }
+
+#[derive(defmt::Format, Clone, Copy, PartialEq)]
+pub enum MotionControlType {
+    Torque,
+    Velocity,
+    Angle,
+}

@@ -1,14 +1,14 @@
-use as5600::As5600;
-use defmt::error;
+use defmt::{error, info};
+use embassy_rp::gpio::Output;
 use embassy_time::{Instant, Timer};
 
 use crate::{
-    hardware::mt_6701::MT6701,
+    hardware::{as5600::AS5600, mt_6701::MT6701},
     simplefoc::{
         bldc::BLDCMotor,
         lowpass::LowPassFilter,
         pid::PIDController,
-        types::{NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType},
+        types::{MotionControlType, NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType},
     },
 };
 
@@ -32,13 +32,13 @@ pub enum FOCStatus {
     MotorInitFailed = 0x0F,
 }
 
-pub struct SimpleFOC<'a> {
+pub struct SimpleFOC<'a, I2C: embassy_rp::i2c::Instance> {
+    encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     // encoder:
-    //     As5600<embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>>,
-    encoder:
-        MT6701<embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>>,
-    // MT6701<embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>>,
+    //     MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     pwm_driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
+
+    enable_pin: Output<'a>,
 
     pub motor_status: FOCStatus,
 
@@ -52,6 +52,7 @@ pub struct SimpleFOC<'a> {
     pub sensor_offset: f32,
     pub zero_electric_angle: f32,
 
+    pub motion_control: MotionControlType,
     pub torque_controller: TorqueControlType,
 
     pub pid_current_q: PIDController,
@@ -60,7 +61,6 @@ pub struct SimpleFOC<'a> {
     // not used except with current sensor
     // pub lpf_current_q: LowPassFilter,
     // pub lpf_current_d: LowPassFilter,
-
     pub pid_velocity: PIDController,
     pub pid_angle: PIDController,
 
@@ -69,16 +69,15 @@ pub struct SimpleFOC<'a> {
 }
 
 /// new, control
-impl<'a> SimpleFOC<'a> {
+impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
     pub fn new(
-        // encoder: As5600<
-        //     embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>,
+        encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
+        // encoder: MT6701<
+        //     embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>,
         // >,
-        encoder: MT6701<
-            // embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Blocking>,
-            embassy_rp::i2c::I2c<'a, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>,
-        >,
         driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
+
+        enable_pin: Output<'a>,
 
         motor: BLDCMotor,
     ) -> Self {
@@ -106,6 +105,8 @@ impl<'a> SimpleFOC<'a> {
             pwm_driver: driver,
             motor,
 
+            enable_pin,
+
             motor_status: FOCStatus::MotorUninitialized,
 
             enabled: false,
@@ -114,6 +115,7 @@ impl<'a> SimpleFOC<'a> {
             sensor_offset: 0.0,
             zero_electric_angle: NOT_SET,
 
+            motion_control: MotionControlType::Angle,
             torque_controller: TorqueControlType::Voltage,
 
             phase_v: PhaseVoltages::default(),
@@ -135,7 +137,6 @@ impl<'a> SimpleFOC<'a> {
 
             // lpf_current_q: LowPassFilter::new(CURR_LPF_TF),
             // lpf_current_d: LowPassFilter::new(CURR_LPF_TF),
-
             pid_velocity: PIDController::new(
                 PID_VELOCITY_KP,
                 PID_VELOCITY_KI,
@@ -153,10 +154,13 @@ impl<'a> SimpleFOC<'a> {
 
     pub fn enable(&mut self) {
         self.enabled = true;
+        self.enable_pin.set_high();
     }
 
     pub fn disable(&mut self) {
         self.enabled = false;
+        self.enable_pin.set_low();
+        self.set_phase_voltage(0., 0., 0.);
     }
 
     pub fn set_position_target(&mut self, position: f32) {
@@ -171,8 +175,8 @@ impl<'a> SimpleFOC<'a> {
         unimplemented!()
     }
 
-    pub fn get_position_actual(&self) -> () {
-        unimplemented!()
+    pub fn get_position_actual(&self) -> f32 {
+        self.encoder.get_position() as f32
     }
 
     pub fn get_position_requested(&self) -> f32 {
@@ -181,7 +185,7 @@ impl<'a> SimpleFOC<'a> {
 }
 
 /// update, internal
-impl<'a> SimpleFOC<'a> {
+impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
     pub fn init(&mut self) {
         // check driver initialized
 
@@ -244,7 +248,7 @@ impl<'a> SimpleFOC<'a> {
 
             error!("TODO: implement sensor alignment procedure to determine sensor direction");
 
-            panic!()
+            // panic!()
             //
         }
 
@@ -253,44 +257,58 @@ impl<'a> SimpleFOC<'a> {
             // align the electrical phases of the motor and sensor
             // set angle -90(270 = 3PI/2) degrees
 
+            info!("Aligning sensor, rotating motor to known angle...");
+
+            self.enable();
+
             self.set_phase_voltage(
                 self.motor.voltage_sensor_align,
                 0.,
                 crate::simplefoc::types::_3PI_2,
             );
 
-            Timer::after_millis(1000).await;
+            info!("Waiting for sensor to align...");
+
+            Timer::after_millis(700).await;
+
+            info!("Sensor aligned, setting zero electric angle...");
 
             // get the current zero electric angle
             self.zero_electric_angle = 0.;
             let (electrical_angle, _shaft_angle) = self.get_electrical_angle().await;
             self.zero_electric_angle = electrical_angle;
 
+            info!("Zero electric angle set to {}", self.zero_electric_angle);
+            info!("Shaft angle at alignment position: {}", _shaft_angle);
+
             Timer::after_millis(20).await;
 
             // // stop everything
             self.set_phase_voltage(0., 0., 0.);
+            self.disable();
             Timer::after_millis(200).await;
         }
     }
 
     /// main loop
     pub async fn update_foc(&mut self) {
-
         // update sensor readings
         if let Err(_e) = self.encoder.update(Instant::now().as_micros()).await {
             error!("Failed to update encoder");
             unimplemented!()
         }
 
-        let (_electrical_angle, shaft_angle) = self.get_electrical_angle().await;
+        let (electrical_angle, shaft_angle) = self.get_electrical_angle().await;
         let shaft_velocity = self.get_shaft_velocity();
+
+        if !self.enabled {
+            return;
+        }
 
         match self.torque_controller {
             TorqueControlType::Voltage => {
                 // nothing to do
-            }
-            // _ => { unimplemented!() }
+            } // _ => { unimplemented!() }
         }
 
         // calculate the back-emf voltage if KV_rating available U_bemf = vel*(1/KV)
@@ -302,44 +320,74 @@ impl<'a> SimpleFOC<'a> {
         self.motor.current.q = (self.motor.voltage.q - voltage_bemf) / self.motor.phase_resistance;
 
         // angle control
-        // calculate velocity set point
-        self.motor.target_shaft_velocity = 
-        // self.motor.feed_forward_velocity + 
-            self
-                .pid_angle
-                .update(self.motor.target_shaft_angle - shaft_angle);
 
-        self.motor.target_shaft_velocity = self
-            .motor
-            .target_shaft_velocity
-            .clamp(-self.motor.limit_velocity, self.motor.limit_velocity);
+        match self.motion_control {
+            MotionControlType::Torque => {
+                if self.torque_controller == TorqueControlType::Voltage {
+                    // voltage.q =  target*phase_resistance + voltage_bemf;
+                    // voltage.q = _constrain(voltage.q, -voltage_limit, voltage_limit);
 
-        // calculate the torque command - sensor precision: this calculation is ok, but based on bad value from previous calculation
-        // current_sp = PID_velocity(shaft_velocity_sp - shaft_velocity); // if voltage torque control
-        self.motor.target_current = self
-            .pid_velocity
-            .update(self.motor.target_shaft_velocity - shaft_velocity);
+                    self.motor.voltage.q =
+                        (self.motor.target_current * self.motor.phase_resistance + voltage_bemf)
+                            .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
 
-        if self.torque_controller == TorqueControlType::Voltage {
-            self.motor.voltage.q = (self.motor.target_current * self.motor.phase_resistance
-                + voltage_bemf)
-                .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
-
-            // voltage.d = _constrain( -current_sp*shaft_velocity*pole_pairs*phase_inductance, -voltage_limit, voltage_limit);
-
-            match self.motor.phase_inductance {
-                Some(phase_inductance) => {
-                    self.motor.voltage.d = (-self.motor.target_current
-                        * shaft_velocity
-                        * (self.motor.pole_pairs as f32)
-                        * phase_inductance)
-                        .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+                    match self.motor.phase_inductance {
+                        Some(phase_inductance) => {
+                            // voltage.d = _constrain( -target*shaft_velocity*pole_pairs*phase_inductance, -voltage_limit, voltage_limit);
+                            self.motor.voltage.d = (-self.motor.target_current
+                                * shaft_velocity
+                                * (self.motor.pole_pairs as f32)
+                                * phase_inductance)
+                                .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+                        }
+                        None => {
+                            self.motor.voltage.d = 0.0;
+                        }
+                    }
                 }
-                None => {
-                    self.motor.voltage.d = 0.0;
+            }
+            MotionControlType::Velocity => {
+                // TODO
+            }
+            MotionControlType::Angle => {
+                // calculate velocity set point
+                self.motor.target_shaft_velocity = self
+                    .pid_angle
+                    .update(self.motor.target_shaft_angle - shaft_angle);
+
+                self.motor.target_shaft_velocity = self
+                    .motor
+                    .target_shaft_velocity
+                    .clamp(-self.motor.limit_velocity, self.motor.limit_velocity);
+
+                // calculate the torque command - sensor precision: this calculation is ok, but based on bad value from previous calculation
+                // current_sp = PID_velocity(shaft_velocity_sp - shaft_velocity); // if voltage torque control
+                self.motor.target_current = self
+                    .pid_velocity
+                    .update(self.motor.target_shaft_velocity - shaft_velocity);
+
+                if self.torque_controller == TorqueControlType::Voltage {
+                    self.motor.voltage.q =
+                        (self.motor.target_current * self.motor.phase_resistance + voltage_bemf)
+                            .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+
+                    match self.motor.phase_inductance {
+                        Some(phase_inductance) => {
+                            self.motor.voltage.d = (-self.motor.target_current
+                                * shaft_velocity
+                                * (self.motor.pole_pairs as f32)
+                                * phase_inductance)
+                                .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+                        }
+                        None => {
+                            self.motor.voltage.d = 0.0;
+                        }
+                    }
                 }
             }
         }
+
+        self.set_phase_voltage(self.motor.voltage.q, self.motor.voltage.d, electrical_angle);
 
         //
     }
@@ -427,7 +475,7 @@ impl<'a> SimpleFOC<'a> {
 }
 
 /// helpers
-impl<'a> SimpleFOC<'a> {
+impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
     /// normalizing radian angle to [0,2PI]
     fn normalize_angle(angle: f32) -> f32 {
         let angle = angle % (2.0 * core::f32::consts::PI);

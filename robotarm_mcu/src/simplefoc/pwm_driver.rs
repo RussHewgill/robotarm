@@ -46,14 +46,14 @@ impl<'a> PWMDriver<'a> {
         let _ = self.pwm2.set_duty_cycle_fully_off();
     }
 
-    pub fn set_duty_cycles(&mut self, dc0: u16, dc1: u16, dc2: u16) {
-        let _ = self.pwm0.set_duty_cycle(dc0);
-        let _ = self.pwm1.set_duty_cycle(dc1);
-        let _ = self.pwm2.set_duty_cycle(dc2);
-    }
+    // fn set_duty_cycles(&mut self, dc0: u16, dc1: u16, dc2: u16) {
+    //     let _ = self.pwm0.set_duty_cycle(dc0);
+    //     let _ = self.pwm1.set_duty_cycle(dc1);
+    //     let _ = self.pwm2.set_duty_cycle(dc2);
+    // }
 
     pub fn set_duty_cycles_f32(&mut self, dc0: f32, dc1: f32, dc2: f32) {
-        info!("Setting duty cycles: {}, {}, {}", dc0, dc1, dc2);
+        // info!("Setting duty cycles: {}, {}, {}", dc0, dc1, dc2);
 
         let va = dc0.clamp(0., self.voltage_limit);
         let vb = dc1.clamp(0., self.voltage_limit);

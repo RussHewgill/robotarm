@@ -10,7 +10,8 @@
             //         "CARGO_LOG": "cargo::core::compiler::fingerprint=info",
             //     }
             // },
-            "command": "cargo embed",
+            // "command": "cargo embed",
+            "command": "cargo embed --release",
             "problemMatcher": []
         },
         {
