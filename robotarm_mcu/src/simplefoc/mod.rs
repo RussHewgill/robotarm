@@ -1,5 +1,6 @@
 pub mod bldc;
 pub mod foc;
+pub mod foc_types;
 pub mod lowpass;
 pub mod pid;
 pub mod pwm_driver;

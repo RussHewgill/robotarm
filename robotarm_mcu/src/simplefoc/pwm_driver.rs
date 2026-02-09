@@ -65,6 +65,7 @@ impl<'a> PWMDriver<'a> {
     /// disable, then sync and enable
     pub fn enable(&mut self) {
         self.disable();
+        debug!("Enabling PWM Driver");
 
         self.pwm0.set_counter(0);
         self.pwm12.set_counter(0);

@@ -1,4 +1,5 @@
 use defmt::{debug, warn};
+use embassy_time::{Instant, Timer};
 
 use crate::simplefoc::types::_2PI;
 
@@ -23,7 +24,7 @@ pub struct AS5600<I2C> {
     turns_prev_vel: i64,    // turns at previous update, vel_full_rotations
 }
 
-#[derive(defmt::Format)]
+#[derive(defmt::Format, Debug)]
 pub enum AS5600Error {
     I2CWriteError,
     I2CReadError,
@@ -34,12 +35,20 @@ impl<I2C> AS5600<I2C>
 where
     I2C: embedded_hal_async::i2c::I2c,
 {
-    pub fn new(i2c: I2C) -> Self {
+    pub async fn new(i2c: I2C) -> Self {
         let mut sensor = as5600::asynch::As5600::new(i2c);
 
-        // sensor.
+        let mut cfg = sensor.config().await.unwrap();
 
-        Self {
+        debug!("AS5600 initial config: {:#}", cfg);
+
+        // cfg.slow_filter = as5600::configuration::SlowFilterMode::X16;
+        cfg.slow_filter = as5600::configuration::SlowFilterMode::X2;
+        cfg.fast_filter_threshold = as5600::configuration::FastFilterThreshold::SlowFilterOnly;
+
+        sensor.set_config(cfg).await.unwrap();
+
+        let mut out = Self {
             // i2c,
             // address,
             sensor,
@@ -54,7 +63,15 @@ where
             vel_angle_prev: 0.,
             vel_angle_prev_us: 0,
             turns_prev_vel: 0,
-        }
+        };
+
+        out.update(Instant::now().as_micros()).await.unwrap();
+        Timer::after_micros(1).await;
+        out.update(Instant::now().as_micros()).await.unwrap();
+        Timer::after_micros(1).await;
+        out.update(Instant::now().as_micros()).await.unwrap();
+
+        out
     }
 
     fn cal_velocity(&mut self, ts_us: u64) -> Result<(), AS5600Error> {
@@ -80,34 +97,6 @@ where
 
         // convert to seconds
         let ts = d_ts as f32 * 1e-6;
-
-        // min_elapsed_time check
-        // // 1e-3 = 1 ms = 1 kHz
-        // if ts < 1e-3 {
-        //     // warn!(
-        //     //     "Elapsed time {} is less than minimum threshold, skipping velocity calculation",
-        //     //     ts
-        //     // );
-        //     return Ok(());
-        // }
-
-        // // 10 kHz update rate = 1e-4 seconds
-        // if ts < 1e-4 {
-        //     warn!(
-        //         "Elapsed time {} is less than minimum threshold, skipping velocity calculation",
-        //         ts
-        //     );
-        //     // return Ok(());
-        //     panic!(
-        //         "Elapsed time {} is less than minimum threshold, skipping velocity calculation",
-        //         ts
-        //     );
-        // }
-
-        // debug!(
-        //     "updating: turns: {}, turns_prev: {}, angle: {}, angle_prev: {}, ts: {}",
-        //     self.turns, self.turns_prev, self.angle, self.vel_angle_prev, ts
-        // );
 
         self.velocity = ((self.turns - self.turns_prev_vel) as f32 * _2PI
             + (self.angle - self.vel_angle_prev))

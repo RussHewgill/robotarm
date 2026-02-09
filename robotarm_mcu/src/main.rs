@@ -82,11 +82,12 @@ async fn main(spawner: Spawner) {
 
     info!("set up i2c ");
     let mut i2c_config = embassy_rp::i2c::Config::default();
-    i2c_config.frequency = 400_000; // 400 kHz
+    // i2c_config.frequency = 400_000; // 400 kHz
+    i2c_config.frequency = 1_000_000; // 1 MHz
     let i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
 
     // let mut encoder = as5600::asynch::As5600::new(i2c);
-    let encoder = crate::hardware::as5600::AS5600::new(i2c);
+    let encoder = crate::hardware::as5600::AS5600::new(i2c).await;
     // let encoder = crate::hardware::mt_6701::MT6701::new(i2c, 0x06);
 
     let mut c = embassy_rp::pwm::Config::default();
@@ -133,15 +134,15 @@ async fn main(spawner: Spawner) {
     );
 
     let mut foc =
-        crate::simplefoc::foc::SimpleFOC::new(encoder, pwm_driver, enable_pin, motor_config);
+        crate::simplefoc::foc_types::SimpleFOC::new(encoder, pwm_driver, enable_pin, motor_config);
 
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Normal);
     foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
-    foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
+    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
+    foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
 
     info!("Starting init");
     foc.init();
@@ -158,7 +159,7 @@ async fn main(spawner: Spawner) {
 
 #[embassy_executor::task]
 async fn test_foc(
-    mut foc: crate::simplefoc::foc::SimpleFOC<'static, embassy_rp::peripherals::I2C1>,
+    mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, embassy_rp::peripherals::I2C1>,
 ) {
     info!("Starting FOC test");
     let update_rate_hz = 20000;
@@ -174,7 +175,10 @@ async fn test_foc(
 
     foc.disable();
 
-    let mut lpf_velocity = simplefoc::lowpass::LowPassFilter::new(0.005);
+    let angle_target = 1.0;
+    let angle_current = 0.0;
+
+    let mut pid = crate::simplefoc::pid::PIDController::new(1.0, 0.0, 0.0, 0.0, 12.0);
 
     loop {
         ticker.next().await;
@@ -182,34 +186,6 @@ async fn test_foc(
 
         if n >= n_max {
             n = 0;
-
-            let encoder = foc.debug_encoder();
-
-            // let angle = encoder.get_angle();
-            let position = encoder.get_position();
-            let velocity = encoder.get_velocity();
-
-            // info!(
-            //     // "Angle: {}, position: {}, turns: {}, Velocity: {}",
-            //     "position: {:03}, Velocity: {}",
-            //     // libm::roundf(angle * (180. / core::f32::consts::PI) * 100.) / 100.,
-            //     libm::round(position * 100.),
-            //     // libm::roundf(velocity * 100.) / 100.
-            //     velocity,
-            // );
-
-            // #[cfg(feature = "nope")]
-            if velocity.abs() > 0. {
-                // let velocity = lpf_velocity.filter(velocity);
-                info!(
-                    // "Angle: {}, position: {}, turns: {}, Velocity: {}",
-                    "position: {:03}, Velocity: {}",
-                    // libm::roundf(angle * (180. / core::f32::consts::PI) * 100.) / 100.,
-                    libm::round(position * 100.),
-                    // libm::roundf(velocity * 100.) / 100.
-                    velocity,
-                );
-            }
 
             //
         } else {
@@ -226,14 +202,14 @@ async fn test_foc(
 
 #[embassy_executor::task]
 async fn loop_foc(
-    mut foc: crate::simplefoc::foc::SimpleFOC<'static, embassy_rp::peripherals::I2C1>,
+    mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, embassy_rp::peripherals::I2C1>,
 ) {
     info!("Starting main loop");
 
     let update_rate_hz = 20000;
-    let print_rate_hz = 20;
-    let time_limit = 1.5;
-    // let time_limit = 3.;
+    let print_rate_hz = 10;
+    // let time_limit = 1.5;
+    let time_limit = 3.;
 
     let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
         1_000_000 / update_rate_hz,
@@ -245,27 +221,37 @@ async fn loop_foc(
 
     foc.enable();
 
-    // // let tgt = 1.64;
-    // let tgt = 1.0;
-    // foc.set_target_position(tgt);
+    // let tgt = 1.64;
+    let tgt = 1.0;
+    foc.set_target_position(tgt);
 
-    // foc.set_target_velocity(0.0);
-    foc.set_target_velocity(0.5);
-    // foc.set_target_velocity(1.0);
+    let tgt = 60.;
 
-    // foc.set_target_torque(0.);
-    foc.set_target_torque(0.1);
+    // foc.set_target_velocity(tgt * (60. / (2. * core::f32::consts::PI)));
 
+    foc.set_target_velocity(3.14 * 2.);
+
+    // // foc.set_target_torque(0.);
+    // foc.set_target_torque(0.05);
+
+    foc.debug = true;
     loop {
-        ticker.next().await;
+        // ticker.next().await;
         foc.update_foc().await;
 
         if n >= n_max {
             n = 0;
 
-            let position = foc.get_position_actual();
+            foc.debug = true;
 
-            info!("Position: {:03}", libm::roundf(position * 100.) / 100.)
+            // let position = foc.get_position_actual();
+
+            // info!(
+            //     "Position: {:03}, Angle: {:03}, Vel: {}",
+            //     libm::roundf(position * 100.) / 100.,
+            //     libm::roundf(position * (180. / core::f32::consts::PI) * 100.) / 100.,
+            //     foc.debug_encoder().get_velocity(),
+            // );
 
             // let pos = foc.get_position_actual();
             // let v = foc.get_phase_voltages();
