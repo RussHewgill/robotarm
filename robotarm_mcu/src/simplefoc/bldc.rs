@@ -37,6 +37,8 @@ pub struct BLDCMotor {
     pub(super) limit_voltage: f32,
     pub(super) limit_current: f32,
     pub(super) limit_velocity: f32,
+
+    pub(super) openloop_ts: u64,
 }
 
 impl BLDCMotor {
@@ -73,6 +75,8 @@ impl BLDCMotor {
             limit_voltage: 12.0,
             limit_current: 1.0,
             limit_velocity: 20.0,
+
+            openloop_ts: 0,
         }
     }
 }

@@ -52,4 +52,5 @@ pub enum MotionControlType {
     Torque,
     Velocity,
     Angle,
+    VelocityOpenLoop,
 }

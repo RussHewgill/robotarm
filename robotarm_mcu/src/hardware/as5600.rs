@@ -1,3 +1,5 @@
+use defmt::{debug, warn};
+
 use crate::simplefoc::types::_2PI;
 
 #[derive(defmt::Format)]
@@ -5,20 +7,27 @@ pub struct AS5600<I2C> {
     // i2c: I2C,
     // address: u8,
     sensor: as5600::asynch::As5600<I2C>,
-    turns: i64,
-    angle: f32,
-    angle_prev: f32,
-    position: f64,
-    position_prev: f64,
-    velocity: f32,
-    prev_ns: u64,
+    angle: f32,    // raw sensor angle in radians (0 to 2PI)
+    position: f64, // absolute position in radians, taking into account turns
+    velocity: f32, // velocity in radians per second
+
+    prev_us: u64, // timestamp of previous update in microseconds
+    // prev_us_vel: u64,   // timestamp of previous update in microseconds
+    // angle_prev: f32,    // angle at previous update
+    // position_prev: f64, // position at previous update
+    // turns_prev: i64,   // turns at previous update
+    angle_prev: f32,        // angle at previous update
+    vel_angle_prev: f32,    // angle used for velocity calculation
+    vel_angle_prev_us: u64, // timestamp of previous velocity angle update in microseconds
+    turns: i64,             // number of full turns, can be negative
+    turns_prev_vel: i64,    // turns at previous update, vel_full_rotations
 }
 
 #[derive(defmt::Format)]
 pub enum AS5600Error {
     I2CWriteError,
     I2CReadError,
-    // Unknown,
+    Unknown,
 }
 
 impl<I2C> AS5600<I2C>
@@ -26,34 +35,89 @@ where
     I2C: embedded_hal_async::i2c::I2c,
 {
     pub fn new(i2c: I2C) -> Self {
+        let mut sensor = as5600::asynch::As5600::new(i2c);
+
+        // sensor.
+
         Self {
             // i2c,
             // address,
-            sensor: as5600::asynch::As5600::new(i2c),
+            sensor,
             turns: 0,
             angle: 0.,
-            angle_prev: 0.,
             position: 0.,
-            position_prev: 0.,
+            // position_prev: 0.,
             velocity: 0.,
-            prev_ns: 0,
+            prev_us: 0,
+            // prev_us_vel: 0,
+            angle_prev: 0.,
+            vel_angle_prev: 0.,
+            vel_angle_prev_us: 0,
+            turns_prev_vel: 0,
         }
     }
 
-    fn cal_velocity(&mut self, ts_us: u64) {
-        if ts_us == 0 {
-            self.velocity = 0.0;
-            return;
+    fn cal_velocity(&mut self, ts_us: u64) -> Result<(), AS5600Error> {
+        // overflow handling or first run
+        if self.vel_angle_prev_us == 0 || ts_us < self.vel_angle_prev_us {
+            // warn!("Timestamp overflow or first run detected, resetting velocity calculation");
+            self.vel_angle_prev = self.angle;
+            self.vel_angle_prev_us = ts_us;
+            self.turns_prev_vel = self.turns;
+            return Ok(());
+        }
+        let d_ts = ts_us - self.vel_angle_prev_us;
+
+        // min_elapsed_time check
+        // 1000 microseconds = 1 ms = 1 kHz update rate
+        if d_ts < 5000 {
+            // warn!(
+            //     "Elapsed time {} is less than minimum threshold, skipping velocity calculation",
+            //     ts
+            // );
+            return Ok(());
         }
 
-        let mut ts = (ts_us - self.prev_ns) as f32 * 1e-6;
-        if ts < 0.0 {
-            ts = 1e-3;
-        }
+        // convert to seconds
+        let ts = d_ts as f32 * 1e-6;
 
-        self.velocity = (self.position - self.position_prev) as f32 / ts;
+        // min_elapsed_time check
+        // // 1e-3 = 1 ms = 1 kHz
+        // if ts < 1e-3 {
+        //     // warn!(
+        //     //     "Elapsed time {} is less than minimum threshold, skipping velocity calculation",
+        //     //     ts
+        //     // );
+        //     return Ok(());
+        // }
 
-        self.position_prev = self.position;
+        // // 10 kHz update rate = 1e-4 seconds
+        // if ts < 1e-4 {
+        //     warn!(
+        //         "Elapsed time {} is less than minimum threshold, skipping velocity calculation",
+        //         ts
+        //     );
+        //     // return Ok(());
+        //     panic!(
+        //         "Elapsed time {} is less than minimum threshold, skipping velocity calculation",
+        //         ts
+        //     );
+        // }
+
+        // debug!(
+        //     "updating: turns: {}, turns_prev: {}, angle: {}, angle_prev: {}, ts: {}",
+        //     self.turns, self.turns_prev, self.angle, self.vel_angle_prev, ts
+        // );
+
+        self.velocity = ((self.turns - self.turns_prev_vel) as f32 * _2PI
+            + (self.angle - self.vel_angle_prev))
+            / ts;
+
+        self.vel_angle_prev = self.angle;
+        self.turns_prev_vel = self.turns;
+        self.vel_angle_prev_us = ts_us;
+
+        Ok(())
     }
 
     pub async fn update(&mut self, ts_us: u64) -> Result<(), AS5600Error> {
@@ -64,18 +128,23 @@ where
             .map_err(|_| AS5600Error::I2CReadError)?;
 
         self.angle = (raw_angle as f32 / 4096.) * _2PI;
+
         let move_angle = self.angle - self.angle_prev;
 
         if libm::fabsf(move_angle) > (0.8 * _2PI) {
-            self.turns += if move_angle > 0.0 { -1 } else { 1 };
+            if move_angle > 0.0 {
+                self.turns -= 1;
+            } else {
+                self.turns += 1;
+            }
         }
 
         self.position = (self.turns as f32 * _2PI + self.angle) as f64;
 
-        self.cal_velocity(ts_us);
+        self.cal_velocity(ts_us)?;
 
         self.angle_prev = self.angle;
-        self.prev_ns = ts_us;
+        self.prev_us = ts_us;
 
         Ok(())
     }
