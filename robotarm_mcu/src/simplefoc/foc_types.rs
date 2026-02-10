@@ -2,7 +2,7 @@ use defmt::{debug, error, info, trace, warn};
 use embassy_rp::gpio::Output;
 
 use crate::{
-    hardware::as5600::AS5600,
+    hardware::{as5600::AS5600, mt_6701::MT6701},
     simplefoc::{
         bldc::BLDCMotor,
         lowpass::LowPassFilter,
@@ -32,7 +32,8 @@ pub enum FOCStatus {
 }
 
 pub struct SimpleFOC<'a, I2C: embassy_rp::i2c::Instance> {
-    pub(super) encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
+    // pub(super) encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
+    pub(super) encoder: MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     // encoder:
     //     MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     pub(super) pwm_driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
@@ -74,7 +75,8 @@ pub struct SimpleFOC<'a, I2C: embassy_rp::i2c::Instance> {
 
 impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
     pub fn new(
-        encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
+        // encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
+        encoder: MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
         driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
 
         enable_pin: Output<'a>,
@@ -102,7 +104,8 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
         const PID_ANGLE_KP: f32 = 0.1;
         const PID_ANGLE_LIMIT: f32 = 20.0;
 
-        const VEL_LPF_TF: f32 = 0.005;
+        // const VEL_LPF_TF: f32 = 0.005;
+        const VEL_LPF_TF: f32 = 0.05;
         // const VEL_LPF_TF: f32 = 0.001;
 
         const ANGLE_LPF_TF: f32 = 0.001;

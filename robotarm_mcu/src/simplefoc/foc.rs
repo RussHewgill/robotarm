@@ -15,16 +15,17 @@ use crate::{
 
 /// debug
 impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
-    pub async fn update_sensor(&mut self) {
-        if let Err(_e) = self.encoder.update(Instant::now().as_micros()).await {
-            error!("Failed to update encoder");
-            unimplemented!()
-        }
+    pub async fn debug_update_sensor(&mut self) {
+        // if let Err(_e) = self.encoder.update(Instant::now().as_micros()).await {
+        //     error!("Failed to update encoder");
+        //     unimplemented!()
+        // }
+        let _ = self.encoder.update(Instant::now().as_micros()).await;
     }
 
     pub fn debug_encoder(
         &mut self,
-    ) -> &mut AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>> {
+    ) -> &mut MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>> {
         &mut self.encoder
     }
 }
@@ -68,9 +69,9 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
         unimplemented!()
     }
 
-    pub fn get_position_actual(&self) -> f32 {
-        self.encoder.get_position() as f32
-    }
+    // pub fn get_position_actual(&self) -> f32 {
+    //     self.encoder.get_position() as f32
+    // }
 
     pub fn get_position_requested(&self) -> f32 {
         self.motor.target_shaft_angle
@@ -163,7 +164,7 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
             }
 
             let _ = self.encoder.update(Instant::now().as_micros()).await;
-            let mid_angle = self.encoder.get_position();
+            let mid_angle = self.encoder.get_angle();
 
             info!(
                 "Mid angle: {}, now rotating backwards to find natural direction...",
@@ -183,7 +184,7 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
             Timer::after_millis(20).await;
 
             let _ = self.encoder.update(Instant::now().as_micros()).await;
-            let end_angle = self.encoder.get_position();
+            let end_angle = self.encoder.get_angle();
 
             let moved = (mid_angle - end_angle).abs();
 
@@ -275,28 +276,33 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
 
     /// main loop
     pub async fn update_foc(&mut self) {
-        trace!("Updating FOC control loop");
+        // trace!("Updating FOC control loop");
+
+        let t_us = Instant::now().as_micros();
 
         // update sensor readings
-        if let Err(_e) = self.encoder.update(Instant::now().as_micros()).await {
+        if let Err(_e) = self.encoder.update(t_us).await {
             error!("Failed to update encoder");
-            unimplemented!()
+        }
+
+        if !self.enabled {
+            return;
+        }
+
+        let electrical_angle = self.get_electrical_angle();
+        if !self.motion_control.is_open_loop() {
+            self.set_phase_voltage(self.motor.voltage.q, self.motor.voltage.d, electrical_angle);
         }
 
         // let (electrical_angle, shaft_angle) = self.get_electrical_angle().await;
         let electrical_angle = self.get_electrical_angle();
         let shaft_angle = self.get_shaft_angle();
-        trace!(
-            "Electrical angle: {}, Shaft angle: {}",
-            electrical_angle, shaft_angle
-        );
-        let shaft_velocity = self.get_shaft_velocity();
-        trace!("Shaft velocity: {}", shaft_velocity);
-
-        if !self.enabled {
-            trace!("FOC is disabled, skipping control update");
-            return;
-        }
+        // trace!(
+        //     "Electrical angle: {}, Shaft angle: {}",
+        //     electrical_angle, shaft_angle
+        // );
+        let shaft_velocity = self.get_shaft_velocity(t_us);
+        // trace!("Shaft velocity: {}", shaft_velocity);
 
         match self.torque_controller {
             TorqueControlType::Voltage => {
@@ -309,7 +315,7 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
             / (self.motor.motor_kv * super::types::_SQRT3)
             / super::types::_RPM_TO_RADS;
 
-        trace!("Estimated back-EMF voltage: {}", voltage_bemf);
+        // trace!("Estimated back-EMF voltage: {}", voltage_bemf);
 
         // estimate the motor current if phase reistance available and current_sense not available
         self.motor.current.q = (self.motor.voltage.q - voltage_bemf) / self.motor.phase_resistance;
@@ -424,10 +430,19 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
                     debug!(
                         "target V: {}, shaft V: {}, V error: {}",
                         // self.motor.target_shaft_velocity,
-                        (self.motor.target_shaft_velocity / crate::simplefoc::types::_2PI),
-                        (shaft_velocity / crate::simplefoc::types::_2PI),
-                        ((self.motor.target_shaft_velocity - shaft_velocity)
-                            / crate::simplefoc::types::_2PI)
+                        libm::roundf(
+                            (self.motor.target_shaft_velocity / crate::simplefoc::types::_2PI)
+                                * 100.
+                        ) / 100.,
+                        // (shaft_velocity / crate::simplefoc::types::_2PI),
+                        libm::roundf((shaft_velocity / crate::simplefoc::types::_2PI) * 100.)
+                            / 100.,
+                        // ((self.motor.target_shaft_velocity - shaft_velocity) / crate::simplefoc::types::_2PI)
+                        libm::roundf(
+                            ((self.motor.target_shaft_velocity - shaft_velocity)
+                                / crate::simplefoc::types::_2PI)
+                                * 100.
+                        ) / 100.,
                     );
                     // debug!(
                     //     "Voltage: Uq: {}, Ud: {}",
@@ -477,7 +492,23 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
         self.phase_v.b = -0.5 * u_alpha + super::types::_SQRT3_2 * u_beta;
         self.phase_v.c = -0.5 * u_alpha - super::types::_SQRT3_2 * u_beta;
 
-        let center = self.pwm_driver.voltage_limit / 2.0;
+        let mut center = self.pwm_driver.voltage_limit / 2.0;
+
+        // if (foc_modulation == FOCModulationType::SpaceVectorPWM){
+        //     // discussed here: https://community.simplefoc.com/t/embedded-world-2023-stm32-cordic-co-processor/3107/165?u=candas1
+        //     // a bit more info here: https://microchipdeveloper.com/mct5001:which-zsm-is-best
+        //     // Midpoint Clamp
+        //     float Umin = min(Ua, min(Ub, Uc));
+        //     float Umax = max(Ua, max(Ub, Uc));
+        //     center -= (Umax+Umin) / 2;
+        // }
+
+        if false {
+            // Space Vector PWM modulation
+            let umin = self.phase_v.a.min(self.phase_v.b.min(self.phase_v.c));
+            let umax = self.phase_v.a.max(self.phase_v.b.max(self.phase_v.c));
+            center = center - (umax + umin) / 2.0;
+        }
 
         // if (!modulation_centered)
 
@@ -489,21 +520,26 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
             .set_duty_cycles_f32(self.phase_v.a, self.phase_v.b, self.phase_v.c);
     }
 
-    fn get_shaft_velocity(&mut self) -> f32 {
+    fn get_shaft_velocity(&mut self, t_us: u64) -> f32 {
         let dir = if self.sensor_direction == SensorDirection::Normal {
             1.0
         } else if self.sensor_direction == SensorDirection::Inverted {
             -1.0
         } else {
-            0.0
+            // warn!("Sensor direction unknown, cannot calculate velocity");
+            // 0.0
+            1.0
         };
 
-        dir * self.lpf_velocity.filter(self.encoder.get_velocity())
+        // dir * self.lpf_velocity.filter(self.encoder.get_velocity())
+        dir * self
+            .lpf_velocity
+            .filter_with_timestamp(self.encoder.get_velocity(), t_us)
     }
 
     fn get_shaft_angle(&mut self) -> f32 {
         // let angle = self.encoder.get_angle();
-        let angle = self.encoder.get_position();
+        let angle = self.encoder.get_angle();
 
         // convert from 12 bit to float
         let angle = (angle as f32) * 2.0 * core::f32::consts::PI / 4096.0;
@@ -527,7 +563,7 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
         };
 
         // let shaft_angle = self.get_shaft_angle().await;
-        let shaft_angle = self.encoder.get_angle();
+        let shaft_angle = self.encoder.get_mechanical_angle();
         let angle = dir * self.motor.pole_pairs as f32 * shaft_angle - self.zero_electric_angle;
 
         // (Self::normalize_angle(angle), shaft_angle)

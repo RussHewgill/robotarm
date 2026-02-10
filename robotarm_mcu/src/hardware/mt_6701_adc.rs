@@ -1,14 +1,16 @@
-// use embedded_hal::delay::DelayNs;
-// use embedded_hal::i2c::I2c as BlockingI2c;
-
 use defmt::debug;
+
+use embassy_rp::{
+    Peri,
+    adc::{Adc, Channel, Config, InterruptHandler},
+};
 
 use crate::simplefoc::types::_2PI;
 
-#[derive(defmt::Format)]
-pub struct MT6701<I2C> {
-    i2c: I2C,
-    address: u8,
+pub struct MT6701<'a, DMA: embassy_rp::dma::Channel> {
+    adc: Adc<'a, embassy_rp::adc::Async>,
+    dma: Peri<'a, DMA>,
+    pin: Channel<'a>,
 
     min_elapsed_time: f32, // minimum elapsed time between velocity updates in seconds
 
@@ -25,45 +27,29 @@ pub struct MT6701<I2C> {
 
 #[derive(defmt::Format, Debug)]
 pub enum MT6701Error {
-    I2CWriteError,
-    I2CReadError,
+    ADCReadError,
     // Unknown,
 }
 
-impl MT6701<embassy_rp::i2c::I2c<'_, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>> {
-    pub async fn test(&mut self) -> Result<(), MT6701Error> {
-        use embedded_hal_async::i2c::I2c;
-        // use embedded_hal::i2c::I2c;
-
-        if let Err(e) = self.i2c.write(self.address, &[0x03]).await {
-            debug!("I2C write error: {}", e);
-            return Err(MT6701Error::I2CWriteError);
-        }
-
-        // let mut b: [u8; 1] = [0; 1];
-
-        // self.i2c
-        //     // .read(self.address, &mut buffer[..1])
-        //     .read(self.address, &mut b)
-        //     .await
-        //     .map_err(|_| MT6701Error::I2CReadError)?;
-
-        unimplemented!()
-    }
-}
-
-impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
-    pub async fn new(i2c: I2C) -> Self {
-        let address = 0x06; // default I2C address for MT6701
-
+impl<'a, DMA> MT6701<'a, DMA>
+where
+    DMA: embassy_rp::dma::Channel,
+{
+    pub async fn new(
+        adc: Adc<'a, embassy_rp::adc::Async>,
+        dma: Peri<'a, DMA>,
+        pin: Channel<'a>,
+    ) -> Self {
         let mut out = Self {
-            i2c,
-            address,
+            adc,
+            dma,
+            pin,
 
             min_elapsed_time: 0.0001, // 100 microseconds
 
             // angle: 0.0,
             velocity: 0.0,
+
             angle_prev: 0.0,
             angle_prev_ts: 0,
             vel_angle_prev: 0.0,
@@ -72,9 +58,27 @@ impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
             vel_full_rotations: 0,
         };
 
-        // TODO: init
+        // out.test().await.unwrap();
 
         out
+    }
+
+    pub async fn sample(&mut self) -> Result<f32, MT6701Error> {
+        use embassy_rp::adc::{Adc, Channel, Config, InterruptHandler};
+
+        let mut buf = [0_u16; 1];
+        let div = 479; // 100kHz sample rate (48Mhz / 100kHz - 1)
+
+        self.adc
+            .read_many(&mut self.pin, &mut buf, div, self.dma.reborrow())
+            .await
+            .map_err(|_| MT6701Error::ADCReadError)?;
+
+        let avg = buf.iter().map(|&x| x as u32).sum::<u32>() as f32 / (buf.len() as f32);
+
+        let out = (avg - 8.0) / 4095.0;
+
+        Ok(out)
     }
 
     fn calc_velocity(&mut self) -> f32 {
@@ -104,48 +108,8 @@ impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
         self.velocity
     }
 
-    pub async fn read_raw_angle(&mut self) -> Result<u16, MT6701Error> {
-        let mut buffer: [u8; 2] = [0; 2];
-
-        // self.i2c
-        //     .write(self.address, &[0x03])
-        //     .await
-        //     .map_err(|_| MT6701Error::I2CWriteError)?;
-
-        if let Err(e) = self.i2c.write(self.address, &[0x03]).await {
-            // debug!("I2C write error: {}", e);
-            return Err(MT6701Error::I2CWriteError);
-        }
-
-        let mut b: [u8; 1] = [0; 1];
-
-        self.i2c
-            // .read(self.address, &mut buffer[..1])
-            .read(self.address, &mut b)
-            .await
-            .map_err(|_| MT6701Error::I2CReadError)?;
-
-        debug!("Read byte: {:02X}", b[0]);
-
-        // self.i2c
-        //     .write(self.address, &[0x04])
-        //     .await
-        //     .map_err(|_| MT6701Error::I2CWriteError)?;
-
-        // self.i2c
-        //     .read(self.address, &mut buffer[1..])
-        //     .await
-        //     .map_err(|_| MT6701Error::I2CReadError)?;
-
-        defmt::warn!("TODO: check if this is correct");
-        // Ok((buffer[0] >> 1) & 0x3FFF)
-        Ok((u16::from_be_bytes(buffer) >> 1) & 0x3FFF)
-    }
-}
-
-impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
     pub async fn update(&mut self, ts_us: u64) -> Result<(), MT6701Error> {
-        let raw_angle = self.read_raw_angle().await?;
+        let raw_angle = self.sample().await?;
         debug!("Raw angle: {}", raw_angle);
         let angle = (raw_angle as f32 / 16384_f32) * _2PI;
         // debug!("Angle: {}", angle);

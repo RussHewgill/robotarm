@@ -1,4 +1,5 @@
 use defmt::{debug, warn};
+use embassy_executor::raw;
 use embassy_time::{Instant, Timer};
 
 use crate::simplefoc::types::_2PI;
@@ -8,9 +9,11 @@ pub struct AS5600<I2C> {
     // i2c: I2C,
     // address: u8,
     sensor: as5600::asynch::As5600<I2C>,
-    angle: f32,    // raw sensor angle in radians (0 to 2PI)
-    position: f64, // absolute position in radians, taking into account turns
-    velocity: f32, // velocity in radians per second
+    // sensor: I2C,
+    angle: f32,     // raw sensor angle in radians (0 to 2PI)
+    raw_angle: u16, // raw sensor angle as read from the sensor (0 to 4095)
+    position: f64,  // absolute position in radians, taking into account turns
+    velocity: f32,  // velocity in radians per second
 
     prev_us: u64, // timestamp of previous update in microseconds
     // prev_us_vel: u64,   // timestamp of previous update in microseconds
@@ -39,12 +42,12 @@ where
         let mut sensor = as5600::asynch::As5600::new(i2c);
 
         let mut cfg = sensor.config().await.unwrap();
-
         debug!("AS5600 initial config: {:#}", cfg);
 
-        // cfg.slow_filter = as5600::configuration::SlowFilterMode::X16;
-        cfg.slow_filter = as5600::configuration::SlowFilterMode::X2;
+        cfg.slow_filter = as5600::configuration::SlowFilterMode::X16;
+        // cfg.slow_filter = as5600::configuration::SlowFilterMode::X2;
         cfg.fast_filter_threshold = as5600::configuration::FastFilterThreshold::SlowFilterOnly;
+        // cfg.fast_filter_threshold = as5600::configuration::FastFilterThreshold::Lsb10;
 
         sensor.set_config(cfg).await.unwrap();
 
@@ -54,6 +57,7 @@ where
             sensor,
             turns: 0,
             angle: 0.,
+            raw_angle: 0,
             position: 0.,
             // position_prev: 0.,
             velocity: 0.,
@@ -77,7 +81,7 @@ where
     fn cal_velocity(&mut self, ts_us: u64) -> Result<(), AS5600Error> {
         // overflow handling or first run
         if self.vel_angle_prev_us == 0 || ts_us < self.vel_angle_prev_us {
-            // warn!("Timestamp overflow or first run detected, resetting velocity calculation");
+            warn!("Timestamp overflow or first run detected, resetting velocity calculation");
             self.vel_angle_prev = self.angle;
             self.vel_angle_prev_us = ts_us;
             self.turns_prev_vel = self.turns;
@@ -86,11 +90,10 @@ where
         let d_ts = ts_us - self.vel_angle_prev_us;
 
         // min_elapsed_time check
-        // 1000 microseconds = 1 ms = 1 kHz update rate
         if d_ts < 5000 {
             // warn!(
             //     "Elapsed time {} is less than minimum threshold, skipping velocity calculation",
-            //     ts
+            //     d_ts
             // );
             return Ok(());
         }
@@ -110,13 +113,13 @@ where
     }
 
     pub async fn update(&mut self, ts_us: u64) -> Result<(), AS5600Error> {
-        let raw_angle = self
+        self.raw_angle = self
             .sensor
             .angle()
             .await
             .map_err(|_| AS5600Error::I2CReadError)?;
 
-        self.angle = (raw_angle as f32 / 4096.) * _2PI;
+        self.angle = (self.raw_angle as f32 / 4096.) * _2PI;
 
         let move_angle = self.angle - self.angle_prev;
 
@@ -152,5 +155,14 @@ where
 
     pub fn get_velocity(&self) -> f32 {
         self.velocity
+    }
+
+    // pub fn get_velocity(&mut self) -> f32 {
+    //     let _ = self.cal_velocity(Instant::now().as_micros());
+    //     self.velocity
+    // }
+
+    pub fn get_raw_angle(&self) -> u16 {
+        self.raw_angle
     }
 }

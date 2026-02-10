@@ -54,3 +54,9 @@ pub enum MotionControlType {
     Angle,
     VelocityOpenLoop,
 }
+
+impl MotionControlType {
+    pub fn is_open_loop(&self) -> bool {
+        matches!(self, MotionControlType::VelocityOpenLoop)
+    }
+}

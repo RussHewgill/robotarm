@@ -18,6 +18,24 @@ impl LowPassFilter {
         }
     }
 
+    pub fn filter_with_timestamp(&mut self, x: f32, timestamp: u64) -> f32 {
+        let mut dt = (timestamp.wrapping_sub(self.timestamp_prev)) as f32 * 1e-6;
+
+        if dt < 0.0 {
+            dt = 1e-3;
+        } else if dt > 0.3 {
+            self.y_prev = x;
+            self.timestamp_prev = timestamp;
+            return x;
+        }
+
+        let alpha = self.tf / (self.tf + dt);
+        let y = alpha * self.y_prev + (1.0 - alpha) * x;
+        self.y_prev = y;
+        self.timestamp_prev = timestamp;
+        y
+    }
+
     pub fn filter(&mut self, x: f32) -> f32 {
         let timestamp = Instant::now().as_micros();
         let mut dt = (timestamp.wrapping_sub(self.timestamp_prev)) as f32 * 1e-6;
