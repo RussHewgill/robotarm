@@ -3,7 +3,7 @@ use embassy_rp::gpio::Output;
 use embassy_time::{Instant, Timer};
 
 use crate::{
-    hardware::{as5600::AS5600, mt_6701::MT6701},
+    hardware::{as5600::AS5600, encoder_sensor::EncoderSensor, mt_6701::MT6701},
     simplefoc::{
         bldc::BLDCMotor,
         foc_types::{FOCStatus, SimpleFOC},
@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// debug
-impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
+impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     pub async fn debug_update_sensor(&mut self) {
         // if let Err(_e) = self.encoder.update(Instant::now().as_micros()).await {
         //     error!("Failed to update encoder");
@@ -23,15 +23,13 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
         let _ = self.encoder.update(Instant::now().as_micros()).await;
     }
 
-    pub fn debug_encoder(
-        &mut self,
-    ) -> &mut MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>> {
-        &mut self.encoder
-    }
+    // pub fn debug_encoder(&mut self) -> &mut MT6701<'a, DMA> {
+    //     &mut self.encoder
+    // }
 }
 
 /// control, info
-impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
+impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     pub fn enable(&mut self) {
         self.enabled = true;
         self.enable_pin.set_high();
@@ -90,7 +88,7 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
 }
 
 /// update, internal
-impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
+impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     pub fn init(&mut self) {
         // check driver initialized
 
@@ -211,23 +209,6 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
             self.disable();
             // panic!()
             //
-        }
-
-        #[cfg(feature = "nope")]
-        {
-            self.enable();
-
-            let n = 50;
-
-            info!("Rotating motor forward to find natural direction...");
-            for i in 0..n {
-                let angle = crate::simplefoc::types::_3PI_2
-                    + crate::simplefoc::types::_2PI * (i as f32) / n as f32;
-                self.set_phase_voltage(self.motor.voltage_sensor_align, 0., angle);
-                let _ = self.encoder.update(Instant::now().as_micros()).await;
-
-                Timer::after_millis(2).await;
-            }
         }
 
         // zero electric angle not known
@@ -365,10 +346,10 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
                         shaft_velocity,
                         self.motor.target_shaft_velocity - shaft_velocity
                     );
-                    debug!(
-                        "Voltage: Uq: {}, Ud: {}",
-                        self.motor.voltage.q, self.motor.voltage.d
-                    );
+                    // debug!(
+                    //     "Voltage: Uq: {}, Ud: {}",
+                    //     self.motor.voltage.q, self.motor.voltage.d
+                    // );
                 }
             }
             MotionControlType::Angle => {
@@ -572,7 +553,7 @@ impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
 }
 
 /// helpers
-impl<'a, I2C: embassy_rp::i2c::Instance> SimpleFOC<'a, I2C> {
+impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     /// normalizing radian angle to [0,2PI]
     fn normalize_angle(angle: f32) -> f32 {
         let angle = angle % (2.0 * core::f32::consts::PI);

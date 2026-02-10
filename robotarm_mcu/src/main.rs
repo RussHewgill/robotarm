@@ -79,10 +79,55 @@ async fn main(spawner: Spawner) {
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    use embassy_rp::adc::{Adc, Channel, Config, InterruptHandler};
+    // PWM
+    {
+        let sda = p.PIN_14; // purple
+        let scl = p.PIN_15; // blue
+
+        // info!("set up i2c ");
+        let mut i2c_config = embassy_rp::i2c::Config::default();
+        // i2c_config.frequency = 400_000; // 400 kHz
+        i2c_config.frequency = 1_000_000; // 1 MHz
+        let i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
+
+        let mut sensor = as5600::asynch::As5600::new(i2c);
+
+        let mut cfg = sensor.config().await.unwrap();
+        debug!("AS5600 initial config: {:#}", cfg);
+
+        // cfg.slow_filter = as5600::configuration::SlowFilterMode::X16;
+        // // cfg.slow_filter = as5600::configuration::SlowFilterMode::X2;
+        // cfg.fast_filter_threshold = as5600::configuration::FastFilterThreshold::SlowFilterOnly;
+        // // cfg.fast_filter_threshold = as5600::configuration::FastFilterThreshold::Lsb10;
+
+        cfg.output_stage = as5600::configuration::OutputStage::DigitalPwm;
+        cfg.pwm_frequency = as5600::configuration::PwmFreq::PwmF4;
+
+        sensor.set_config(cfg).await.unwrap();
+
+        let mut cfg = sensor.config().await.unwrap();
+        debug!("AS5600 initial config: {:#}", cfg);
+
+        // let cfg: embassy_rp::pwm::Config = Default::default();
+        // let pwm = embassy_rp::pwm::Pwm::new_input(
+        //     p.PWM_SLICE2,
+        //     p.PIN_5,
+        //     gpio::Pull::None,
+        //     embassy_rp::pwm::InputMode::RisingEdge,
+        //     cfg,
+        // );
+
+        // let mut ticker = Ticker::every(embassy_time::Duration::from_millis(50));
+        // for _ in 0..5 {
+        //     ticker.next().await;
+        //     info!("Input frequency: {} Hz", pwm.counter());
+        // }
+
+        //
+    }
 
     // ADC
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     {
         use embassy_rp::adc::{Adc, Channel, Config, InterruptHandler};
 
@@ -175,25 +220,25 @@ async fn main(spawner: Spawner) {
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    // let sda = p.PIN_14; // purple
-    // let scl = p.PIN_15; // blue
+    let sda = p.PIN_14; // purple
+    let scl = p.PIN_15; // blue
 
-    // // info!("set up i2c ");
-    // let mut i2c_config = embassy_rp::i2c::Config::default();
-    // // i2c_config.frequency = 400_000; // 400 kHz
-    // i2c_config.frequency = 1_000_000; // 1 MHz
-    // let i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
+    // info!("set up i2c ");
+    let mut i2c_config = embassy_rp::i2c::Config::default();
+    // i2c_config.frequency = 400_000; // 400 kHz
+    i2c_config.frequency = 1_000_000; // 1 MHz
+    let i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
 
-    // // info!("set up encoder");
-    // // let mut encoder = as5600::asynch::As5600::new(i2c);
-    // // let encoder = crate::hardware::as5600::AS5600::new(i2c).await;
+    // info!("set up encoder");
+    // let mut encoder = as5600::asynch::As5600::new(i2c);
+    let encoder = crate::hardware::as5600::AS5600::new(i2c).await;
     // let encoder = crate::hardware::mt_6701::MT6701::new(i2c).await;
 
-    let mut adc = embassy_rp::adc::Adc::new(p.ADC, Irqs, embassy_rp::adc::Config::default());
-    let mut dma = p.DMA_CH0;
-    let mut pin = embassy_rp::adc::Channel::new_pin(p.PIN_26, gpio::Pull::Up);
+    // let mut adc = embassy_rp::adc::Adc::new(p.ADC, Irqs, embassy_rp::adc::Config::default());
+    // let mut dma = p.DMA_CH0;
+    // let mut pin = embassy_rp::adc::Channel::new_pin(p.PIN_26, gpio::Pull::Up);
 
-    let mut encoder = crate::hardware::mt_6701_adc::MT6701::new(adc, dma, pin).await;
+    // let mut encoder = crate::hardware::mt_6701_adc::MT6701::new(adc, dma, pin).await;
 
     let mut c = embassy_rp::pwm::Config::default();
     let desired_freq_hz = 24_000;
@@ -233,7 +278,7 @@ async fn main(spawner: Spawner) {
     let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
         7, // pole pairs
         // 11.2, // phase resistance (TODO: measure this)
-        5.2,  // phase resistance (TODO: measure this)
+        5.35, // phase resistance (TODO: measure this)
         260., // motor kv
         // Some(0.00035), // phase inductance
         None,
@@ -247,17 +292,16 @@ async fn main(spawner: Spawner) {
     foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
+    foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
-    foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
+    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
 
-    // info!("Starting init");
-    // foc.init();
+    info!("Starting init");
+    foc.init();
+    info!("Starting FOC init");
+    foc.init_foc().await;
+    spawner.spawn(loop_foc(foc)).unwrap();
 
-    // info!("Starting FOC init");
-    // foc.init_foc().await;
-
-    // spawner.spawn(loop_foc(foc)).unwrap();
     // spawner.spawn(test_foc(foc)).unwrap();
 
     // foc.disable();
@@ -266,13 +310,22 @@ async fn main(spawner: Spawner) {
 
 #[embassy_executor::task]
 async fn test_foc(
-    mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, embassy_rp::peripherals::I2C1>,
+    // mut foc: crate::simplefoc::foc_types::SimpleFOC<
+    //     'static,
+    //     crate::hardware::mt_6701_adc::MT6701<'static, embassy_rp::peripherals::DMA_CH0>,
+    // >,
+    mut foc: crate::simplefoc::foc_types::SimpleFOC<
+        'static,
+        hardware::as5600::AS5600<
+            embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>,
+        >,
+    >,
 ) {
     info!("Starting FOC test");
     // let update_rate_hz = 9000;
-    let update_rate_hz = 10;
+    let update_rate_hz = 1000;
     let print_rate_hz = 20;
-    let time_limit = 10;
+    let time_limit = 5;
 
     let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
         1_000_000 / update_rate_hz,
@@ -288,18 +341,30 @@ async fn test_foc(
 
     // let mut pid = crate::simplefoc::pid::PIDController::new(1.0, 0.0, 0.0, 0.0, 12.0);
 
-    let mut vn = 0;
-    let mut vs = 0.;
+    // let mut vn = 0;
+    // let mut vs = 0.;
+
+    let mut len = 0;
+    let mut sum = 0;
+    let mut min = u64::MAX;
+    let mut max = u64::MIN;
 
     loop {
         ticker.next().await;
-        foc.debug_update_sensor().await;
+        // foc.debug_update_sensor().await;
 
         // if v.abs() > 0.01 {
         //     // debug!("Angle: {}", foc.debug_encoder().get_angle());
         //     // debug!("Velocity: {}", v);
         //     debug!("Raw angle: {}", foc.debug_encoder().get_raw_angle());
         // }
+
+        let angle = foc.encoder.sample_raw().await.unwrap();
+        len += 1;
+        sum += angle as u64;
+
+        min = min.min(angle as u64);
+        max = max.max(angle as u64);
 
         // vn += 1;
         // vs += v;
@@ -308,6 +373,14 @@ async fn test_foc(
 
             // let v = foc.get_shaft_velocity();
             // // let v = foc.debug_encoder().get_velocity();
+
+            // let angle = foc.encoder.get_angle();
+
+            debug!(
+                "Angle: {}",
+                // libm::roundf(angle * 1000.) / 1000. * (180. / core::f32::consts::PI),
+                angle
+            );
 
             // debug!(
             //     "Angle: {}, velocity: {}",
@@ -325,6 +398,16 @@ async fn test_foc(
         }
 
         if Instant::now() > max_time {
+            let avg = sum as u64 / len as u64;
+            debug!(
+                "Average raw angle: {}, n: {}, min: {}, max: {}, range: {}",
+                avg,
+                len,
+                min,
+                max,
+                max - min
+            );
+
             info!("Halting FOC test");
             foc.disable();
             break;
@@ -334,14 +417,24 @@ async fn test_foc(
 
 #[embassy_executor::task]
 async fn loop_foc(
-    mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, embassy_rp::peripherals::I2C1>,
+    // mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, embassy_rp::peripherals::I2C1>,
+    // mut foc: crate::simplefoc::foc_types::SimpleFOC<
+    //     'static,
+    //     crate::hardware::mt_6701_adc::MT6701<'static, embassy_rp::peripherals::DMA_CH0>,
+    // >,
+    mut foc: crate::simplefoc::foc_types::SimpleFOC<
+        'static,
+        hardware::as5600::AS5600<
+            embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>,
+        >,
+    >,
 ) {
     info!("Starting main loop");
 
     let update_rate_hz = 20000;
     let print_rate_hz = 20;
-    // let time_limit = 1.5;
-    let time_limit = 3.;
+    let time_limit = 1.5;
+    // let time_limit = 3.;
 
     let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
         1_000_000 / update_rate_hz,
@@ -368,7 +461,7 @@ async fn loop_foc(
 
     foc.debug = true;
     loop {
-        ticker.next().await;
+        // ticker.next().await;
         foc.update_foc().await;
 
         if n >= n_max {
