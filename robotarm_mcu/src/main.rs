@@ -6,15 +6,19 @@
 #![allow(unused_mut)]
 #![allow(unexpected_cfgs)]
 
+mod comms;
 mod hardware;
 mod simplefoc;
 
+use crate::hardware::encoder_sensor::EncoderSensor;
 use defmt::{debug, error, info, trace, warn};
-use embassy_executor::Spawner;
-use embassy_rp::{bind_interrupts, gpio, pwm::SetDutyCycle};
-use embassy_time::{Instant, Ticker, Timer};
-use gpio::{Level, Output};
+
+// use rtt_target::{rprintln, rtt_init};
 use {defmt_rtt as _, panic_probe as _};
+
+use embassy_executor::Spawner;
+use embassy_rp::{bind_interrupts, pwm::SetDutyCycle};
+use embassy_time::{Instant, Ticker, Timer};
 
 // use crate::simplefoc::SimpleFOC;
 
@@ -36,7 +40,188 @@ bind_interrupts!(struct Irqs {
     // I2C1_IRQ => InterruptHandler<embassy_rp::peripherals::I2C1>;
     ADC_IRQ_FIFO => embassy_rp::adc::InterruptHandler;
     // DMA_IRQ_0 => InterruptHandler<embassy_rp::peripherals::DMA_CH0>;
+    USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<embassy_rp::peripherals::USB>;
 });
+
+/// rtt tests
+#[embassy_executor::main]
+// #[cfg(feature = "nope")]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    // USB 2
+    // #[cfg(feature = "nope")]
+    {
+        // let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
+        // let driver = crate::comms::usb::UsbDriver::new(p.USB, Irqs);
+        // spawner.spawn(logger_task(driver)).unwrap();
+
+        // let mut counter = 0;
+        // loop {
+        //     counter += 1;
+        //     log::info!("Tick {}", counter);
+        //     Timer::after_secs(1).await;
+        // }
+
+        // let chan = embassy_sync::channel::Channel::new();
+        // let rx = chan.receiver();
+
+        let sda = p.PIN_14; // purple
+        let scl = p.PIN_15; // blue
+
+        // info!("set up i2c ");
+        let mut i2c_config = embassy_rp::i2c::Config::default();
+        i2c_config.frequency = 400_000; // 400 kHz
+        // i2c_config.frequency = 1_000_000; // 1 MHz
+        let i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
+
+        // info!("set up encoder");
+        // let encoder = crate::hardware::as5600::AS5600::new(i2c).await;
+        let mut encoder = crate::hardware::mt_6701::MT6701::new(i2c).await;
+
+        let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
+
+        let mut usb = crate::comms::usb::UsbMonitor::new(&spawner, driver);
+
+        // let (mut sender, mut receiver) = class.split();
+
+        // let mut rx: [u8; 64] = [0; 64];
+        // sender.wait_connection().await;
+
+        usb.wait_connection().await;
+
+        // let mut n: f32 = 0.0;
+        let mut n = 0;
+        let mut x = 0;
+
+        let mut data: [u8; 64] = [0; 64];
+
+        loop {
+            let now = Instant::now().as_micros();
+            encoder._update(now).await.unwrap();
+
+            if n > 2_0 {
+                n = 0;
+
+                let angle = encoder.get_angle();
+                let velocity = encoder.get_velocity();
+
+                debug!(
+                    "now: {} us, angle: {} rad, velocity: {} rad/s",
+                    now, angle, velocity
+                );
+
+                let msg = robotarm_protocol::SerialLogMessage::MotorData {
+                    id: 0,
+                    timestamp: now,
+                    target: x as f32,
+                    position: angle,
+                    velocity,
+                };
+
+                x += 1;
+
+                // usb.send(msg).await;
+
+                //
+            } else {
+                n += 1;
+            }
+
+            // let data = b"0.0\r\n";
+
+            // usb.send(data).await;
+
+            // Timer::after(embassy_time::Duration::from_millis(1000)).await;
+        }
+    }
+
+    // USB
+    #[cfg(feature = "nope")]
+    {
+        // rprintln!("Hello, world!");
+
+        // let mut config = embassy_rp::uart::Config::default();
+        // config.baudrate = 115_200;
+        // let mut uart = embassy_rp::uart::Uart::new_blocking(p.UART1, p.PIN_8, p.PIN_9, config);
+
+        use static_cell::StaticCell;
+
+        let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
+
+        // Create embassy-usb Config
+        let config = {
+            let mut config = embassy_usb::Config::new(0xc0de, 0xcafe);
+            config.manufacturer = Some("Embassy");
+            config.product = Some("Embassy Serial Logger");
+            config.serial_number = Some("12345678");
+            config.max_power = 100;
+            config.max_packet_size_0 = 64;
+            config
+        };
+
+        // Create embassy-usb DeviceBuilder using the driver and config.
+        // It needs some buffers for building the descriptors.
+        let mut builder = {
+            static CONFIG_DESCRIPTOR: StaticCell<[u8; 256]> = StaticCell::new();
+            static BOS_DESCRIPTOR: StaticCell<[u8; 256]> = StaticCell::new();
+            static CONTROL_BUF: StaticCell<[u8; 64]> = StaticCell::new();
+            let builder = embassy_usb::Builder::new(
+                driver,
+                config,
+                CONFIG_DESCRIPTOR.init([0; 256]),
+                BOS_DESCRIPTOR.init([0; 256]),
+                &mut [], // no msos descriptors
+                CONTROL_BUF.init([0; 64]),
+            );
+            builder
+        };
+
+        // Create classes on the builder.
+        let mut class = {
+            static STATE: StaticCell<embassy_usb::class::cdc_acm::State> = StaticCell::new();
+            let state = STATE.init(embassy_usb::class::cdc_acm::State::new());
+            embassy_usb::class::cdc_acm::CdcAcmClass::new(&mut builder, state, 64)
+        };
+
+        // Build the builder.
+        let usb = builder.build();
+
+        // Run the USB device.
+        spawner.spawn(usb_task(usb)).unwrap();
+
+        let (mut sender, mut receiver) = class.split();
+
+        let mut rx: [u8; 64] = [0; 64];
+        sender.wait_connection().await;
+
+        loop {
+            let data = b"Hello, world!";
+            let _ = sender.write_packet(data).await;
+            Timer::after(embassy_time::Duration::from_millis(500)).await;
+        }
+
+        #[cfg(feature = "nope")]
+        loop {
+            // uart.blocking_write("Hello World!\r\n".as_bytes()).unwrap();
+            // rprintln!("Test 0");
+            // rprintln!("Test 0");
+            // defmt::println!("Test 0");
+            // defmt::debug!("Test 1");
+            class.wait_connection().await;
+            info!("Connected");
+            let _ = echo(&mut class).await;
+            info!("Disconnected");
+            loop {
+                // let _ = echo(&mut class).await;
+                // let data = b"Hello, world!";
+                // let _ = class.write_packet(data).await;
+                // info!("Wrote packet");
+                Timer::after(embassy_time::Duration::from_millis(500)).await;
+            }
+        }
+    }
+}
 
 // #[embassy_executor::main]
 #[cfg(feature = "nope")]
@@ -46,31 +231,30 @@ async fn main(spawner: Spawner) {
     let sda = p.PIN_14; // purple
     let scl = p.PIN_15; // blue
 
-    let i2c =
+    let mut i2c =
         embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, embassy_rp::i2c::Config::default());
 
-    let mut encoder = crate::hardware::as5600::AS5600::new(i2c);
+    let mut encoder = crate::hardware::mt_6701::MT6701::new(i2c).await;
+
+    // let mut encoder = crate::hardware::as5600::AS5600::new(i2c);
 
     info!("looping");
+    // #[cfg(feature = "nope")]
     loop {
         // info!("Tick");
         Timer::after(embassy_time::Duration::from_millis(50)).await;
-        // let angle = encoder.angle().await.unwrap_or(0.);
-        if let Err(e) = encoder.update(Instant::now().as_micros()).await {
-            error!("Failed to read encoder");
-        } else {
-            // info!(
-            //     "Angle: {}",
-            //     libm::roundf(encoder.get_angle() * 1000.) / 1000. * (180. / core::f32::consts::PI)
-            // );
-            info!(
-                "Angle: {}, position: {}, turns: {}, Velocity: {}",
-                libm::roundf(encoder.get_angle() * (180. / core::f32::consts::PI) * 100.) / 100.,
-                libm::round(encoder.get_position() * 100.) / 100.,
-                encoder.get_turns(),
-                libm::roundf(encoder.get_velocity() * 100.) / 100.
-            );
+
+        if let Ok(angle) = encoder.read_raw_angle().await {
+            let angle = (angle as f32 / 16384_f32) * 2.0 * core::f32::consts::PI;
+            // debug!("Raw angle: {}", angle);
+            debug!("Angle: {}", angle);
         }
+
+        // let angle = encoder.angle().await.unwrap_or(0.);
+        // if let Err(e) = encoder.update(Instant::now().as_micros()).await {
+        //     error!("Failed to read encoder");
+        // } else {
+        // }
     }
 }
 
@@ -80,6 +264,7 @@ async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
     // PWM
+    #[cfg(feature = "nope")]
     {
         let sda = p.PIN_14; // purple
         let scl = p.PIN_15; // blue
@@ -174,49 +359,27 @@ async fn main(spawner: Spawner) {
         // let mut encoder = crate::hardware::mt_6701::MT6701::new(i2c).await;
         let address: u8 = 0b0000110;
         for _ in 0..1 {
-            info!("Tick");
-            Timer::after_millis(500).await;
+            let mut buf = [0u8; 1];
+            if let Err(e) = i2c.write_read(address, &[0x0E], &mut buf) {
+                error!("I2C error: {:?}", e);
+            } else {
+                // debug!("Raw angle: {}", u16::from_be_bytes([0, buf[0]]));
+            }
+            // Timer::after(embassy_time::Duration::from_millis(100)).await;
 
-            // use embedded_hal_async::i2c::I2c;
-            use embedded_hal::i2c::I2c;
+            // 0x03 = angle[13:6]
+            // 0x04 = angle[5:0]
 
-            let mut buf: [u8; 2] = [0; 2];
-
-            // i2c.blocking_write_read(address, &[0x03], &mut buf).unwrap();
-
-            // if let Err(e) = i2c.blocking_write_read(address, &[0x03], &mut buf) {
-            //     error!("I2C Error: {:?}", e);
-            // } else {
-            //     info!("Read bytes: 0x{:02X} 0x{:02X}", buf[0], buf[1]);
-            // }
-
-            // i2c.blocking_write(address, &[0x03]).unwrap();
-            //
-            // info!("Wrote byte 0x03 to address 0x{:02X}", address);
-            //
-            // i2c.blocking_read(address, &mut buf[..1]).unwrap();
-            //
-            // info!("Read byte: 0x{:02X}", buf[0]);
-
-            // if let Err(e) = i2c.write(address, &[0x03]) {
-            //     debug!("I2C write error: {}", e);
-            // }
-
-            // Timer::after_millis(1).await;
-
-            // let mut b: [u8; 1] = [0; 1];
-
-            // i2c.read(address, &mut b).unwrap();
-
-            // debug!("Read byte: {:?}", buf);
+            let angle = ((buf[0] as u16) << 6) & (buf[1] as u16 & 0b00111111);
         }
     }
 
     // info!("Done");
 }
 
-#[embassy_executor::main]
-// #[cfg(feature = "nope")]
+/// MARK: Main
+// #[embassy_executor::main]
+#[cfg(feature = "nope")]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -230,15 +393,8 @@ async fn main(spawner: Spawner) {
     let i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
 
     // info!("set up encoder");
-    // let mut encoder = as5600::asynch::As5600::new(i2c);
-    let encoder = crate::hardware::as5600::AS5600::new(i2c).await;
-    // let encoder = crate::hardware::mt_6701::MT6701::new(i2c).await;
-
-    // let mut adc = embassy_rp::adc::Adc::new(p.ADC, Irqs, embassy_rp::adc::Config::default());
-    // let mut dma = p.DMA_CH0;
-    // let mut pin = embassy_rp::adc::Channel::new_pin(p.PIN_26, gpio::Pull::Up);
-
-    // let mut encoder = crate::hardware::mt_6701_adc::MT6701::new(adc, dma, pin).await;
+    // let encoder = crate::hardware::as5600::AS5600::new(i2c).await;
+    let encoder = crate::hardware::mt_6701::MT6701::new(i2c).await;
 
     let mut c = embassy_rp::pwm::Config::default();
     let desired_freq_hz = 24_000;
@@ -248,52 +404,46 @@ async fn main(spawner: Spawner) {
     c.divider = 1.into();
     c.phase_correct = true;
 
-    // let voltage_limit = 1.0;
-    // let voltage_limit = 1.5;
     let voltage_limit = 2.0;
-    // let voltage_limit = 2.5;
+    // let voltage_limit = 3.;
 
     let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
-    // let mut pwm1 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE2, p.PIN_4, c.clone());
-    // let mut pwm2 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE3, p.PIN_6, c.clone());
     let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
-
-    // let m = pwm0.max_duty_cycle();
-    // info!("PWM max duty cycle: {}", m);
 
     // info!("set up PWM driver");
     let pwm_driver =
         crate::simplefoc::pwm_driver::PWMDriver::new(pwm0, pwm12, c, voltage_limit, 12.);
 
-    let enable_pin = Output::new(p.PIN_6, Level::Low);
-
-    // let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
-    //     7,    // pole pairs
-    //     11.2, // phase resistance (TODO: measure this)
-    //     90.,  // motor kv
-    //     // Some(0.00035), // phase inductance
-    //     None,
-    // );
+    let enable_pin = embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low);
 
     let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
         7, // pole pairs
         // 11.2, // phase resistance (TODO: measure this)
         5.35, // phase resistance (TODO: measure this)
         260., // motor kv
-        // Some(0.00035), // phase inductance
         None,
     );
 
-    // info!("set up FOC");
-    let mut foc =
-        crate::simplefoc::foc_types::SimpleFOC::new(encoder, pwm_driver, enable_pin, motor_config);
+    let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Normal);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
+    let usb = crate::comms::usb::UsbMonitor::new(&spawner, driver);
+
+    // info!("set up FOC");
+    let mut foc = crate::simplefoc::foc_types::SimpleFOC::new(
+        encoder,
+        pwm_driver,
+        enable_pin,
+        motor_config,
+        usb,
+    );
+
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Normal);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Inverted);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
-    foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
+    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
+    foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
 
     info!("Starting init");
@@ -305,27 +455,25 @@ async fn main(spawner: Spawner) {
     // spawner.spawn(test_foc(foc)).unwrap();
 
     // foc.disable();
-    // info!("Done");
 }
 
 #[embassy_executor::task]
 async fn test_foc(
-    // mut foc: crate::simplefoc::foc_types::SimpleFOC<
-    //     'static,
-    //     crate::hardware::mt_6701_adc::MT6701<'static, embassy_rp::peripherals::DMA_CH0>,
-    // >,
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
-        hardware::as5600::AS5600<
+        // hardware::as5600::AS5600<
+        //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>,
+        // >,
+        hardware::mt_6701::MT6701<
             embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>,
         >,
     >,
 ) {
     info!("Starting FOC test");
     // let update_rate_hz = 9000;
-    let update_rate_hz = 1000;
-    let print_rate_hz = 20;
-    let time_limit = 5;
+    let update_rate_hz = 100;
+    let print_rate_hz = 100;
+    let time_limit = 10;
 
     let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
         1_000_000 / update_rate_hz,
@@ -359,12 +507,17 @@ async fn test_foc(
         //     debug!("Raw angle: {}", foc.debug_encoder().get_raw_angle());
         // }
 
-        let angle = foc.encoder.sample_raw().await.unwrap();
-        len += 1;
-        sum += angle as u64;
+        // let angle = foc.encoder.sample_raw().await.unwrap();
+        // len += 1;
+        // sum += angle as u64;
 
-        min = min.min(angle as u64);
-        max = max.max(angle as u64);
+        // min = min.min(angle as u64);
+        // max = max.max(angle as u64);
+
+        foc.encoder
+            .update(Instant::now().as_micros())
+            .await
+            .unwrap();
 
         // vn += 1;
         // vs += v;
@@ -374,12 +527,14 @@ async fn test_foc(
             // let v = foc.get_shaft_velocity();
             // // let v = foc.debug_encoder().get_velocity();
 
-            // let angle = foc.encoder.get_angle();
+            let angle = foc.encoder.get_angle();
+            let v = foc.encoder.get_velocity();
 
             debug!(
-                "Angle: {}",
+                "Angle: {}, Velocity: {}",
                 // libm::roundf(angle * 1000.) / 1000. * (180. / core::f32::consts::PI),
-                angle
+                angle,
+                v,
             );
 
             // debug!(
@@ -398,15 +553,15 @@ async fn test_foc(
         }
 
         if Instant::now() > max_time {
-            let avg = sum as u64 / len as u64;
-            debug!(
-                "Average raw angle: {}, n: {}, min: {}, max: {}, range: {}",
-                avg,
-                len,
-                min,
-                max,
-                max - min
-            );
+            // let avg = sum as u64 / len as u64;
+            // debug!(
+            //     "Average raw angle: {}, n: {}, min: {}, max: {}, range: {}",
+            //     avg,
+            //     len,
+            //     min,
+            //     max,
+            //     max - min
+            // );
 
             info!("Halting FOC test");
             foc.disable();
@@ -417,44 +572,40 @@ async fn test_foc(
 
 #[embassy_executor::task]
 async fn loop_foc(
-    // mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, embassy_rp::peripherals::I2C1>,
-    // mut foc: crate::simplefoc::foc_types::SimpleFOC<
-    //     'static,
-    //     crate::hardware::mt_6701_adc::MT6701<'static, embassy_rp::peripherals::DMA_CH0>,
-    // >,
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
-        hardware::as5600::AS5600<
+        // hardware::as5600::AS5600<
+        //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>,
+        // >,
+        hardware::mt_6701::MT6701<
             embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>,
         >,
     >,
 ) {
     info!("Starting main loop");
 
-    let update_rate_hz = 20000;
+    let update_rate_hz = 2000;
     let print_rate_hz = 20;
-    let time_limit = 1.5;
-    // let time_limit = 3.;
+    // let time_limit = 1.5;
+    let time_limit = 2.;
 
     let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
         1_000_000 / update_rate_hz,
     ));
     let n_max = update_rate_hz / print_rate_hz;
-    let max_time =
+    let mut max_time =
         Instant::now() + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
     let mut n = 0;
 
     foc.enable();
 
-    // // let tgt = 1.64;
-    // let tgt = 1.0;
-    // foc.set_target_position(tgt);
+    // let tgt = 1.64;
+    let mut tgt = 0.0;
+    foc.set_target_position(tgt);
 
     // let tgt = 60.;
 
-    // foc.set_target_velocity(tgt * (60. / (2. * core::f32::consts::PI)));
-
-    foc.set_target_velocity(3.14 * 1.);
+    // foc.set_target_velocity(3.14 * 1.);
 
     // // foc.set_target_torque(0.);
     // foc.set_target_torque(0.05);
@@ -493,9 +644,15 @@ async fn loop_foc(
         }
 
         if Instant::now() > max_time {
-            info!("Halting FOC loop");
-            foc.disable();
-            break;
+            tgt += 3.14 / 2.;
+            foc.set_target_position(tgt);
+            max_time = max_time + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
         }
+
+        // if Instant::now() > max_time {
+        //     info!("Halting FOC loop");
+        //     foc.disable();
+        //     break;
+        // }
     }
 }

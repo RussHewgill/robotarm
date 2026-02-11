@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+
+robotarm_protocol = { path = "../robotarm_protocol" }
+postcard = { version = "1.1.3", default-features = false }
+
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-log = "0.2.0"
@@ -29,4 +33,13 @@ egui_extras = { version = "0.33.2", features = [
     "svg",
     "http",
 ] }
-serialport = "4.8.1"
+tokio = { version = "1.49.0", features = ["full"] }
+tokio-serial = "5.4.5"
+bytes = "1.11.1"
+tokio-util = { version = "0.7.18", features = ["codec"] }
+futures = "0.3.31"
+# serialport = "4.8.1"
+serial2 = { version = "0.2.33", features = ["windows"] }
+egui_plot = "0.34.0"
+
+

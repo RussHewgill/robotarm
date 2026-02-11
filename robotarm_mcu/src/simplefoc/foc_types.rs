@@ -2,6 +2,7 @@ use defmt::{debug, error, info, trace, warn};
 use embassy_rp::gpio::Output;
 
 use crate::{
+    comms::usb::UsbMonitor,
     hardware::{as5600::AS5600, encoder_sensor::EncoderSensor, mt_6701_adc::MT6701},
     simplefoc::{
         bldc::BLDCMotor,
@@ -42,6 +43,8 @@ pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
     pub(super) pwm_driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
 
     pub(super) enable_pin: Output<'a>,
+
+    pub debug_port: UsbMonitor,
 
     pub debug: bool,
 
@@ -86,6 +89,8 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         enable_pin: Output<'a>,
 
         motor: BLDCMotor,
+
+        usb_monitor: UsbMonitor,
     ) -> Self {
         // const PID_CURRENT_KP: f32 = 3.;
         // const PID_CURRENT_KI: f32 = 300.;
@@ -95,24 +100,26 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         // const CURR_LPF_TF: f32 = 0.005;
 
-        // const PID_VELOCITY_KP: f32 = 0.02;
-        // const PID_VELOCITY_KI: f32 = 0.5;
+        const PID_VELOCITY_KP: f32 = 0.1;
+        const PID_VELOCITY_KI: f32 = 0.0;
 
-        const PID_VELOCITY_KP: f32 = 0.5;
-        const PID_VELOCITY_KI: f32 = 10.0;
+        // const PID_VELOCITY_KP: f32 = 0.5;
+        // const PID_VELOCITY_KI: f32 = 10.0;
 
         const PID_VELOCITY_KD: f32 = 0.0;
         const PID_VELOCITY_RAMP: f32 = 1000.0;
-        const PID_VELOCITY_LIMIT: f32 = 12.0;
+        const PID_VELOCITY_LIMIT: f32 = 20.0;
 
-        const PID_ANGLE_KP: f32 = 0.1;
+        const PID_ANGLE_KP: f32 = 20.0;
         const PID_ANGLE_LIMIT: f32 = 20.0;
 
+        // const VEL_LPF_TF: f32 = 0.;
         // const VEL_LPF_TF: f32 = 0.005;
         const VEL_LPF_TF: f32 = 0.05;
         // const VEL_LPF_TF: f32 = 0.001;
 
-        const ANGLE_LPF_TF: f32 = 0.001;
+        const ANGLE_LPF_TF: f32 = 0.;
+        // const ANGLE_LPF_TF: f32 = 0.001;
 
         SimpleFOC {
             encoder,
@@ -120,6 +127,8 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             motor,
 
             enable_pin,
+
+            debug_port: usb_monitor,
 
             debug: false,
 

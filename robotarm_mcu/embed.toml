@@ -4,6 +4,11 @@ chip = "RP235x"
 [default.rtt]
 # Whether or not an RTTUI should be opened after flashing.
 enabled = true
+# show_timestamps = true
+up_channels = [
+    { channel = 0, mode = "BlockIfFull", format = "Defmt" },
+    { channel = 1, mode = "BlockIfFull", format = "String", socket = "127.0.0.1:12345" },
+]
 
 [default.gdb]
 # Whether or not a GDB server should be opened after flashing.

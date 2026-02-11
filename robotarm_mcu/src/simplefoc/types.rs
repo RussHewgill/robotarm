@@ -40,6 +40,19 @@ pub enum SensorDirection {
     Inverted,
 }
 
+impl SensorDirection {
+    pub fn multiplier(&self) -> f32 {
+        match self {
+            SensorDirection::Unknown => {
+                defmt::warn!("Sensor direction unknown, cannot calculate velocity");
+                0.0
+            }
+            SensorDirection::Normal => -1.0,
+            SensorDirection::Inverted => 1.0,
+        }
+    }
+}
+
 #[derive(defmt::Format, Clone, Copy, PartialEq)]
 pub enum TorqueControlType {
     Voltage,

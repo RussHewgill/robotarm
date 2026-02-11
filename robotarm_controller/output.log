@@ -1,0 +1,81 @@
+2026-02-11T18:47:29.126026Z DEBUG robotarm_controller: src\main.rs:131: Starting serial thread
+2026-02-11T18:47:29.340013Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:29.340087Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:29.416232Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:29.416313Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:29.621573Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=7.935956, angle=1.8285052, vel=0
+2026-02-11T18:47:29.691755Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:29.691806Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:29.695020Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=0.26866099999999893, angle=1.8285052, vel=0
+2026-02-11T18:47:29.951762Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:29.951810Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:29.967992Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=0.5373219999999987, angle=1.8285052, vel=0
+2026-02-11T18:47:30.226561Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:30.226618Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:30.241230Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=0.8059719999999997, angle=2.0739422, vel=0
+2026-02-11T18:47:30.500375Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:30.500427Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:30.513609Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=1.07463, angle=2.0601363, vel=0
+2026-02-11T18:47:30.759103Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:30.759163Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:30.785946Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=1.343274, angle=1.7533401, vel=0
+2026-02-11T18:47:31.033766Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:31.033833Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:31.060634Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=1.6119250000000003, angle=1.5861362, vel=0
+2026-02-11T18:47:31.307623Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:31.307707Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:31.333876Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=1.8805729999999992, angle=1.201107, vel=0
+2026-02-11T18:47:31.567101Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:31.567180Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:31.572760Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=2.1492239999999994, angle=1.201107, vel=0
+2026-02-11T18:47:31.840203Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:31.840285Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:31.858423Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=2.4178729999999993, angle=1.201107, vel=0
+2026-02-11T18:47:32.099576Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:32.099650Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:32.111483Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=2.6865179999999986, angle=1.201107, vel=0
+2026-02-11T18:47:32.375022Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:32.375077Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:32.384103Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=2.95517, angle=1.201107, vel=0
+2026-02-11T18:47:32.648197Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:32.648308Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:32.657222Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=3.223824999999999, angle=1.201107, vel=0
+2026-02-11T18:47:32.905922Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:32.906030Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:32.930080Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=3.4924720000000002, angle=1.201107, vel=0
+2026-02-11T18:47:33.181358Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:33.181452Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:33.202837Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=3.761121, angle=1.201107, vel=0
+2026-02-11T18:47:33.456567Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:33.456669Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:33.474136Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=4.029761999999999, angle=0.9387963, vel=0
+2026-02-11T18:47:33.715708Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:33.715792Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:33.747447Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=4.298403999999999, angle=0.80227196, vel=-11.44765
+2026-02-11T18:47:33.989104Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:33.989162Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:34.020262Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=4.567047, angle=0.49240786, vel=-11.447428
+2026-02-11T18:47:34.250008Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:34.250068Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:34.257539Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=4.835696999999999, angle=0.28378645, vel=0
+2026-02-11T18:47:34.526433Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:34.526511Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:34.529540Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=5.104335999999999, angle=0.3282719, vel=11.44765
+2026-02-11T18:47:34.786390Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:34.786437Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:34.800936Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=5.372986, angle=0.49087387, vel=0
+2026-02-11T18:47:35.060318Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:35.060430Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:35.072385Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=5.641633, angle=0.65961176, vel=0
+2026-02-11T18:47:35.333486Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:35.333589Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:35.345036Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=5.910270999999999, angle=0.7715924, vel=0
+2026-02-11T18:47:35.593831Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:35.593882Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:35.620416Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=6.178916, angle=0.722505, vel=0
+2026-02-11T18:47:35.867126Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:35.867182Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:35.892687Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=6.447558999999999, angle=0.722505, vel=0
+2026-02-11T18:47:36.142808Z TRACE robotarm_controller::serial: src\serial\mod.rs:49: Error reading from serial port: Deserialization error: The original data was not well encoded
+2026-02-11T18:47:36.142868Z TRACE robotarm_controller::serial: src\serial\mod.rs:52: Serial port closed
+2026-02-11T18:47:36.165392Z DEBUG robotarm_controller::ui::plot: src\ui\plot.rs:25: Adding point: t=6.716198999999999, angle=0.722505, vel=0

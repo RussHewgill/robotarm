@@ -26,6 +26,10 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     // pub fn debug_encoder(&mut self) -> &mut MT6701<'a, DMA> {
     //     &mut self.encoder
     // }
+
+    pub async fn send_debug_message(&mut self, message: robotarm_protocol::SerialLogMessage) {
+        self.debug_port.send(message).await;
+    }
 }
 
 /// control, info
@@ -196,7 +200,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 panic!(
                     "Sensor alignment failed: no movement detected, check motor and encoder wiring"
                 );
-            } else if mid_angle > end_angle {
+            } else if mid_angle < end_angle {
                 self.sensor_direction = SensorDirection::Normal;
                 info!("Sensor direction: Normal");
             } else {
@@ -221,7 +225,8 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             info!("Aligning sensor, rotating motor to known angle...");
 
             // self.motor.voltage_sensor_align = 0.5;
-            self.motor.voltage_sensor_align = 1.0;
+            // self.motor.voltage_sensor_align = 1.0;
+            self.motor.voltage_sensor_align = 2.0;
 
             self.enable();
 
@@ -231,18 +236,18 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 crate::simplefoc::types::_3PI_2,
             );
 
-            info!("Waiting for sensor to align...");
+            // info!("Waiting for sensor to align...");
 
             Timer::after_millis(700).await;
 
-            info!("Sensor aligned, setting zero electric angle...");
+            // info!("Sensor aligned, setting zero electric angle...");
 
             // get the current zero electric angle
             self.zero_electric_angle = 0.;
             let electrical_angle = self.get_electrical_angle();
             self.zero_electric_angle = electrical_angle;
 
-            info!("Zero electric angle set to {}", self.zero_electric_angle);
+            // info!("Zero electric angle set to {}", self.zero_electric_angle);
             // info!("Shaft angle at alignment position: {}", _shaft_angle);
 
             Timer::after_millis(20).await;
@@ -340,11 +345,26 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 }
 
                 if self.debug {
+                    self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
+                        id: 0,
+                        timestamp: t_us,
+                        target: self.motor.target_shaft_velocity,
+                        position: shaft_angle,
+                        velocity: shaft_velocity,
+                    })
+                    .await;
+                }
+
+                #[cfg(feature = "nope")]
+                if self.debug {
                     debug!(
-                        "target V: {}, shaft V: {}, V error: {}",
+                        "target V: {}, shaft V: {}, V error: {}, angle: {}",
                         self.motor.target_shaft_velocity,
                         shaft_velocity,
-                        self.motor.target_shaft_velocity - shaft_velocity
+                        self.motor.target_shaft_velocity - shaft_velocity,
+                        // self.motor.target_current,
+                        // self.motor.voltage.q,
+                        shaft_angle,
                     );
                     // debug!(
                     //     "Voltage: Uq: {}, Ud: {}",
@@ -409,7 +429,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
                 if self.debug {
                     debug!(
-                        "target V: {}, shaft V: {}, V error: {}",
+                        "target V: {}, shaft V: {}, V error: {}, angle: {}",
                         // self.motor.target_shaft_velocity,
                         libm::roundf(
                             (self.motor.target_shaft_velocity / crate::simplefoc::types::_2PI)
@@ -424,6 +444,9 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                                 / crate::simplefoc::types::_2PI)
                                 * 100.
                         ) / 100.,
+                        // libm::roundf((shaft_angle / crate::simplefoc::types::_2PI) * 100.) / 100.,
+                        // shaft_angle,
+                        self.encoder.get_mechanical_angle()
                     );
                     // debug!(
                     //     "Voltage: Uq: {}, Ud: {}",
@@ -502,50 +525,36 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     }
 
     fn get_shaft_velocity(&mut self, t_us: u64) -> f32 {
-        let dir = if self.sensor_direction == SensorDirection::Normal {
-            1.0
-        } else if self.sensor_direction == SensorDirection::Inverted {
-            -1.0
-        } else {
-            // warn!("Sensor direction unknown, cannot calculate velocity");
-            // 0.0
-            1.0
-        };
+        // let dir = if self.sensor_direction == SensorDirection::Normal {
+        //     1.0
+        // } else if self.sensor_direction == SensorDirection::Inverted {
+        //     -1.0
+        // } else {
+        //     warn!("Sensor direction unknown, cannot calculate velocity");
+        //     0.0
+        //     // 1.0
+        // };
 
-        // dir * self.lpf_velocity.filter(self.encoder.get_velocity())
-        dir * self
-            .lpf_velocity
-            .filter_with_timestamp(self.encoder.get_velocity(), t_us)
+        self.sensor_direction.multiplier()
+            * self
+                .lpf_velocity
+                // .filter_with_timestamp(self.encoder.get_velocity(), t_us)
+                .filter(self.encoder.get_velocity())
     }
 
     fn get_shaft_angle(&mut self) -> f32 {
-        // let angle = self.encoder.get_angle();
         let angle = self.encoder.get_angle();
 
-        // convert from 12 bit to float
-        let angle = (angle as f32) * 2.0 * core::f32::consts::PI / 4096.0;
-
-        let angle = self.lpf_angle.filter(angle) - self.sensor_offset;
+        let angle =
+            self.sensor_direction.multiplier() * self.lpf_angle.filter(angle) - self.sensor_offset;
 
         angle
     }
 
-    /// returns both electrical and shaft angle
     fn get_electrical_angle(&mut self) -> f32 {
-        // _normalizeAngle( (float)(sensor_direction * pole_pairs) * sensor->getMechanicalAngle()  - zero_electric_angle );
-        // Self::normalize_angle()
-
-        let dir = if self.sensor_direction == SensorDirection::Normal {
-            1.0
-        } else if self.sensor_direction == SensorDirection::Inverted {
-            -1.0
-        } else {
-            0.0
-        };
-
-        // let shaft_angle = self.get_shaft_angle().await;
         let shaft_angle = self.encoder.get_mechanical_angle();
-        let angle = dir * self.motor.pole_pairs as f32 * shaft_angle - self.zero_electric_angle;
+        let angle = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * shaft_angle
+            - self.zero_electric_angle;
 
         // (Self::normalize_angle(angle), shaft_angle)
         Self::normalize_angle(angle)

@@ -1,9 +1,9 @@
 // use embedded_hal::delay::DelayNs;
 // use embedded_hal::i2c::I2c as BlockingI2c;
 
-use defmt::debug;
+use defmt::{debug, error, info};
 
-use crate::simplefoc::types::_2PI;
+use crate::{hardware::encoder_sensor::EncoderSensor, simplefoc::types::_2PI};
 
 #[derive(defmt::Format)]
 pub struct MT6701<I2C> {
@@ -30,25 +30,25 @@ pub enum MT6701Error {
     // Unknown,
 }
 
-impl MT6701<embassy_rp::i2c::I2c<'_, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>> {
-    pub async fn test(&mut self) -> Result<(), MT6701Error> {
-        use embedded_hal_async::i2c::I2c;
-        // use embedded_hal::i2c::I2c;
+impl<I2C: embedded_hal_async::i2c::I2c> EncoderSensor for MT6701<I2C> {
+    type Error = MT6701Error;
 
-        if let Err(e) = self.i2c.write(self.address, &[0x03]).await {
-            debug!("I2C write error: {}", e);
-            return Err(MT6701Error::I2CWriteError);
-        }
+    async fn update(&mut self, ts_us: u64) -> Result<(), Self::Error> {
+        self._update(ts_us)
+            .await
+            .map_err(|_| MT6701Error::I2CReadError)
+    }
 
-        // let mut b: [u8; 1] = [0; 1];
+    fn get_mechanical_angle(&self) -> f32 {
+        self._get_mechanical_angle()
+    }
 
-        // self.i2c
-        //     // .read(self.address, &mut buffer[..1])
-        //     .read(self.address, &mut b)
-        //     .await
-        //     .map_err(|_| MT6701Error::I2CReadError)?;
+    fn get_angle(&self) -> f32 {
+        self._get_angle()
+    }
 
-        unimplemented!()
+    fn get_velocity(&mut self) -> f32 {
+        self._get_velocity()
     }
 }
 
@@ -60,7 +60,9 @@ impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
             i2c,
             address,
 
+            // min_elapsed_time: 0.00001, // 10 microseconds
             min_elapsed_time: 0.0001, // 100 microseconds
+            // min_elapsed_time: 0.005, // 1 millisecond
 
             // angle: 0.0,
             velocity: 0.0,
@@ -105,53 +107,33 @@ impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
     }
 
     pub async fn read_raw_angle(&mut self) -> Result<u16, MT6701Error> {
-        let mut buffer: [u8; 2] = [0; 2];
+        use embedded_hal_async::i2c::I2c;
 
-        // self.i2c
-        //     .write(self.address, &[0x03])
-        //     .await
-        //     .map_err(|_| MT6701Error::I2CWriteError)?;
+        let mut buf: [u8; 2] = [0; 2];
 
-        if let Err(e) = self.i2c.write(self.address, &[0x03]).await {
-            // debug!("I2C write error: {}", e);
-            return Err(MT6701Error::I2CWriteError);
+        if let Err(e) = self
+            .i2c
+            // .write_read(self.address, &[0x03], &mut buf[..1])
+            .write_read(self.address, &[0x03], &mut buf)
+            .await
+        {
+            // error!("I2C Error: {:?}", e);
+            // error!("I2C Error");
+            return Err(MT6701Error::I2CReadError);
         }
 
-        let mut b: [u8; 1] = [0; 1];
-
-        self.i2c
-            // .read(self.address, &mut buffer[..1])
-            .read(self.address, &mut b)
-            .await
-            .map_err(|_| MT6701Error::I2CReadError)?;
-
-        debug!("Read byte: {:02X}", b[0]);
-
-        // self.i2c
-        //     .write(self.address, &[0x04])
-        //     .await
-        //     .map_err(|_| MT6701Error::I2CWriteError)?;
-
-        // self.i2c
-        //     .read(self.address, &mut buffer[1..])
-        //     .await
-        //     .map_err(|_| MT6701Error::I2CReadError)?;
-
-        defmt::warn!("TODO: check if this is correct");
-        // Ok((buffer[0] >> 1) & 0x3FFF)
-        Ok((u16::from_be_bytes(buffer) >> 1) & 0x3FFF)
+        Ok(((buf[0] as u16) << 6) | (buf[1] as u16 & 0b00111111))
     }
-}
 
-impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
-    pub async fn update(&mut self, ts_us: u64) -> Result<(), MT6701Error> {
+    pub async fn _update(&mut self, ts_us: u64) -> Result<(), MT6701Error> {
         let raw_angle = self.read_raw_angle().await?;
-        debug!("Raw angle: {}", raw_angle);
+        // debug!("Raw angle: {}", raw_angle);
         let angle = (raw_angle as f32 / 16384_f32) * _2PI;
         // debug!("Angle: {}", angle);
 
         let move_angle = angle - self.angle_prev;
 
+        // handle full rotations - if the angle jumps more than 0.8 * 2PI, we assume it wrapped around
         if libm::fabsf(move_angle) > (0.8 * _2PI) {
             if move_angle > 0.0 {
                 self.full_rotations -= 1;
@@ -160,19 +142,19 @@ impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
             }
         }
 
-        // = (self.full_rotations as f32 * _2PI + angle) as f64;
-
         self.angle_prev = angle;
         self.angle_prev_ts = ts_us;
+
+        self.calc_velocity();
 
         Ok(())
     }
 
-    pub fn get_mechanical_angle(&self) -> f32 {
+    fn _get_mechanical_angle(&self) -> f32 {
         self.angle_prev
     }
 
-    pub fn get_angle(&self) -> f32 {
+    fn _get_angle(&self) -> f32 {
         self.full_rotations as f32 * _2PI + self.angle_prev
     }
 
@@ -180,7 +162,7 @@ impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
     //     unimplemented!()
     // }
 
-    pub fn get_velocity(&mut self) -> f32 {
-        unimplemented!()
+    fn _get_velocity(&mut self) -> f32 {
+        self.velocity
     }
 }
