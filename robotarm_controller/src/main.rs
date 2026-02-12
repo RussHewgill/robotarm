@@ -16,7 +16,7 @@ use tracing::{debug, error, info, trace, warn};
 #[cfg(feature = "nope")]
 // #[tokio::main]
 async fn main() -> tokio_serial::Result<()> {
-    use futures::StreamExt as _;
+    use futures::{SinkExt as _, StreamExt as _};
     use std::io::Read;
     use tokio_serial::SerialPortBuilderExt as _;
     use tokio_util::codec::Decoder as _;
@@ -30,7 +30,9 @@ async fn main() -> tokio_serial::Result<()> {
         tokio_serial::SerialPortBuilderExt::open_native_async(tokio_serial::new("COM8", 115200))
             .unwrap();
 
-    let mut reader = crate::serial::codec::SerialCodec.framed(port);
+    // let reader = port.
+
+    let mut framed = crate::serial::codec::SerialCodec.framed(port);
 
     // let mut serial_handler = serial::SerialHandler::new(
     //     tokio_serial::SerialPortBuilderExt::open_native_async(tokio_serial::new("COM8", 115200))
@@ -39,19 +41,28 @@ async fn main() -> tokio_serial::Result<()> {
     //     Some(serial_cmd_rx),
     // );
 
+    let mut t = 0.;
+
+    // // let cmd = robotarm_protocol::SerialCommand::SetMotorTarget { id: 1, target: t };
+    // let cmd = robotarm_protocol::SerialCommand::SetModeVelocityOpenLoop { id: 0 };
+
+    // framed.send(cmd).await.unwrap();
+
     loop {
-        if let Some(n) = reader.next().await {
+        if let Some(n) = framed.next().await {
             match n {
                 Ok(msg) => {
                     debug!("Received message: {:?}", msg);
                 }
                 Err(e) => {
-                    trace!("Error reading from serial port: {}", e);
+                    debug!("Error reading from serial port: {}", e);
                 }
             }
         } else {
-            trace!("Serial port closed");
+            debug!("Serial port closed");
         }
+
+        // t += 1.;
     }
 
     // Ok(())
@@ -112,6 +123,7 @@ fn main() {
     });
 }
 
+/// MARK: Main
 // #[cfg(feature = "nope")]
 fn main() -> eframe::Result<()> {
     logging::init_logs();
@@ -137,13 +149,13 @@ fn main() -> eframe::Result<()> {
                     "COM8", 115200,
                 ))
                 .unwrap(),
-                Some(serial_log_tx),
-                Some(serial_cmd_rx),
+                serial_log_tx,
+                serial_cmd_rx,
             );
 
             loop {
                 if let Err(e) = serial_handler.run().await {
-                    error!("Error in serial handler: {}", e);
+                    // error!("Error in serial handler: {}", e);
                 }
             }
         });

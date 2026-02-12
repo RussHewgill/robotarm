@@ -44,8 +44,8 @@ bind_interrupts!(struct Irqs {
 });
 
 /// rtt tests
-#[embassy_executor::main]
-// #[cfg(feature = "nope")]
+// #[embassy_executor::main]
+#[cfg(feature = "nope")]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -81,7 +81,7 @@ async fn main(spawner: Spawner) {
 
         let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
-        let mut usb = crate::comms::usb::UsbMonitor::new(&spawner, driver);
+        let mut usb = crate::comms::usb::UsbMonitor::init(&spawner, driver);
 
         // let (mut sender, mut receiver) = class.split();
 
@@ -115,6 +115,7 @@ async fn main(spawner: Spawner) {
                     id: 0,
                     timestamp: now,
                     target: x as f32,
+                    angle: 0.,
                     position: angle,
                     velocity,
                 };
@@ -378,8 +379,8 @@ async fn main(spawner: Spawner) {
 }
 
 /// MARK: Main
-// #[embassy_executor::main]
-#[cfg(feature = "nope")]
+#[embassy_executor::main]
+// #[cfg(feature = "nope")]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -404,8 +405,8 @@ async fn main(spawner: Spawner) {
     c.divider = 1.into();
     c.phase_correct = true;
 
-    let voltage_limit = 2.0;
-    // let voltage_limit = 3.;
+    // let voltage_limit = 2.0;
+    let voltage_limit = 4.;
 
     let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
     let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
@@ -426,7 +427,7 @@ async fn main(spawner: Spawner) {
 
     let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
-    let usb = crate::comms::usb::UsbMonitor::new(&spawner, driver);
+    let usb = crate::comms::usb::UsbMonitor::init(&spawner, driver);
 
     // info!("set up FOC");
     let mut foc = crate::simplefoc::foc_types::SimpleFOC::new(
@@ -434,11 +435,11 @@ async fn main(spawner: Spawner) {
         pwm_driver,
         enable_pin,
         motor_config,
-        usb,
+        Some(usb),
+        // None,
     );
 
     foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Normal);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Inverted);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
@@ -471,8 +472,8 @@ async fn test_foc(
 ) {
     info!("Starting FOC test");
     // let update_rate_hz = 9000;
-    let update_rate_hz = 100;
-    let print_rate_hz = 100;
+    let update_rate_hz = 1_000;
+    let print_rate_hz = 20;
     let time_limit = 10;
 
     let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
@@ -497,6 +498,7 @@ async fn test_foc(
     let mut min = u64::MAX;
     let mut max = u64::MIN;
 
+    debug!("starting test loop");
     loop {
         ticker.next().await;
         // foc.debug_update_sensor().await;
@@ -514,10 +516,9 @@ async fn test_foc(
         // min = min.min(angle as u64);
         // max = max.max(angle as u64);
 
-        foc.encoder
-            .update(Instant::now().as_micros())
-            .await
-            .unwrap();
+        let t_us = Instant::now().as_micros();
+        foc.encoder.update(t_us).await.unwrap();
+        foc.run_commands().await;
 
         // vn += 1;
         // vs += v;
@@ -527,15 +528,25 @@ async fn test_foc(
             // let v = foc.get_shaft_velocity();
             // // let v = foc.debug_encoder().get_velocity();
 
-            let angle = foc.encoder.get_angle();
+            let position = foc.encoder.get_mechanical_angle();
             let v = foc.encoder.get_velocity();
 
             debug!(
                 "Angle: {}, Velocity: {}",
                 // libm::roundf(angle * 1000.) / 1000. * (180. / core::f32::consts::PI),
-                angle,
+                position,
                 v,
             );
+
+            // foc.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
+            //     id: 0,
+            //     timestamp: t_us,
+            //     target: 0.0,
+            //     position: foc.encoder.get_angle(),
+            //     angle: foc.encoder.get_mechanical_angle(),
+            //     velocity: v,
+            // })
+            // .await;
 
             // debug!(
             //     "Angle: {}, velocity: {}",
@@ -552,6 +563,7 @@ async fn test_foc(
             n += 1;
         }
 
+        #[cfg(feature = "nope")]
         if Instant::now() > max_time {
             // let avg = sum as u64 / len as u64;
             // debug!(
@@ -584,8 +596,8 @@ async fn loop_foc(
 ) {
     info!("Starting main loop");
 
-    let update_rate_hz = 2000;
-    let print_rate_hz = 20;
+    let update_rate_hz = 20_000;
+    let print_rate_hz = 100;
     // let time_limit = 1.5;
     let time_limit = 2.;
 
@@ -605,14 +617,15 @@ async fn loop_foc(
 
     // let tgt = 60.;
 
-    // foc.set_target_velocity(3.14 * 1.);
+    foc.set_target_velocity(3.14 * 1.);
 
     // // foc.set_target_torque(0.);
     // foc.set_target_torque(0.05);
 
     foc.debug = true;
     loop {
-        // ticker.next().await;
+        ticker.next().await;
+        foc.run_commands().await;
         foc.update_foc().await;
 
         if n >= n_max {
@@ -643,11 +656,11 @@ async fn loop_foc(
             n += 1;
         }
 
-        if Instant::now() > max_time {
-            tgt += 3.14 / 2.;
-            foc.set_target_position(tgt);
-            max_time = max_time + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
-        }
+        // if Instant::now() > max_time {
+        //     tgt += 3.14 / 2.;
+        //     foc.set_target_position(tgt);
+        //     max_time = max_time + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
+        // }
 
         // if Instant::now() > max_time {
         //     info!("Halting FOC loop");

@@ -2,7 +2,7 @@ use defmt::{debug, error, info, trace, warn};
 use embassy_rp::gpio::Output;
 
 use crate::{
-    comms::usb::UsbMonitor,
+    comms::usb::UsbLogger,
     hardware::{as5600::AS5600, encoder_sensor::EncoderSensor, mt_6701_adc::MT6701},
     simplefoc::{
         bldc::BLDCMotor,
@@ -44,7 +44,7 @@ pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
 
     pub(super) enable_pin: Output<'a>,
 
-    pub debug_port: UsbMonitor,
+    pub usb_logger: Option<UsbLogger>,
 
     pub debug: bool,
 
@@ -90,7 +90,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         motor: BLDCMotor,
 
-        usb_monitor: UsbMonitor,
+        usb_logger: Option<UsbLogger>,
     ) -> Self {
         // const PID_CURRENT_KP: f32 = 3.;
         // const PID_CURRENT_KI: f32 = 300.;
@@ -128,7 +128,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
             enable_pin,
 
-            debug_port: usb_monitor,
+            usb_logger,
 
             debug: false,
 

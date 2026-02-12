@@ -1146,11 +1146,13 @@ dependencies = [
  "embedded-hal 1.0.0",
  "embedded-hal-async",
  "fixed",
+ "heapless 0.9.2",
  "libm",
  "log",
  "panic-probe",
  "postcard",
  "robotarm_protocol",
+ "ryu",
  "serde",
  "static_cell",
 ]
@@ -1159,6 +1161,7 @@ dependencies = [
 name = "robotarm_protocol"
 version = "0.1.0"
 dependencies = [
+ "defmt",
  "heapless 0.9.2",
  "postcard",
  "serde",
@@ -1203,6 +1206,12 @@ name = "rustversion"
 version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
+
+[[package]]
+name = "ryu"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "same-file"

@@ -1,6 +1,7 @@
 use defmt::{debug, error, info, trace, warn};
 use embassy_rp::gpio::Output;
 use embassy_time::{Instant, Timer};
+use robotarm_protocol::{SerialCommand, SerialLogMessage};
 
 use crate::{
     hardware::{as5600::AS5600, encoder_sensor::EncoderSensor, mt_6701::MT6701},
@@ -28,7 +29,10 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     // }
 
     pub async fn send_debug_message(&mut self, message: robotarm_protocol::SerialLogMessage) {
-        self.debug_port.send(message).await;
+        // self.usb_logger.send_log_msg(message);
+        if let Some(logger) = &mut self.usb_logger {
+            logger.send_log_msg(message);
+        }
     }
 }
 
@@ -260,6 +264,153 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         self.disable();
     }
 
+    pub async fn run_commands(&mut self) {
+        let mut cmds = heapless::Vec::<SerialCommand, 4>::new();
+        if let Some(logger) = &mut self.usb_logger {
+            while let Ok(cmd) = logger.recv().await {
+                cmds.push(cmd).unwrap_or_else(|_| {
+                    error!("Command queue full, dropping command");
+                });
+            }
+        }
+        for cmd in cmds {
+            match cmd {
+                SerialCommand::ZeroPosition { id } => {
+                    self.encoder.reset_position();
+                }
+                SerialCommand::SetLPF {
+                    id,
+                    lpf_vel,
+                    lpf_angle,
+                } => {
+                    if let Some(lpf_vel) = lpf_vel {
+                        self.lpf_velocity.tf = lpf_vel;
+                    }
+                    if let Some(lpf_angle) = lpf_angle {
+                        self.lpf_angle.tf = lpf_angle;
+                    }
+                    debug!(
+                        "Received SetLPF command: id: {}, lpf_vel: {:?}, lpf_angle: {:?}",
+                        id, lpf_vel, lpf_angle
+                    );
+                }
+                SerialCommand::RequestSettings { id } => {
+                    if let Some(logger) = &mut self.usb_logger {
+                        logger.send_log_msg(SerialLogMessage::MotorPID {
+                            id,
+                            vel_p: self.pid_velocity.p,
+                            vel_i: self.pid_velocity.i,
+                            vel_d: self.pid_velocity.d,
+                            vel_ramp: self.pid_velocity.output_ramp,
+                            vel_limit: self.pid_velocity.limit,
+                            angle_p: self.pid_angle.p,
+                            angle_i: self.pid_angle.i,
+                            angle_d: self.pid_angle.d,
+                            angle_ramp: self.pid_angle.output_ramp,
+                            angle_limit: self.pid_angle.limit,
+                            lpf_angle: self.lpf_angle.tf,
+                            lpf_vel: self.lpf_velocity.tf,
+                        });
+                    }
+                }
+                SerialCommand::SetEnabled { id, enabled } => {
+                    if enabled {
+                        self.enable();
+                    } else {
+                        self.disable();
+                    }
+                    debug!(
+                        "Received SetEnabled command: id: {}, enabled: {}",
+                        id, enabled
+                    );
+                }
+                SerialCommand::SetMotorTarget { id, target } => {
+                    match self.motion_control {
+                        MotionControlType::Torque => self.set_target_torque(target),
+                        MotionControlType::Velocity => self.set_target_velocity(target),
+                        MotionControlType::Angle => self.set_target_position(target),
+                        MotionControlType::VelocityOpenLoop => self.set_target_velocity(target),
+                    }
+                    // self.set_target_position(target);
+                    debug!(
+                        "Received SetMotorTarget command: id: {}, target: {}",
+                        id, target
+                    );
+                }
+                SerialCommand::SetModeAngle { id } => {
+                    self.set_motion_control(MotionControlType::Angle);
+                    debug!("Received SetModeAngle command: id: {}", id);
+                }
+                SerialCommand::SetModeVelocity { id } => {
+                    self.set_motion_control(MotionControlType::Velocity);
+                    debug!("Received SetModeVelocity command: id: {}", id);
+                }
+                SerialCommand::SetModeVelocityOpenLoop { id } => {
+                    self.set_motion_control(MotionControlType::VelocityOpenLoop);
+                    debug!("Received SetModeVelocityOpenLoop command: id: {}", id);
+                }
+                SerialCommand::SetVelocityPID {
+                    id,
+                    p,
+                    i,
+                    d,
+                    ramp,
+                    limit,
+                } => {
+                    if let Some(p) = p {
+                        self.pid_velocity.p = p;
+                    }
+                    if let Some(i) = i {
+                        self.pid_velocity.i = i;
+                    }
+                    if let Some(d) = d {
+                        self.pid_velocity.d = d;
+                    }
+                    if let Some(limit) = limit {
+                        self.pid_velocity.limit = limit;
+                    }
+                    if let Some(ramp) = ramp {
+                        self.pid_velocity.output_ramp = ramp;
+                    }
+                    debug!(
+                        "Received SetPID command: id: {}, p: {:?}, i: {:?}, d: {:?}, limit: {:?}",
+                        id, p, i, d, limit
+                    );
+                }
+                SerialCommand::SetAnglePID {
+                    id,
+                    p,
+                    i,
+                    d,
+                    ramp,
+                    limit,
+                } => {
+                    if let Some(p) = p {
+                        self.pid_angle.p = p;
+                    }
+                    if let Some(i) = i {
+                        self.pid_angle.i = i;
+                    }
+                    if let Some(d) = d {
+                        self.pid_angle.d = d;
+                    }
+                    if let Some(limit) = limit {
+                        self.pid_angle.limit = limit;
+                    }
+                    if let Some(ramp) = ramp {
+                        self.pid_angle.output_ramp = ramp;
+                    }
+                    debug!(
+                        "Received SetPID command: id: {}, p: {:?}, i: {:?}, d: {:?}, limit: {:?}",
+                        id, p, i, d, limit
+                    );
+                }
+            }
+        }
+
+        // while let Some(cmd) = self.usb_logger
+    }
+
     /// main loop
     pub async fn update_foc(&mut self) {
         // trace!("Updating FOC control loop");
@@ -344,17 +495,6 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                     self.motor.voltage.d = 0.;
                 }
 
-                if self.debug {
-                    self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
-                        id: 0,
-                        timestamp: t_us,
-                        target: self.motor.target_shaft_velocity,
-                        position: shaft_angle,
-                        velocity: shaft_velocity,
-                    })
-                    .await;
-                }
-
                 #[cfg(feature = "nope")]
                 if self.debug {
                     debug!(
@@ -386,6 +526,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                     .pid_velocity
                     .update(self.motor.target_shaft_velocity - shaft_velocity);
 
+                #[cfg(feature = "nope")]
                 if self.debug {
                     debug!(
                         "target angle: {}, shaft angle: {}, angle error: {}, target velocity: {}, shaft velocity: {}, velocity error: {}, target current: {}",
@@ -427,6 +568,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 );
                 self.motor.voltage.d = 0.0;
 
+                #[cfg(feature = "nope")]
                 if self.debug {
                     debug!(
                         "target V: {}, shaft V: {}, V error: {}, angle: {}",
@@ -465,6 +607,21 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                     electrical_angle,
                 );
             }
+        }
+
+        if self.debug {
+            self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
+                id: 0,
+                timestamp: t_us,
+                position: shaft_angle,
+                angle: self.encoder.get_mechanical_angle(),
+                velocity: shaft_velocity,
+                target_position: self.motor.target_shaft_angle,
+                target_velocity: self.motor.target_shaft_velocity,
+                motor_current: self.motor.current.q,
+                motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
+            })
+            .await;
         }
 
         self.debug = false;

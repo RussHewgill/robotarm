@@ -5,7 +5,15 @@ use tracing::{debug, error, info, trace, warn};
 use robotarm_protocol::{SerialCommand, SerialLogMessage};
 
 #[derive(Debug, Clone)]
-pub struct SerialCodec;
+pub struct SerialCodec {
+    buf: [u8; 16384],
+}
+
+impl Default for SerialCodec {
+    fn default() -> Self {
+        Self { buf: [0; 16384] }
+    }
+}
 
 impl tokio_util::codec::Decoder for SerialCodec {
     type Item = SerialLogMessage;
@@ -13,18 +21,36 @@ impl tokio_util::codec::Decoder for SerialCodec {
 
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let n = src.len();
-        match postcard::take_from_bytes_cobs(src) {
+        // let mut src2 = src.clone();
+        self.buf[..n].copy_from_slice(src.as_ref());
+        match postcard::take_from_bytes_cobs(self.buf.as_mut()) {
             Ok((msg, rest)) => {
-                let n = n - rest.len();
-                src.advance(n);
-                // debug!("n0 = {}, n1 = {}, consumed = {}", n0, n1, n0 - n1);
+                let len = rest.len();
+                if len > 0 {
+                    // src.advance(n - rest.len());
+                    src.clear();
+                    // src.extend_from_slice(&self.buf[..len]);
+                } else {
+                    src.clear();
+                }
+                // let n2 = n - rest.len();
+                // src.advance(n2);
+                // debug!("Decoded message: {:?}", msg);
                 Ok(Some(msg))
             }
-            Err(postcard::Error::DeserializeUnexpectedEnd) => Ok(None),
-            Err(e) => Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Deserialization error: {e}"),
-            )),
+            Err(postcard::Error::DeserializeUnexpectedEnd) => {
+                // debug!("Incomplete message received, waiting for more data");
+                // src.clear(); // Clear the buffer to avoid processing incomplete data
+                Ok(None)
+            }
+            Err(e) => {
+                // debug!("Deserialization error: {e}");
+                // src.clear();
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Deserialization error: {e}"),
+                ))
+            }
         }
     }
 
@@ -49,9 +75,18 @@ impl tokio_util::codec::Encoder<SerialCommand> for SerialCodec {
 
     fn encode(
         &mut self,
-        _item: SerialCommand,
-        _dst: &mut bytes::BytesMut,
+        item: SerialCommand,
+        dst: &mut bytes::BytesMut,
     ) -> Result<(), Self::Error> {
-        Ok(())
+        match postcard::to_stdvec_cobs(&item) {
+            Ok(buf) => {
+                dst.extend_from_slice(&buf);
+                Ok(())
+            }
+            Err(e) => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Serialization error: {e}"),
+            )),
+        }
     }
 }

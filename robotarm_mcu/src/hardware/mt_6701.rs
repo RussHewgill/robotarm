@@ -50,6 +50,10 @@ impl<I2C: embedded_hal_async::i2c::I2c> EncoderSensor for MT6701<I2C> {
     fn get_velocity(&mut self) -> f32 {
         self._get_velocity()
     }
+
+    fn reset_position(&mut self) {
+        self.full_rotations = 0;
+    }
 }
 
 impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
