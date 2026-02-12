@@ -2,3 +2,4 @@
 */target
 robotarm_mcu/assets/
 *.log
+*/*.log

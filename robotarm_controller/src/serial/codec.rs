@@ -23,12 +23,13 @@ impl tokio_util::codec::Decoder for SerialCodec {
         let n = src.len();
         // let mut src2 = src.clone();
         self.buf[..n].copy_from_slice(src.as_ref());
-        match postcard::take_from_bytes_cobs(self.buf.as_mut()) {
+        match postcard::take_from_bytes_cobs(&mut self.buf[..n]) {
             Ok((msg, rest)) => {
                 let len = rest.len();
                 if len > 0 {
-                    // src.advance(n - rest.len());
-                    src.clear();
+                    // debug!("len = {}", len);
+                    src.advance(n - len);
+                    // src.clear();
                     // src.extend_from_slice(&self.buf[..len]);
                 } else {
                     src.clear();

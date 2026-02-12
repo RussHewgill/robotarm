@@ -262,7 +262,7 @@ impl eframe::App for App {
                 });
 
                 col_2.vertical(|ui| {
-                    ui.horizontal(|ui| {
+                    egui::Grid::new("velocity_pid_grid").show(ui, |ui| {
                         ui.label("Velocity KP: ");
                         if ui.add(egui::DragValue::new(&mut self.vel_pid_p)).changed() {
                             if let Some(tx) = &self.serial_cmd_tx {
@@ -279,9 +279,8 @@ impl eframe::App for App {
                                 }
                             }
                         }
-                    });
+                        ui.end_row();
 
-                    ui.horizontal(|ui| {
                         ui.label("Velocity KI: ");
                         if ui.add(egui::DragValue::new(&mut self.vel_pid_i)).changed() {
                             if let Some(tx) = &self.serial_cmd_tx {
@@ -298,9 +297,8 @@ impl eframe::App for App {
                                 }
                             }
                         }
-                    });
+                        ui.end_row();
 
-                    ui.horizontal(|ui| {
                         ui.label("Velocity KD: ");
                         if ui.add(egui::DragValue::new(&mut self.vel_pid_d)).changed() {
                             if let Some(tx) = &self.serial_cmd_tx {
@@ -317,6 +315,15 @@ impl eframe::App for App {
                                 }
                             }
                         }
+                        ui.end_row();
+
+                        ui.horizontal(|ui| {
+                            ui.label("Velocity LPF: ");
+                            ui.label(format!(
+                                "{:.3} Hz",
+                                1.0 / (2.0 * std::f32::consts::PI * self.vel_pid_ramp)
+                            ));
+                        });
                     });
                 });
 

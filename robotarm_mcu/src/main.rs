@@ -406,7 +406,7 @@ async fn main(spawner: Spawner) {
     c.phase_correct = true;
 
     // let voltage_limit = 2.0;
-    let voltage_limit = 4.;
+    let voltage_limit = 3.;
 
     let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
     let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
@@ -612,7 +612,7 @@ async fn loop_foc(
     foc.enable();
 
     // let tgt = 1.64;
-    let mut tgt = 0.0;
+    let mut tgt = 1.0;
     foc.set_target_position(tgt);
 
     // let tgt = 60.;
