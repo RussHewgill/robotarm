@@ -47,5 +47,7 @@ serde = { version = "1.0.228", default-features = false }
 ryu = "1.0.23"
 heapless = { version = "0.9.2", default-features = false, features = [] }
 
+discrete_pid = { version = "0.1.0", default-features = false }
+
 [patch.crates-io]
 as5600 = { git = "https://github.com/barafael/as5600-rs" }

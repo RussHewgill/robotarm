@@ -26,13 +26,22 @@ async fn main() -> tokio_serial::Result<()> {
     // let (serial_log_tx, serial_log_rx) = tokio::sync::mpsc::channel(100);
     // let (serial_cmd_tx, serial_cmd_rx) = tokio::sync::mpsc::channel(100);
 
-    let port =
+    let mut port =
         tokio_serial::SerialPortBuilderExt::open_native_async(tokio_serial::new("COM8", 115200))
             .unwrap();
 
-    // let reader = port.
+    // let mut buf = [0; 1024];
+    // loop {
+    //     if let Ok(n) = port.read(&mut buf) {
+    //         if n > 0 {
+    //             debug!("Read {} bytes: {:?}", n, &buf[..n]);
+    //         }
+    //     }
 
-    let mut framed = crate::serial::codec::SerialCodec.framed(port);
+    //     //
+    // }
+
+    let mut framed = crate::serial::codec::SerialCodec::default().framed(port);
 
     // let mut serial_handler = serial::SerialHandler::new(
     //     tokio_serial::SerialPortBuilderExt::open_native_async(tokio_serial::new("COM8", 115200))
@@ -41,13 +50,14 @@ async fn main() -> tokio_serial::Result<()> {
     //     Some(serial_cmd_rx),
     // );
 
-    let mut t = 0.;
+    // let mut t = 0.;
 
     // // let cmd = robotarm_protocol::SerialCommand::SetMotorTarget { id: 1, target: t };
     // let cmd = robotarm_protocol::SerialCommand::SetModeVelocityOpenLoop { id: 0 };
 
     // framed.send(cmd).await.unwrap();
 
+    // #[cfg(feature = "nope")]
     loop {
         if let Some(n) = framed.next().await {
             match n {

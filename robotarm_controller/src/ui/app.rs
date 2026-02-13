@@ -41,6 +41,9 @@ pub struct App {
     pos_pid_d: f32,
     pos_pid_ramp: f32,
     pos_pid_limit: f32,
+
+    lpf_angle: f32,
+    lpf_vel: f32,
 }
 
 impl App {
@@ -74,6 +77,9 @@ impl App {
             pos_pid_d: 0.,
             pos_pid_ramp: 0.,
             pos_pid_limit: 0.,
+
+            lpf_angle: 0.,
+            lpf_vel: 0.,
         }
     }
 
@@ -111,6 +117,9 @@ impl App {
                         self.pos_pid_d = angle_d;
                         self.pos_pid_ramp = angle_ramp;
                         self.pos_pid_limit = angle_limit;
+
+                        self.lpf_angle = lpf_angle;
+                        self.lpf_vel = lpf_vel;
                     }
                     SerialLogMessage::MotorData {
                         id,
@@ -163,7 +172,31 @@ impl eframe::App for App {
         egui::TopBottomPanel::bottom("Bottom").show(ctx, |ui| {
             ui.columns_const(|[col_1, col_2, col_3]| {
                 col_1.vertical(|ui| {
-                    ui.label("Bottom panel");
+                    ui.horizontal(|ui| {
+                        if ui.button("Enabled Motor").clicked() {
+                            if let Some(tx) = &self.serial_cmd_tx {
+                                let cmd = SerialCommand::SetEnabled {
+                                    id: 0,
+                                    enabled: true,
+                                };
+                                if let Err(e) = tx.try_send(cmd) {
+                                    error!("Failed to send command: {}", e);
+                                }
+                            }
+                        }
+
+                        if ui.button("Disable Motor").clicked() {
+                            if let Some(tx) = &self.serial_cmd_tx {
+                                let cmd = SerialCommand::SetEnabled {
+                                    id: 0,
+                                    enabled: false,
+                                };
+                                if let Err(e) = tx.try_send(cmd) {
+                                    error!("Failed to send command: {}", e);
+                                }
+                            }
+                        }
+                    });
 
                     if ui.button("Set Velocity Open Loop").clicked() {
                         if let Some(tx) = &self.serial_cmd_tx {
@@ -194,10 +227,35 @@ impl eframe::App for App {
 
                     ui.horizontal(|ui| {
                         ui.label("Target Pos:");
-                        if ui
-                            .add(egui::Slider::new(&mut self.target_pos, -10.0..=10.0))
-                            .changed()
-                        {
+                        let resp = ui.add(egui::Slider::new(&mut self.target_pos, -10.0..=10.0));
+                        // if resp.sc
+                        let mut send_target = None;
+
+                        if resp.changed() {
+                            send_target = Some(self.target_pos);
+                        } else if resp.hovered() {
+                            let delta = ui.input(|i| {
+                                i.events.iter().find_map(|e| match e {
+                                    egui::Event::MouseWheel {
+                                        unit: _,
+                                        delta,
+                                        modifiers,
+                                    } => Some(*delta),
+                                    _ => None,
+                                })
+                            });
+                            if let Some(delta) = delta {
+                                if delta.y > 0. && self.target_pos < 10. {
+                                    self.target_pos += 0.5;
+                                    send_target = Some(self.target_pos);
+                                } else if delta.y < 0. && self.target_pos > -10. {
+                                    self.target_pos -= 0.5;
+                                    send_target = Some(self.target_pos);
+                                }
+                            }
+                        }
+
+                        if let Some(tgt) = send_target {
                             if let Some(tx) = &self.serial_cmd_tx {
                                 let cmd = SerialCommand::SetMotorTarget {
                                     id: 0,
@@ -317,18 +375,28 @@ impl eframe::App for App {
                         }
                         ui.end_row();
 
-                        ui.horizontal(|ui| {
-                            ui.label("Velocity LPF: ");
-                            ui.label(format!(
-                                "{:.3} Hz",
-                                1.0 / (2.0 * std::f32::consts::PI * self.vel_pid_ramp)
-                            ));
-                        });
+                        ui.label("Velocity LPF: ");
+                        if ui
+                            .add(egui::DragValue::new(&mut self.lpf_vel).fixed_decimals(4))
+                            .changed()
+                        {
+                            if let Some(tx) = &self.serial_cmd_tx {
+                                let cmd = SerialCommand::SetLPF {
+                                    id: 0,
+                                    lpf_vel: Some(self.lpf_vel),
+                                    lpf_angle: None,
+                                };
+                                if let Err(e) = tx.try_send(cmd) {
+                                    error!("Failed to send command: {}", e);
+                                }
+                            }
+                        }
+                        ui.end_row();
                     });
                 });
 
                 col_3.vertical(|ui| {
-                    ui.horizontal(|ui| {
+                    egui::Grid::new("position_pid_grid").show(ui, |ui| {
                         ui.label("Position KP: ");
                         if ui.add(egui::DragValue::new(&mut self.pos_pid_p)).changed() {
                             if let Some(tx) = &self.serial_cmd_tx {
@@ -345,9 +413,8 @@ impl eframe::App for App {
                                 }
                             }
                         }
-                    });
+                        ui.end_row();
 
-                    ui.horizontal(|ui| {
                         ui.label("Position KI: ");
                         if ui.add(egui::DragValue::new(&mut self.pos_pid_i)).changed() {
                             if let Some(tx) = &self.serial_cmd_tx {
@@ -364,9 +431,8 @@ impl eframe::App for App {
                                 }
                             }
                         }
-                    });
+                        ui.end_row();
 
-                    ui.horizontal(|ui| {
                         ui.label("Position KD: ");
                         if ui.add(egui::DragValue::new(&mut self.pos_pid_d)).changed() {
                             if let Some(tx) = &self.serial_cmd_tx {
@@ -383,6 +449,25 @@ impl eframe::App for App {
                                 }
                             }
                         }
+                        ui.end_row();
+
+                        ui.label("Position LPF: ");
+                        if ui
+                            .add(egui::DragValue::new(&mut self.lpf_angle).fixed_decimals(4))
+                            .changed()
+                        {
+                            if let Some(tx) = &self.serial_cmd_tx {
+                                let cmd = SerialCommand::SetLPF {
+                                    id: 0,
+                                    lpf_vel: None,
+                                    lpf_angle: Some(self.lpf_angle),
+                                };
+                                if let Err(e) = tx.try_send(cmd) {
+                                    error!("Failed to send command: {}", e);
+                                }
+                            }
+                        }
+                        ui.end_row();
                     });
                 });
             });

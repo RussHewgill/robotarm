@@ -10,8 +10,8 @@ use crate::simplefoc::{
 #[derive(defmt::Format)]
 pub struct BLDCMotor {
     pub pole_pairs: u8,
-    pub phase_resistance: f32,
-    pub motor_kv: f32,
+    pub phase_resistance: Option<f32>,
+    pub motor_kv: Option<f32>,
     pub phase_inductance: Option<f32>,
 
     // pub(super) target: f32,
@@ -43,8 +43,8 @@ pub struct BLDCMotor {
 impl BLDCMotor {
     pub fn new(
         pole_pairs: u8,
-        phase_resistance: f32,
-        motor_kv: f32,
+        phase_resistance: Option<f32>,
+        motor_kv: Option<f32>,
         phase_inductance: Option<f32>,
     ) -> Self {
         Self {

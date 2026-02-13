@@ -1,97 +1,228 @@
+use defmt::debug;
 use embassy_time::Instant;
 
 pub struct PIDController {
-    /// Proportional gain
-    pub p: f32,
-    /// Integral gain
-    pub i: f32,
-    /// Derivative gain
-    pub d: f32,
-    /// Maximum speed of change of the output value
-    pub output_ramp: f32,
-    /// Maximum output value
-    pub limit: f32,
-
-    /// Last tracking error value
-    error_prev: f32,
-    /// Last pid output value
-    output_prev: f32,
-    /// Last integral component value
-    integral_prev: f32,
-    /// Last execution timestamp in microseconds
-    timestamp_prev: u64,
+    // pid: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
+    pid2: self::prev::PIDController,
+    ramp: f32,
 }
 
 impl PIDController {
     pub fn new(p: f32, i: f32, d: f32, ramp: f32, limit: f32) -> Self {
-        Self {
-            p,
-            i,
-            d,
-            output_ramp: ramp,
-            limit,
-            error_prev: 0.0,
-            output_prev: 0.0,
-            integral_prev: 0.0,
-            timestamp_prev: Instant::now().as_micros(),
-        }
+        // debug!(
+        //     "Creating PIDController with p: {}, i: {}, d: {}, ramp: {}, limit: {}",
+        //     p, i, d, ramp, limit
+        // );
+
+        // let config = discrete_pid::pid::PidConfigBuilder::default()
+        //     .kp(p)
+        //     .ki(p)
+        //     .kd(d)
+        //     .output_limits(-limit, limit)
+        //     .build()
+        //     .expect("Invalid PID config");
+        // let mut pid = discrete_pid::pid::PidController::new_uninit(config);
+        // pid.activate();
+
+        // let _ = pid.config_mut().set_filter_tc(0.000001);
+
+        // // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
+        // // let _ = pid.config_mut().set_use_derivative_on_measurement(false);
+
+        let pid2 = self::prev::PIDController::new(p, i, d, ramp, limit);
+
+        Self { pid2, ramp }
+
+        // Self { pid, ramp }
     }
 
     pub fn reset(&mut self) {
-        self.integral_prev = 0.0;
-        self.output_prev = 0.0;
-        self.error_prev = 0.0;
+        unimplemented!()
     }
 
-    pub fn update(&mut self, error: f32) -> f32 {
-        // calculate the time from the last call
-        let timestamp_now = Instant::now().as_micros();
-        let mut ts = (timestamp_now.wrapping_sub(self.timestamp_prev)) as f32 * 1e-6;
+    pub fn update(&mut self, setpoint: f32, input: f32, t_us: u64) -> f32 {
+        // let output = self
+        //     .pid
+        //     .compute(input, setpoint, discrete_pid::time::Micros(t_us), None);
+        let output = self.pid2.update(setpoint - input, t_us);
+        output
+    }
+}
 
-        // quick fix for strange cases (micros overflow)
-        if ts <= 0.0 || ts > 0.5 {
-            ts = 1e-3;
+// #[cfg(feature = "nope")]
+impl PIDController {
+    pub fn get_p(&self) -> f32 {
+        self.pid2.p
+    }
+    pub fn get_i(&self) -> f32 {
+        self.pid2.i
+    }
+    pub fn get_d(&self) -> f32 {
+        self.pid2.d
+    }
+    pub fn get_ramp(&self) -> f32 {
+        self.ramp
+    }
+    pub fn get_limit(&self) -> f32 {
+        self.pid2.limit
+    }
+    pub fn set_p(&mut self, p: f32) {
+        self.pid2.p = p;
+    }
+    pub fn set_i(&mut self, i: f32) {
+        self.pid2.i = i;
+    }
+    pub fn set_d(&mut self, d: f32) {
+        self.pid2.d = d;
+    }
+    pub fn set_ramp(&mut self, ramp: f32) {
+        self.ramp = ramp;
+    }
+    pub fn set_limit(&mut self, limit: f32) {
+        self.pid2.limit = limit;
+    }
+}
+
+#[cfg(feature = "nope")]
+impl PIDController {
+    pub fn get_p(&self) -> f32 {
+        self.pid.config().kp()
+    }
+    pub fn get_i(&self) -> f32 {
+        self.pid.config().ki()
+    }
+    pub fn get_d(&self) -> f32 {
+        self.pid.config().kd()
+    }
+    pub fn get_ramp(&self) -> f32 {
+        self.ramp
+    }
+    pub fn get_limit(&self) -> f32 {
+        let (a, b) = (
+            self.pid.config().output_min(),
+            self.pid.config().output_max(),
+        );
+        if a == -b {
+            b
+        } else {
+            // asymmetric limits not supported
+            0.0
         }
+    }
+    pub fn set_p(&mut self, p: f32) {
+        let _ = self.pid.config_mut().set_kp(p);
+    }
+    pub fn set_i(&mut self, i: f32) {
+        let _ = self.pid.config_mut().set_ki(i);
+    }
+    pub fn set_d(&mut self, d: f32) {
+        let _ = self.pid.config_mut().set_kd(d);
+    }
+    pub fn set_ramp(&mut self, ramp: f32) {
+        self.ramp = ramp;
+    }
+    pub fn set_limit(&mut self, limit: f32) {
+        let _ = self.pid.config_mut().set_output_limits(-limit, limit);
+    }
+}
 
-        // u(s) = (P + I/s + Ds)e(s)
-        // Discrete implementations
+// #[cfg(feature = "nope")]
+mod prev {
+    use embassy_time::Instant;
 
-        // proportional part
-        // u_p  = P *e(k)
-        let proportional = self.p * error;
+    pub struct PIDController {
+        /// Proportional gain
+        pub p: f32,
+        /// Integral gain
+        pub i: f32,
+        /// Derivative gain
+        pub d: f32,
+        /// Maximum speed of change of the output value
+        pub output_ramp: f32,
+        /// Maximum output value
+        pub limit: f32,
 
-        // Tustin transform of the integral part
-        // u_ik = u_ik_1  + I*Ts/2*(ek + ek_1)
-        let mut integral = self.integral_prev + self.i * ts * 0.5 * (error + self.error_prev);
-        // antiwindup - limit the output
-        integral = integral.clamp(-self.limit, self.limit);
+        /// Last tracking error value
+        error_prev: f32,
+        /// Last pid output value
+        output_prev: f32,
+        /// Last integral component value
+        integral_prev: f32,
+        /// Last execution timestamp in microseconds
+        timestamp_prev: u64,
+    }
 
-        // Discrete derivation
-        // u_dk = D(ek - ek_1)/Ts
-        let derivative = self.d * (error - self.error_prev) / ts;
-
-        // sum all the components
-        let mut output = proportional + integral + derivative;
-        // antiwindup - limit the output variable
-        output = output.clamp(-self.limit, self.limit);
-
-        // if output ramp defined
-        if self.output_ramp > 0.0 {
-            // limit the acceleration by ramping the output
-            let output_rate = (output - self.output_prev) / ts;
-            if output_rate > self.output_ramp {
-                output = self.output_prev + self.output_ramp * ts;
-            } else if output_rate < -self.output_ramp {
-                output = self.output_prev - self.output_ramp * ts;
+    impl PIDController {
+        pub fn new(p: f32, i: f32, d: f32, ramp: f32, limit: f32) -> Self {
+            Self {
+                p,
+                i,
+                d,
+                output_ramp: ramp,
+                limit,
+                error_prev: 0.0,
+                output_prev: 0.0,
+                integral_prev: 0.0,
+                timestamp_prev: Instant::now().as_micros(),
             }
         }
 
-        // saving for the next pass
-        self.integral_prev = integral;
-        self.output_prev = output;
-        self.error_prev = error;
-        self.timestamp_prev = timestamp_now;
+        pub fn reset(&mut self) {
+            self.integral_prev = 0.0;
+            self.output_prev = 0.0;
+            self.error_prev = 0.0;
+        }
 
-        output
+        pub fn update(&mut self, error: f32, timestamp_now: u64) -> f32 {
+            // // calculate the time from the last call
+            // let timestamp_now = Instant::now().as_micros();
+            let mut ts = (timestamp_now.wrapping_sub(self.timestamp_prev)) as f32 * 1e-6;
+
+            // quick fix for strange cases (micros overflow)
+            if ts <= 0.0 || ts > 0.5 {
+                ts = 1e-3;
+            }
+
+            // u(s) = (P + I/s + Ds)e(s)
+            // Discrete implementations
+
+            // proportional part
+            // u_p  = P *e(k)
+            let proportional = self.p * error;
+
+            // Tustin transform of the integral part
+            // u_ik = u_ik_1  + I*Ts/2*(ek + ek_1)
+            let mut integral = self.integral_prev + self.i * ts * 0.5 * (error + self.error_prev);
+            // antiwindup - limit the output
+            integral = integral.clamp(-self.limit, self.limit);
+
+            // Discrete derivation
+            // u_dk = D(ek - ek_1)/Ts
+            let derivative = self.d * (error - self.error_prev) / ts;
+
+            // sum all the components
+            let mut output = proportional + integral + derivative;
+            // antiwindup - limit the output variable
+            output = output.clamp(-self.limit, self.limit);
+
+            // if output ramp defined
+            if self.output_ramp > 0.0 {
+                // limit the acceleration by ramping the output
+                let output_rate = (output - self.output_prev) / ts;
+                if output_rate > self.output_ramp {
+                    output = self.output_prev + self.output_ramp * ts;
+                } else if output_rate < -self.output_ramp {
+                    output = self.output_prev - self.output_ramp * ts;
+                }
+            }
+
+            // saving for the next pass
+            self.integral_prev = integral;
+            self.output_prev = output;
+            self.error_prev = error;
+            self.timestamp_prev = timestamp_now;
+
+            output
+        }
     }
 }

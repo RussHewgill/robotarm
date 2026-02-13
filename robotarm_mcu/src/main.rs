@@ -52,20 +52,6 @@ async fn main(spawner: Spawner) {
     // USB 2
     // #[cfg(feature = "nope")]
     {
-        // let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
-        // let driver = crate::comms::usb::UsbDriver::new(p.USB, Irqs);
-        // spawner.spawn(logger_task(driver)).unwrap();
-
-        // let mut counter = 0;
-        // loop {
-        //     counter += 1;
-        //     log::info!("Tick {}", counter);
-        //     Timer::after_secs(1).await;
-        // }
-
-        // let chan = embassy_sync::channel::Channel::new();
-        // let rx = chan.receiver();
-
         let sda = p.PIN_14; // purple
         let scl = p.PIN_15; // blue
 
@@ -88,7 +74,7 @@ async fn main(spawner: Spawner) {
         // let mut rx: [u8; 64] = [0; 64];
         // sender.wait_connection().await;
 
-        usb.wait_connection().await;
+        // usb.wait_connection().await;
 
         // let mut n: f32 = 0.0;
         let mut n = 0;
@@ -100,30 +86,34 @@ async fn main(spawner: Spawner) {
             let now = Instant::now().as_micros();
             encoder._update(now).await.unwrap();
 
-            if n > 2_0 {
+            let angle = encoder.get_angle();
+            let velocity = encoder.get_velocity();
+
+            debug!(
+                "now: {} us, angle: {} rad, velocity: {} rad/s",
+                now, angle, velocity
+            );
+
+            let msg = robotarm_protocol::SerialLogMessage::MotorData {
+                id: x,
+                timestamp: now,
+                position: angle,
+                angle: 0.,
+                velocity,
+                target_position: x as f32,
+                target_velocity: 0.,
+                motor_current: 1.,
+                motor_voltage: (2., 3.),
+            };
+
+            x += 1;
+
+            // usb.send(msg).await;
+            usb.send_log_msg(msg);
+
+            #[cfg(feature = "nope")]
+            if n > 1_0 {
                 n = 0;
-
-                let angle = encoder.get_angle();
-                let velocity = encoder.get_velocity();
-
-                debug!(
-                    "now: {} us, angle: {} rad, velocity: {} rad/s",
-                    now, angle, velocity
-                );
-
-                let msg = robotarm_protocol::SerialLogMessage::MotorData {
-                    id: 0,
-                    timestamp: now,
-                    target: x as f32,
-                    angle: 0.,
-                    position: angle,
-                    velocity,
-                };
-
-                x += 1;
-
-                // usb.send(msg).await;
-
                 //
             } else {
                 n += 1;
@@ -133,7 +123,7 @@ async fn main(spawner: Spawner) {
 
             // usb.send(data).await;
 
-            // Timer::after(embassy_time::Duration::from_millis(1000)).await;
+            Timer::after(embassy_time::Duration::from_millis(1000)).await;
         }
     }
 
@@ -420,10 +410,17 @@ async fn main(spawner: Spawner) {
     let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
         7, // pole pairs
         // 11.2, // phase resistance (TODO: measure this)
-        5.35, // phase resistance (TODO: measure this)
-        260., // motor kv
+        Some(5.35), // phase resistance (TODO: measure this)
+        Some(260.), // motor kv
         None,
     );
+
+    // let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
+    //     7,    // pole pairs
+    //     None, // phase resistance (TODO: measure this)
+    //     None, // motor kv
+    //     None,
+    // );
 
     let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
@@ -443,8 +440,8 @@ async fn main(spawner: Spawner) {
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
-    foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
+    foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
+    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
 
     info!("Starting init");
@@ -607,7 +604,6 @@ async fn loop_foc(
     let n_max = update_rate_hz / print_rate_hz;
     let mut max_time =
         Instant::now() + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
-    let mut n = 0;
 
     foc.enable();
 
@@ -617,43 +613,41 @@ async fn loop_foc(
 
     // let tgt = 60.;
 
+    let mut x = 0;
     foc.set_target_velocity(3.14 * 1.);
 
     // // foc.set_target_torque(0.);
     // foc.set_target_torque(0.05);
 
-    foc.debug = true;
+    // foc.debug = true;
     loop {
         ticker.next().await;
         foc.run_commands().await;
         foc.update_foc().await;
 
-        if n >= n_max {
-            n = 0;
-
-            foc.debug = true;
-
-            // let position = foc.get_position_actual();
-
-            // info!(
-            //     "Position: {:03}, Angle: {:03}, Vel: {}",
-            //     libm::roundf(position * 100.) / 100.,
-            //     libm::roundf(position * (180. / core::f32::consts::PI) * 100.) / 100.,
-            //     foc.debug_encoder().get_velocity(),
-            // );
-
-            // let pos = foc.get_position_actual();
-            // let v = foc.get_phase_voltages();
-            // info!(
-            //     "(*100) Position: {:03}, Phase Voltages: A: {:04}, B: {:04}, C: {:04}",
-            //     libm::roundf(pos * 180. / core::f32::consts::PI * 100.) as i32,
-            //     libm::roundf(v.a * 1000.) as i32,
-            //     libm::roundf(v.b * 1000.) as i32,
-            //     libm::roundf(v.c * 1000.) as i32,
-            // );
-            // foc.print_phase_voltages();
-        } else {
-            n += 1;
+        // #[cfg(feature = "nope")]
+        if Instant::now() > max_time {
+            match x {
+                0 => {
+                    info!("Setting velocity to -1");
+                    x = 1;
+                    // foc.set_target_position(1.0);
+                    foc.set_target_velocity(3.14 * -1.);
+                }
+                1 => {
+                    info!("Setting velocity to 0");
+                    x = 2;
+                    // foc.set_target_position(3.);
+                    foc.set_target_velocity(3.14 * 0.);
+                }
+                _ => {
+                    info!("Setting velocity to 1");
+                    x = 0;
+                    // foc.set_target_position(6.);
+                    foc.set_target_velocity(3.14 * 1.);
+                }
+            }
+            max_time = max_time + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
         }
 
         // if Instant::now() > max_time {

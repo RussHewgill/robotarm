@@ -44,6 +44,10 @@ pub enum SerialCommand {
         id: u8,
         enabled: bool,
     },
+    SetDebugRate {
+        id: u8,
+        rate_hz: u16,
+    },
     SetModeVelocityOpenLoop {
         id: u8,
     },

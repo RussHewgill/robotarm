@@ -1,4 +1,5 @@
 pub mod bldc;
+pub mod commands;
 pub mod foc;
 pub mod foc_types;
 pub mod lowpass;

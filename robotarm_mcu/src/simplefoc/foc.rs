@@ -119,7 +119,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         }
 
         // velocity control loop controls current
-        self.pid_velocity.limit = self.motor.limit_current;
+        self.pid_velocity.set_limit(self.motor.limit_current);
 
         // self.pid_angle.limit = self.motor.limit_velocity;
 
@@ -131,7 +131,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         // self.pid_current_d.limit = self.motor.limit_voltage;
 
         // needs phase resistance set
-        self.pid_velocity.limit = self.motor.limit_current;
+        self.pid_velocity.set_limit(self.motor.limit_current);
         // self.pid_angle.limit = self.motor.limit_velocity;
 
         self.motor_status = FOCStatus::MotorCalibrating;
@@ -264,153 +264,6 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         self.disable();
     }
 
-    pub async fn run_commands(&mut self) {
-        let mut cmds = heapless::Vec::<SerialCommand, 4>::new();
-        if let Some(logger) = &mut self.usb_logger {
-            while let Ok(cmd) = logger.recv().await {
-                cmds.push(cmd).unwrap_or_else(|_| {
-                    error!("Command queue full, dropping command");
-                });
-            }
-        }
-        for cmd in cmds {
-            match cmd {
-                SerialCommand::ZeroPosition { id } => {
-                    self.encoder.reset_position();
-                }
-                SerialCommand::SetLPF {
-                    id,
-                    lpf_vel,
-                    lpf_angle,
-                } => {
-                    if let Some(lpf_vel) = lpf_vel {
-                        self.lpf_velocity.tf = lpf_vel;
-                    }
-                    if let Some(lpf_angle) = lpf_angle {
-                        self.lpf_angle.tf = lpf_angle;
-                    }
-                    debug!(
-                        "Received SetLPF command: id: {}, lpf_vel: {:?}, lpf_angle: {:?}",
-                        id, lpf_vel, lpf_angle
-                    );
-                }
-                SerialCommand::RequestSettings { id } => {
-                    if let Some(logger) = &mut self.usb_logger {
-                        logger.send_log_msg(SerialLogMessage::MotorPID {
-                            id,
-                            vel_p: self.pid_velocity.p,
-                            vel_i: self.pid_velocity.i,
-                            vel_d: self.pid_velocity.d,
-                            vel_ramp: self.pid_velocity.output_ramp,
-                            vel_limit: self.pid_velocity.limit,
-                            angle_p: self.pid_angle.p,
-                            angle_i: self.pid_angle.i,
-                            angle_d: self.pid_angle.d,
-                            angle_ramp: self.pid_angle.output_ramp,
-                            angle_limit: self.pid_angle.limit,
-                            lpf_angle: self.lpf_angle.tf,
-                            lpf_vel: self.lpf_velocity.tf,
-                        });
-                    }
-                }
-                SerialCommand::SetEnabled { id, enabled } => {
-                    if enabled {
-                        self.enable();
-                    } else {
-                        self.disable();
-                    }
-                    debug!(
-                        "Received SetEnabled command: id: {}, enabled: {}",
-                        id, enabled
-                    );
-                }
-                SerialCommand::SetMotorTarget { id, target } => {
-                    match self.motion_control {
-                        MotionControlType::Torque => self.set_target_torque(target),
-                        MotionControlType::Velocity => self.set_target_velocity(target),
-                        MotionControlType::Angle => self.set_target_position(target),
-                        MotionControlType::VelocityOpenLoop => self.set_target_velocity(target),
-                    }
-                    // self.set_target_position(target);
-                    debug!(
-                        "Received SetMotorTarget command: id: {}, target: {}",
-                        id, target
-                    );
-                }
-                SerialCommand::SetModeAngle { id } => {
-                    self.set_motion_control(MotionControlType::Angle);
-                    debug!("Received SetModeAngle command: id: {}", id);
-                }
-                SerialCommand::SetModeVelocity { id } => {
-                    self.set_motion_control(MotionControlType::Velocity);
-                    debug!("Received SetModeVelocity command: id: {}", id);
-                }
-                SerialCommand::SetModeVelocityOpenLoop { id } => {
-                    self.set_motion_control(MotionControlType::VelocityOpenLoop);
-                    debug!("Received SetModeVelocityOpenLoop command: id: {}", id);
-                }
-                SerialCommand::SetVelocityPID {
-                    id,
-                    p,
-                    i,
-                    d,
-                    ramp,
-                    limit,
-                } => {
-                    if let Some(p) = p {
-                        self.pid_velocity.p = p;
-                    }
-                    if let Some(i) = i {
-                        self.pid_velocity.i = i;
-                    }
-                    if let Some(d) = d {
-                        self.pid_velocity.d = d;
-                    }
-                    if let Some(limit) = limit {
-                        self.pid_velocity.limit = limit;
-                    }
-                    if let Some(ramp) = ramp {
-                        self.pid_velocity.output_ramp = ramp;
-                    }
-                    debug!(
-                        "Received SetPID command: id: {}, p: {:?}, i: {:?}, d: {:?}, limit: {:?}",
-                        id, p, i, d, limit
-                    );
-                }
-                SerialCommand::SetAnglePID {
-                    id,
-                    p,
-                    i,
-                    d,
-                    ramp,
-                    limit,
-                } => {
-                    if let Some(p) = p {
-                        self.pid_angle.p = p;
-                    }
-                    if let Some(i) = i {
-                        self.pid_angle.i = i;
-                    }
-                    if let Some(d) = d {
-                        self.pid_angle.d = d;
-                    }
-                    if let Some(limit) = limit {
-                        self.pid_angle.limit = limit;
-                    }
-                    if let Some(ramp) = ramp {
-                        self.pid_angle.output_ramp = ramp;
-                    }
-                    debug!(
-                        "Received SetPID command: id: {}, p: {:?}, i: {:?}, d: {:?}, limit: {:?}",
-                        id, p, i, d, limit
-                    );
-                }
-            }
-        }
-
-        // while let Some(cmd) = self.usb_logger
-    }
-
     /// main loop
     pub async fn update_foc(&mut self) {
         // trace!("Updating FOC control loop");
@@ -448,17 +301,22 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         }
 
         // calculate the back-emf voltage if KV_rating available U_bemf = vel*(1/KV)
-        let voltage_bemf = shaft_velocity
-            / (self.motor.motor_kv * super::types::_SQRT3)
-            / super::types::_RPM_TO_RADS;
+        let voltage_bemf = match self.motor.motor_kv {
+            Some(kv) => shaft_velocity / (kv * super::types::_SQRT3) / super::types::_RPM_TO_RADS,
+
+            None => 0.0,
+        };
 
         // trace!("Estimated back-EMF voltage: {}", voltage_bemf);
 
-        // estimate the motor current if phase reistance available and current_sense not available
-        self.motor.current.q = (self.motor.voltage.q - voltage_bemf) / self.motor.phase_resistance;
+        if let Some(phase_resistance) = self.motor.phase_resistance {
+            // estimate the motor current if phase reistance available and current_sense not available
+            self.motor.current.q = (self.motor.voltage.q - voltage_bemf) / phase_resistance;
+        }
 
         match self.motion_control {
             MotionControlType::Torque => {
+                #[cfg(feature = "nope")]
                 if self.torque_controller == TorqueControlType::Voltage {
                     // voltage.q =  target*phase_resistance + voltage_bemf;
                     // voltage.q = _constrain(voltage.q, -voltage_limit, voltage_limit);
@@ -481,18 +339,26 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                         }
                     }
                 }
+                error!("Torque control not implemented yet");
+                self.disable();
             }
             MotionControlType::Velocity => {
-                self.motor.target_current = self
-                    .pid_velocity
-                    .update(self.motor.target_shaft_velocity - shaft_velocity);
+                self.motor.target_current = self.pid_velocity.update(
+                    self.motor.target_shaft_velocity,
+                    shaft_velocity,
+                    t_us,
+                );
 
                 if self.torque_controller == TorqueControlType::Voltage {
-                    self.motor.voltage.q =
-                        (self.motor.target_current * self.motor.phase_resistance + voltage_bemf)
-                            .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
-                    // voltage.d = _constrain( -current_sp*shaft_velocity*pole_pairs*phase_inductance, -voltage_limit, voltage_limit);
-                    self.motor.voltage.d = 0.;
+                    match self.motor.phase_resistance {
+                        None => self.motor.voltage.q = 0.0,
+                        Some(phase_resistance) => {
+                            self.motor.voltage.q = (self.motor.target_current * phase_resistance
+                                + voltage_bemf)
+                                .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+                        }
+                    }
+                    // self.motor.voltage.d = 0.;
                 }
 
                 #[cfg(feature = "nope")]
@@ -514,17 +380,19 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             }
             MotionControlType::Angle => {
                 // calculate velocity set point
-                self.motor.target_shaft_velocity = self
-                    .pid_angle
-                    .update(self.motor.target_shaft_angle - shaft_angle);
+                self.motor.target_shaft_velocity =
+                    self.pid_angle
+                        .update(self.motor.target_shaft_angle, shaft_angle, t_us);
                 // .clamp(-self.motor.limit_velocity, self.motor.limit_velocity);
 
                 // calculate the torque command - sensor precision: this calculation is ok,
                 // but based on bad value from previous calculation
                 // current_sp = PID_velocity(shaft_velocity_sp - shaft_velocity); // if voltage torque control
-                self.motor.target_current = self
-                    .pid_velocity
-                    .update(self.motor.target_shaft_velocity - shaft_velocity);
+                self.motor.target_current = self.pid_velocity.update(
+                    self.motor.target_shaft_velocity,
+                    shaft_velocity,
+                    t_us,
+                );
 
                 #[cfg(feature = "nope")]
                 if self.debug {
@@ -541,9 +409,14 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 }
 
                 if self.torque_controller == TorqueControlType::Voltage {
-                    self.motor.voltage.q =
-                        (self.motor.target_current * self.motor.phase_resistance + voltage_bemf)
-                            .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+                    match self.motor.phase_resistance {
+                        Some(phase_resistance) => {
+                            self.motor.voltage.q = (self.motor.target_current * phase_resistance
+                                + voltage_bemf)
+                                .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+                        }
+                        None => self.motor.voltage.q = self.motor.target_current,
+                    }
 
                     match self.motor.phase_inductance {
                         Some(phase_inductance) => {
@@ -568,7 +441,6 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 );
                 self.motor.voltage.d = 0.0;
 
-                #[cfg(feature = "nope")]
                 if self.debug {
                     debug!(
                         "target V: {}, shaft V: {}, V error: {}, angle: {}",
@@ -730,6 +602,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         }
     }
 
+    // #[cfg(feature = "nope")]
     fn velocity_openloop(
         &mut self,
         target: f32,
@@ -755,11 +628,14 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             self.openloop_shaft_angle + self.motor.target_shaft_velocity * t_us,
         );
 
-        let uq = (self.motor.limit_current * self.motor.phase_resistance + voltage_bemf.abs())
-            .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+        let mut uq = self.motor.limit_voltage;
+        if let Some(phase_resistance) = self.motor.phase_resistance {
+            uq = (self.motor.limit_current * phase_resistance + voltage_bemf.abs())
+                .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
 
-        // // recalculate the current
-        self.motor.current.q = (uq - voltage_bemf.abs()) / self.motor.phase_resistance;
+            // // recalculate the current
+            self.motor.current.q = (uq - voltage_bemf.abs()) / phase_resistance;
+        }
 
         // set the maximal allowed voltage (voltage_limit) with the necessary angle
         // setPhaseVoltage(Uq,  0, _electricalAngle(shaft_angle, pole_pairs));

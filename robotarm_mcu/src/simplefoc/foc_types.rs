@@ -46,7 +46,9 @@ pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
 
     pub usb_logger: Option<UsbLogger>,
 
-    pub debug: bool,
+    pub(super) debug: bool,
+    prev_debug_us: u64,
+    pub debug_freq_hz: u64,
 
     pub(super) motor_status: FOCStatus,
 
@@ -131,6 +133,8 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             usb_logger,
 
             debug: false,
+            prev_debug_us: 0,
+            debug_freq_hz: 10,
 
             motor_status: FOCStatus::MotorUninitialized,
 

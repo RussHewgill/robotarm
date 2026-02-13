@@ -322,6 +322,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "discrete_pid"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d6406befa7a91e856133d660b608d13e8eb23d2a9df7b90c9a87339dd8b5558"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "document-features"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1137,6 +1146,7 @@ dependencies = [
  "cortex-m-rt",
  "defmt",
  "defmt-rtt",
+ "discrete_pid",
  "embassy-executor",
  "embassy-futures",
  "embassy-rp",
