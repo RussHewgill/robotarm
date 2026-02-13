@@ -2,7 +2,7 @@ use defmt::debug;
 use embassy_time::Instant;
 
 pub struct PIDController {
-    // pid: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
+    pid: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
     pid2: self::prev::PIDController,
     ramp: f32,
 }
@@ -14,26 +14,26 @@ impl PIDController {
         //     p, i, d, ramp, limit
         // );
 
-        // let config = discrete_pid::pid::PidConfigBuilder::default()
-        //     .kp(p)
-        //     .ki(p)
-        //     .kd(d)
-        //     .output_limits(-limit, limit)
-        //     .build()
-        //     .expect("Invalid PID config");
-        // let mut pid = discrete_pid::pid::PidController::new_uninit(config);
-        // pid.activate();
+        let config = discrete_pid::pid::PidConfigBuilder::default()
+            .kp(p)
+            .ki(p)
+            .kd(d)
+            .output_limits(-limit, limit)
+            .sample_time(core::time::Duration::from_micros(100))
+            .build()
+            .expect("Invalid PID config");
+        let mut pid = discrete_pid::pid::PidController::new_uninit(config);
+        pid.activate();
 
-        // let _ = pid.config_mut().set_filter_tc(0.000001);
+        let _ = pid.config_mut().set_filter_tc(0.000001);
 
-        // // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
-        // // let _ = pid.config_mut().set_use_derivative_on_measurement(false);
+        // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
+        let _ = pid.config_mut().set_use_derivative_on_measurement(true);
 
         let pid2 = self::prev::PIDController::new(p, i, d, ramp, limit);
 
-        Self { pid2, ramp }
-
-        // Self { pid, ramp }
+        // Self { pid2, ramp }
+        Self { pid, pid2, ramp }
     }
 
     pub fn reset(&mut self) {
@@ -41,11 +41,19 @@ impl PIDController {
     }
 
     pub fn update(&mut self, setpoint: f32, input: f32, t_us: u64) -> f32 {
-        // let output = self
-        //     .pid
-        //     .compute(input, setpoint, discrete_pid::time::Micros(t_us), None);
-        let output = self.pid2.update(setpoint - input, t_us);
-        output
+        let output1 = self
+            .pid
+            .compute(input, setpoint, discrete_pid::time::Micros(t_us), None);
+
+        let output2 = self.pid2.update(setpoint - input, t_us);
+
+        // debug!(
+        //     "PID update: setpoint: {}, input: {}, output1: {}, output2: {}",
+        //     setpoint, input, output1, output2
+        // );
+
+        output1
+        // 0.0
     }
 }
 

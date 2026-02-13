@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Data from MCU to Controller
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SerialLogMessage {
     MotorData {
@@ -34,7 +34,7 @@ pub enum SerialLogMessage {
 }
 
 /// Data from Controller to MCU
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SerialCommand {
     RequestSettings {

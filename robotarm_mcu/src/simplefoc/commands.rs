@@ -39,7 +39,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                     );
                 }
                 SerialCommand::SetDebugRate { id, rate_hz } => {
-                    self.debug_freq_hz = rate_hz as u64;
+                    self.set_debug_freq(rate_hz as u64);
                     debug!(
                         "Received SetDebugRate command: id: {}, rate_hz: {}",
                         id, rate_hz

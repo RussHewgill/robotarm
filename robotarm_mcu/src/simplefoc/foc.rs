@@ -270,6 +270,13 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         let t_us = Instant::now().as_micros();
 
+        if t_us - self.prev_debug_us >= self.debug_us_interval() {
+            self.debug = true;
+            self.prev_debug_us = t_us;
+        } else {
+            self.debug = false;
+        }
+
         // update sensor readings
         if let Err(_e) = self.encoder.update(t_us).await {
             error!("Failed to update encoder");
@@ -441,6 +448,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 );
                 self.motor.voltage.d = 0.0;
 
+                #[cfg(feature = "nope")]
                 if self.debug {
                     debug!(
                         "target V: {}, shaft V: {}, V error: {}, angle: {}",

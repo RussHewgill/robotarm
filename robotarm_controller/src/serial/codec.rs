@@ -1,17 +1,21 @@
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use bytes::Buf;
+use postcard::accumulator::FeedResult;
 use tracing::{debug, error, info, trace, warn};
 
 use robotarm_protocol::{SerialCommand, SerialLogMessage};
 
-#[derive(Debug, Clone)]
+// #[derive(Debug)]
 pub struct SerialCodec {
-    buf: [u8; 16384],
+    // buf: [u8; 16384],
+    accum: postcard::accumulator::CobsAccumulator<4096>,
 }
 
 impl Default for SerialCodec {
     fn default() -> Self {
-        Self { buf: [0; 16384] }
+        Self {
+            accum: postcard::accumulator::CobsAccumulator::new(),
+        }
     }
 }
 
@@ -20,37 +24,77 @@ impl tokio_util::codec::Decoder for SerialCodec {
     type Error = std::io::Error;
 
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        if src.is_empty() {
+            return Ok(None);
+        }
+
+        let len = src.len();
+
+        loop {
+            match self.accum.feed::<SerialLogMessage>(&mut src[..]) {
+                FeedResult::Success { data, remaining } => {
+                    // advance src by the number of bytes consumed and return the deserialized message
+                    let consumed = len - remaining.len();
+                    src.advance(consumed);
+                    return Ok(Some(data));
+                }
+                FeedResult::Consumed => return Ok(None),
+                FeedResult::OverFull(w) => {
+                    error!("Accumulator overflow");
+                    panic!("Accumulator overflow");
+                }
+                FeedResult::DeserError(w) => {
+                    // error!("Deserialization error: {len}, {}", w.len());
+                    let new_len = w.len();
+                    src.advance(len - new_len);
+                    // skip the current message by advancing src until the next 0x00 byte
+                    return Ok(None);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "nope")]
+impl tokio_util::codec::Decoder for SerialCodec {
+    type Item = SerialLogMessage;
+    type Error = std::io::Error;
+
+    fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let n = src.len();
-        // let mut src2 = src.clone();
+        if n == 0 {
+            return Ok(None);
+        }
+
+        if n > self.buf.len() {
+            if let Some(pos) = src.as_ref().iter().position(|&b| b == 0x00) {
+                src.advance(pos + 1);
+                return Ok(None);
+            } else {
+                src.clear();
+                return Ok(None);
+            }
+        }
+
         self.buf[..n].copy_from_slice(src.as_ref());
         match postcard::take_from_bytes_cobs(&mut self.buf[..n]) {
             Ok((msg, rest)) => {
                 let len = rest.len();
                 if len > 0 {
-                    // debug!("len = {}", len);
                     src.advance(n - len);
-                    // src.clear();
-                    // src.extend_from_slice(&self.buf[..len]);
                 } else {
                     src.clear();
                 }
-                // let n2 = n - rest.len();
-                // src.advance(n2);
-                // debug!("Decoded message: {:?}", msg);
                 Ok(Some(msg))
             }
-            Err(postcard::Error::DeserializeUnexpectedEnd) => {
-                // debug!("Incomplete message received, waiting for more data");
-                // src.clear(); // Clear the buffer to avoid processing incomplete data
+            Err(postcard::Error::DeserializeUnexpectedEnd) => Ok(None),
+            Err(_e) => {
+                if let Some(pos) = src.as_ref().iter().position(|&b| b == 0x00) {
+                    src.advance(pos + 1);
+                } else {
+                    src.clear();
+                }
                 Ok(None)
-            }
-            Err(e) => {
-                // debug!("Deserialization error: {e}");
-                // src.clear();
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Deserialization error: {e}"),
-                ))
             }
         }
     }

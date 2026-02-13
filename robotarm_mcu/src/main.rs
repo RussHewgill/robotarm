@@ -8,10 +8,12 @@
 
 mod comms;
 mod hardware;
+mod init;
 mod simplefoc;
 
 use crate::hardware::encoder_sensor::EncoderSensor;
 use defmt::{debug, error, info, trace, warn};
+use static_cell::StaticCell;
 
 // use rtt_target::{rprintln, rtt_init};
 use {defmt_rtt as _, panic_probe as _};
@@ -368,9 +370,86 @@ async fn main(spawner: Spawner) {
     // info!("Done");
 }
 
+#[cortex_m_rt::entry]
+fn main() -> ! {
+    let p = embassy_rp::init(Default::default());
+
+    let encoder = {
+        let sda = p.PIN_14; // purple
+        let scl = p.PIN_15; // blue
+        // info!("set up i2c ");
+        let mut i2c_config = embassy_rp::i2c::Config::default();
+        // i2c_config.frequency = 400_000; // 400 kHz
+        i2c_config.frequency = 1_000_000; // 1 MHz
+        let i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
+
+        // info!("set up encoder");
+        // let encoder = crate::hardware::as5600::AS5600::new(i2c).await;
+        crate::hardware::mt_6701::MT6701::new(i2c)
+    };
+
+    let pwm_driver = {
+        let mut c = embassy_rp::pwm::Config::default();
+        let desired_freq_hz = 24_000;
+        let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
+
+        c.top = 3124;
+        c.divider = 1.into();
+        c.phase_correct = true;
+
+        // let voltage_limit = 2.0;
+        let voltage_limit = 3.;
+
+        let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
+        let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
+
+        // info!("set up PWM driver");
+        crate::simplefoc::pwm_driver::PWMDriver::new(pwm0, pwm12, c, voltage_limit, 12.)
+    };
+
+    let enable_pin = embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low);
+
+    let usb = comms::usb::UsbLogger::new();
+
+    let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
+        7, // pole pairs
+        // 11.2, // phase resistance (TODO: measure this)
+        Some(5.35), // phase resistance (TODO: measure this)
+        Some(260.), // motor kv
+        None,
+    );
+
+    // info!("set up FOC");
+    let foc = crate::simplefoc::foc_types::SimpleFOC::new(
+        encoder,
+        pwm_driver,
+        enable_pin,
+        motor_config,
+        Some(usb),
+        // None,
+    );
+
+    let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
+
+    embassy_rp::multicore::spawn_core1(
+        p.CORE1,
+        unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
+        move || {
+            let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
+            // executor1.run(|spawner| spawner.spawn(core1_task(driver)).unwrap());
+            executor1.run(|spawner| crate::comms::usb::UsbMonitor::init(&spawner, driver));
+        },
+    );
+
+    let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
+    executor0.run(|spawner| {
+        spawner.spawn(crate::init::core0_task(foc)).unwrap();
+    });
+}
+
 /// MARK: Main
-#[embassy_executor::main]
-// #[cfg(feature = "nope")]
+// #[embassy_executor::main]
+#[cfg(feature = "nope")]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -591,19 +670,19 @@ async fn loop_foc(
         >,
     >,
 ) {
-    info!("Starting main loop");
-
     let update_rate_hz = 20_000;
-    let print_rate_hz = 100;
+    // let print_rate_hz = 100;
     // let time_limit = 1.5;
     let time_limit = 2.;
 
     let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
         1_000_000 / update_rate_hz,
     ));
-    let n_max = update_rate_hz / print_rate_hz;
+    // let n_max = update_rate_hz / print_rate_hz;
     let mut max_time =
         Instant::now() + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
+
+    foc.set_debug_freq(10);
 
     foc.enable();
 
@@ -619,7 +698,9 @@ async fn loop_foc(
     // // foc.set_target_torque(0.);
     // foc.set_target_torque(0.05);
 
-    // foc.debug = true;
+    let v = 3.14;
+
+    info!("Starting main loop");
     loop {
         ticker.next().await;
         foc.run_commands().await;
@@ -629,23 +710,22 @@ async fn loop_foc(
         if Instant::now() > max_time {
             match x {
                 0 => {
-                    info!("Setting velocity to -1");
+                    // info!("Setting velocity to -1");
                     x = 1;
                     // foc.set_target_position(1.0);
-                    foc.set_target_velocity(3.14 * -1.);
-                }
-                1 => {
-                    info!("Setting velocity to 0");
-                    x = 2;
-                    // foc.set_target_position(3.);
-                    foc.set_target_velocity(3.14 * 0.);
+                    foc.set_target_velocity(v * -1.);
                 }
                 _ => {
-                    info!("Setting velocity to 1");
+                    // info!("Setting velocity to 1");
                     x = 0;
                     // foc.set_target_position(6.);
-                    foc.set_target_velocity(3.14 * 1.);
-                }
+                    foc.set_target_velocity(v * 1.);
+                } // 1 => {
+                  //     // info!("Setting velocity to 0");
+                  //     x = 2;
+                  //     // foc.set_target_position(3.);
+                  //     foc.set_target_velocity(3.14 * 0.);
+                  // }
             }
             max_time = max_time + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
         }

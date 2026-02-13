@@ -47,8 +47,9 @@ pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
     pub usb_logger: Option<UsbLogger>,
 
     pub(super) debug: bool,
-    prev_debug_us: u64,
-    pub debug_freq_hz: u64,
+    pub(super) prev_debug_us: u64,
+    // debug_freq_hz: u64,
+    debug_us_interval: u64,
 
     pub(super) motor_status: FOCStatus,
 
@@ -109,7 +110,8 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         // const PID_VELOCITY_KI: f32 = 10.0;
 
         const PID_VELOCITY_KD: f32 = 0.0;
-        const PID_VELOCITY_RAMP: f32 = 1000.0;
+        // const PID_VELOCITY_RAMP: f32 = 1000.0;
+        const PID_VELOCITY_RAMP: f32 = 0.0;
         const PID_VELOCITY_LIMIT: f32 = 20.0;
 
         const PID_ANGLE_KP: f32 = 20.0;
@@ -134,7 +136,8 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
             debug: false,
             prev_debug_us: 0,
-            debug_freq_hz: 10,
+            // debug_freq_hz: 10,
+            debug_us_interval: 100_000,
 
             motor_status: FOCStatus::MotorUninitialized,
 
@@ -164,5 +167,13 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
             openloop_shaft_angle: 0.,
         }
+    }
+
+    pub fn set_debug_freq(&mut self, freq_hz: u64) {
+        self.debug_us_interval = 1_000_000 / freq_hz;
+    }
+
+    pub fn debug_us_interval(&self) -> u64 {
+        self.debug_us_interval
     }
 }

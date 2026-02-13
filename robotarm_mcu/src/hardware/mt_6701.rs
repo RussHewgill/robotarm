@@ -57,7 +57,7 @@ impl<I2C: embedded_hal_async::i2c::I2c> EncoderSensor for MT6701<I2C> {
 }
 
 impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
-    pub async fn new(i2c: I2C) -> Self {
+    pub fn new(i2c: I2C) -> Self {
         let address = 0x06; // default I2C address for MT6701
 
         let mut out = Self {

@@ -119,7 +119,13 @@ impl DataPlot {
             .draw_series(LineSeries::new(
                 self.angle
                     .iter()
-                    .map(|(t, angle)| (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)),
+                    // .map(|(t, angle)| (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)),
+                    .map(|(t, angle)| {
+                        (
+                            *t,
+                            (*angle - std::f64::consts::PI) / (2. * std::f64::consts::PI),
+                        )
+                    }),
                 &GREEN,
             ))
             .unwrap()
