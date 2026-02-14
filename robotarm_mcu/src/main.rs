@@ -388,6 +388,9 @@ fn main() -> ! {
         crate::hardware::mt_6701::MT6701::new(i2c)
     };
 
+    let voltage_limit = 2.0;
+    // let voltage_limit = 3.;
+
     let pwm_driver = {
         let mut c = embassy_rp::pwm::Config::default();
         let desired_freq_hz = 24_000;
@@ -396,9 +399,6 @@ fn main() -> ! {
         c.top = 3124;
         c.divider = 1.into();
         c.phase_correct = true;
-
-        // let voltage_limit = 2.0;
-        let voltage_limit = 3.;
 
         let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
         let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
@@ -411,11 +411,21 @@ fn main() -> ! {
 
     let usb = comms::usb::UsbLogger::new();
 
+    // let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
+    //     7, // pole pairs
+    //     // 11.2, // phase resistance (TODO: measure this)
+    //     Some(5.35), // phase resistance (TODO: measure this)
+    //     // Some(260.), // motor kv
+    //     Some(220.), // measured
+    //     // None,
+    //     None,
+    // );
+
     let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
-        7, // pole pairs
-        // 11.2, // phase resistance (TODO: measure this)
-        Some(5.35), // phase resistance (TODO: measure this)
-        Some(260.), // motor kv
+        7,          // pole pairs
+        Some(9.2),  // phase resistance
+        Some(120.), // motor kv
+        // None,
         None,
     );
 

@@ -42,6 +42,7 @@ tokio-serial = "5.4.5"
 bytes = "1.11.1"
 tokio-util = { version = "0.7.18", features = ["codec"] }
 futures = "0.3.31"
-# serialport = "4.8.1"
-serial2 = { version = "0.2.33", features = ["windows"] }
+serialport = "4.8.1"
+crossbeam-channel = "0.5.15"
+# serial2 = { version = "0.2.33", features = ["windows"] }
 

@@ -18,10 +18,14 @@ pub struct App {
     #[serde(skip)]
     pub t0: Option<u64>,
 
+    // #[serde(skip)]
+    // pub serial_log_rx: Option<tokio::sync::mpsc::Receiver<SerialLogMessage>>,
+    // #[serde(skip)]
+    // pub serial_cmd_tx: Option<tokio::sync::mpsc::Sender<SerialCommand>>,
     #[serde(skip)]
-    pub serial_log_rx: Option<tokio::sync::mpsc::Receiver<SerialLogMessage>>,
+    pub serial_log_rx: Option<crossbeam_channel::Receiver<SerialLogMessage>>,
     #[serde(skip)]
-    pub serial_cmd_tx: Option<tokio::sync::mpsc::Sender<SerialCommand>>,
+    pub serial_cmd_tx: Option<crossbeam_channel::Sender<SerialCommand>>,
 
     #[serde(skip)]
     pub target_pos: f64,
@@ -30,6 +34,9 @@ pub struct App {
 
     pub current: f32,
     pub voltage: (f32, f32),
+
+    pub pos: f64,
+    pub vel: f64,
 
     pub vel_pid_p: f32,
     pub vel_pid_i: f32,
@@ -49,8 +56,10 @@ pub struct App {
 
 impl App {
     pub fn new(
-        serial_log_rx: tokio::sync::mpsc::Receiver<SerialLogMessage>,
-        serial_cmd_tx: tokio::sync::mpsc::Sender<SerialCommand>,
+        // serial_log_rx: tokio::sync::mpsc::Receiver<SerialLogMessage>,
+        // serial_cmd_tx: tokio::sync::mpsc::Sender<SerialCommand>,
+        serial_log_rx: crossbeam_channel::Receiver<SerialLogMessage>,
+        serial_cmd_tx: crossbeam_channel::Sender<SerialCommand>,
     ) -> Self {
         let mut plot = super::plot::DataPlot::default();
         // plot.window_time = 10.0;
@@ -63,6 +72,9 @@ impl App {
 
             target_pos: 0.,
             target_vel: 0.,
+
+            pos: 0.,
+            vel: 0.,
 
             current: 0.,
             voltage: (0., 0.),
@@ -88,6 +100,7 @@ impl App {
         if let Some(rx) = &mut self.serial_log_rx {
             while let Ok(msg) = rx.try_recv() {
                 match msg {
+                    // SerialLogMessage::Ping => {}
                     SerialLogMessage::MotorPID {
                         id,
                         vel_p,
@@ -145,6 +158,9 @@ impl App {
 
                         self.target_pos = target_position as f64;
                         self.target_vel = target_velocity as f64;
+
+                        self.pos = angle as f64;
+                        self.vel = velocity as f64;
 
                         self.current = motor_current;
                         self.voltage = motor_voltage;

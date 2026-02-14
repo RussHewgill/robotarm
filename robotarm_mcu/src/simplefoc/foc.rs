@@ -147,12 +147,13 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     }
 
     async fn align_sensor(&mut self) {
+        let _ = self.encoder.update(Instant::now().as_micros()).await;
+        Timer::after_millis(1).await;
         // let _ = self.encoder.update(Instant::now().as_micros()).await;
         // Timer::after_millis(1).await;
+        self.enable();
 
         if self.sensor_direction == SensorDirection::Unknown {
-            self.enable();
-
             let n = 100;
 
             info!("Sensor direction unknown, starting alignment procedure...");
@@ -164,7 +165,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 let angle = crate::simplefoc::types::_3PI_2
                     + crate::simplefoc::types::_2PI * (i as f32) / n as f32;
                 self.set_phase_voltage(self.motor.voltage_sensor_align, 0., angle);
-                let _ = self.encoder.update(Instant::now().as_micros()).await;
+                // let _ = self.encoder.update(Instant::now().as_micros()).await;
 
                 Timer::after_millis(2).await;
             }
@@ -177,12 +178,11 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 mid_angle
             );
             // move one electrical revolution backwards
-            for i in 0..n {
-                let i = n - 1 - i;
+            for i in (0..n).rev() {
                 let angle = crate::simplefoc::types::_3PI_2
                     + crate::simplefoc::types::_2PI * (i as f32) / n as f32;
                 self.set_phase_voltage(self.motor.voltage_sensor_align, 0., angle);
-                let _ = self.encoder.update(Instant::now().as_micros()).await;
+                // let _ = self.encoder.update(Instant::now().as_micros()).await;
 
                 Timer::after_millis(2).await;
             }
@@ -212,9 +212,12 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 info!("Sensor direction: Reversed");
             }
 
+            // self.sensor_direction = SensorDirection::Inverted;
+            // self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
+
             // error!("TODO: implement sensor alignment procedure to determine sensor direction");
 
-            self.disable();
+            // self.disable();
             // panic!()
             //
         }
@@ -232,7 +235,9 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             // self.motor.voltage_sensor_align = 1.0;
             self.motor.voltage_sensor_align = 2.0;
 
-            self.enable();
+            // not sure why this is needed
+            self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
+            Timer::after_millis(2).await;
 
             self.set_phase_voltage(
                 self.motor.voltage_sensor_align,
@@ -323,14 +328,17 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         match self.motion_control {
             MotionControlType::Torque => {
-                #[cfg(feature = "nope")]
                 if self.torque_controller == TorqueControlType::Voltage {
                     // voltage.q =  target*phase_resistance + voltage_bemf;
                     // voltage.q = _constrain(voltage.q, -voltage_limit, voltage_limit);
 
-                    self.motor.voltage.q =
-                        (self.motor.target_current * self.motor.phase_resistance + voltage_bemf)
+                    if let Some(phase_resistance) = self.motor.phase_resistance {
+                        self.motor.voltage.q = (self.motor.target_current * phase_resistance
+                            + voltage_bemf)
                             .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
+                    } else {
+                        self.motor.voltage.q = self.motor.target_current;
+                    }
 
                     match self.motor.phase_inductance {
                         Some(phase_inductance) => {
@@ -346,15 +354,35 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                         }
                     }
                 }
-                error!("Torque control not implemented yet");
-                self.disable();
+
+                if self.debug {
+                    let rpm = shaft_velocity * 30.0 / core::f32::consts::PI;
+
+                    let kv = rpm / self.motor.voltage.q;
+
+                    debug!(
+                        "KV Calculation: voltage: {}, velocity (rad/s): {}, velocity (RPM), KV: {}",
+                        self.motor.voltage.q,
+                        shaft_velocity,
+                        //
+                        kv
+                    )
+                }
             }
             MotionControlType::Velocity => {
-                self.motor.target_current = self.pid_velocity.update(
-                    self.motor.target_shaft_velocity,
-                    shaft_velocity,
-                    t_us,
-                );
+                if let Some(tuner) = &mut self.pid_velocity_tuner {
+                    if !tuner.done() {
+                        self.motor.target_current = tuner.update(shaft_velocity, t_us);
+                    } else {
+                        self.pid_velocity_tuner = None;
+                    }
+                } else {
+                    self.motor.target_current = self.pid_velocity.update(
+                        self.motor.target_shaft_velocity,
+                        shaft_velocity,
+                        t_us,
+                    );
+                }
 
                 if self.torque_controller == TorqueControlType::Voltage {
                     match self.motor.phase_resistance {
@@ -490,6 +518,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         }
 
         if self.debug {
+            #[cfg(feature = "nope")]
             self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
                 id: 0,
                 timestamp: t_us,
@@ -499,6 +528,26 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 target_position: self.motor.target_shaft_angle,
                 target_velocity: self.motor.target_shaft_velocity,
                 motor_current: self.motor.current.q,
+                motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
+            })
+            .await;
+
+            self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
+                id: 0,
+                timestamp: t_us,
+                // position: 3.,
+                position: shaft_angle,
+                // angle: 4.,
+                angle: self.encoder.get_mechanical_angle(),
+                // velocity: 5.,
+                velocity: shaft_velocity,
+                // target_position: 6.,
+                target_position: self.motor.target_shaft_angle,
+                // target_velocity: 7.,
+                target_velocity: self.motor.target_shaft_velocity,
+                // motor_current: 8.,
+                motor_current: self.motor.current.q,
+                // motor_voltage: (9., 10.),
                 motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
             })
             .await;

@@ -72,8 +72,11 @@ pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
     // not used except with current sensor
     // pub(super) lpf_current_q: LowPassFilter,
     // pub(super) lpf_current_d: LowPassFilter,
-    pub(super) pid_velocity: PIDController,
-    pub(super) pid_angle: PIDController,
+    pub pid_velocity: PIDController,
+    pub pid_angle: PIDController,
+
+    pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
+    pub(super) pid_angle_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
 
     // pub(super) lpf_velocity: LowPassFilter,
     pub(super) lpf_velocity: LowPassFilter,
@@ -110,8 +113,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         // const PID_VELOCITY_KI: f32 = 10.0;
 
         const PID_VELOCITY_KD: f32 = 0.0;
-        // const PID_VELOCITY_RAMP: f32 = 1000.0;
-        const PID_VELOCITY_RAMP: f32 = 0.0;
+        const PID_VELOCITY_RAMP: f32 = 1000.0;
         const PID_VELOCITY_LIMIT: f32 = 20.0;
 
         const PID_ANGLE_KP: f32 = 20.0;
@@ -162,6 +164,9 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
             pid_angle: PIDController::new(PID_ANGLE_KP, 0.0, 0.0, 0.0, PID_ANGLE_LIMIT),
 
+            pid_angle_tuner: None,
+            pid_velocity_tuner: None,
+
             lpf_velocity: LowPassFilter::new(VEL_LPF_TF),
             lpf_angle: LowPassFilter::new(ANGLE_LPF_TF),
 
@@ -175,5 +180,10 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
     pub fn debug_us_interval(&self) -> u64 {
         self.debug_us_interval
+    }
+
+    pub fn set_vel_pid_debug(&mut self, target_input: f32) {
+        let tuner = crate::simplefoc::pid_tuning::PidTuner::new(&self.pid_velocity, target_input);
+        self.pid_velocity_tuner = Some(tuner);
     }
 }

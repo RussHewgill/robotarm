@@ -38,6 +38,19 @@ impl Default for DataPlot {
 }
 
 impl DataPlot {
+    pub fn get_angle(&self) -> &VecDeque<(f64, f64)> {
+        &self.angle
+    }
+    pub fn get_vel(&self) -> &VecDeque<(f64, f64)> {
+        &self.vel
+    }
+    pub fn get_target_pos(&self) -> &VecDeque<(f64, f64)> {
+        &self.target_pos
+    }
+    pub fn get_target_vel(&self) -> &VecDeque<(f64, f64)> {
+        &self.target_vel
+    }
+
     pub fn add_point_angle(&mut self, t: f64, angle: f64) {
         self.angle.push_back((t, angle));
         self.prev_time = t;
@@ -119,13 +132,7 @@ impl DataPlot {
             .draw_series(LineSeries::new(
                 self.angle
                     .iter()
-                    // .map(|(t, angle)| (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)),
-                    .map(|(t, angle)| {
-                        (
-                            *t,
-                            (*angle - std::f64::consts::PI) / (2. * std::f64::consts::PI),
-                        )
-                    }),
+                    .map(|(t, angle)| (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)),
                 &GREEN,
             ))
             .unwrap()

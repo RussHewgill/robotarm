@@ -88,6 +88,10 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                         id, target
                     );
                 }
+                SerialCommand::SetModeTorque { id } => {
+                    self.set_motion_control(MotionControlType::Torque);
+                    debug!("Received SetModeTorque command: id: {}", id);
+                }
                 SerialCommand::SetModeAngle { id } => {
                     self.set_motion_control(MotionControlType::Angle);
                     debug!("Received SetModeAngle command: id: {}", id);

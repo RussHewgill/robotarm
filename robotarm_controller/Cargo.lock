@@ -2189,6 +2189,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "libudev"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78b324152da65df7bb95acfcaab55e3097ceaab02fb19b228a9eb74d55f135e0"
+dependencies = [
+ "libc",
+ "libudev-sys",
+]
+
+[[package]]
+name = "libudev-sys"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c8469b4a23b962c1396b9b451dda50ef5b283e8dd309d69033475fa9b334324"
+dependencies = [
+ "libc",
+ "pkg-config",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3110,7 +3130,19 @@ dependencies = [
  "cobs",
  "embedded-io 0.4.0",
  "embedded-io 0.6.1",
+ "postcard-derive",
  "serde",
+]
+
+[[package]]
+name = "postcard-derive"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0232bd009a197ceec9cc881ba46f727fcd8060a2d8d6a9dde7a69030a6fe2bb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -3353,6 +3385,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
+ "crossbeam-channel",
  "ecolor",
  "eframe",
  "egui",
@@ -3364,7 +3397,7 @@ dependencies = [
  "postcard",
  "robotarm_protocol",
  "serde",
- "serial2",
+ "serialport",
  "tokio",
  "tokio-serial",
  "tokio-util",
@@ -3585,17 +3618,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serial2"
-version = "0.2.33"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cc76fa68e25e771492ca1e3c53d447ef0be3093e05cd3b47f4b712ba10c6f3c"
-dependencies = [
- "cfg-if",
- "libc",
- "winapi",
-]
-
-[[package]]
 name = "serialport"
 version = "4.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3606,6 +3628,7 @@ dependencies = [
  "core-foundation 0.10.0",
  "core-foundation-sys",
  "io-kit-sys",
+ "libudev",
  "mach2",
  "nix 0.26.4",
  "quote",

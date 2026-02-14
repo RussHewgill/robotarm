@@ -214,12 +214,12 @@ async fn usb_logger_task(
         1,
     >,
 ) -> ! {
-    let mut buf: [u8; 512];
-    let mut accum = postcard::accumulator::CobsAccumulator::<512>::new();
+    let mut buf: [u8; 4096];
+    let mut accum = postcard::accumulator::CobsAccumulator::<4096>::new();
     // let mut prev_msg = None;
 
     loop {
-        buf = [0; 512];
+        buf = [0; 4096];
         match embassy_futures::select::select(
             log_rx.receive(),
             // usb_monitor.class.read_packet(&mut buf),

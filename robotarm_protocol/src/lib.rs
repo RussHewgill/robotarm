@@ -1,10 +1,14 @@
-#![no_std] // Important so the MCU can use it
+#![no_std]
+use postcard::experimental::max_size::MaxSize;
+// Important so the MCU can use it
 use serde::{Deserialize, Serialize};
 
 /// Data from MCU to Controller
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(MaxSize)]
 pub enum SerialLogMessage {
+    // Ping,
     MotorData {
         id: u8,
         timestamp: u64,
@@ -36,6 +40,7 @@ pub enum SerialLogMessage {
 /// Data from Controller to MCU
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(MaxSize)]
 pub enum SerialCommand {
     RequestSettings {
         id: u8,
@@ -47,6 +52,9 @@ pub enum SerialCommand {
     SetDebugRate {
         id: u8,
         rate_hz: u16,
+    },
+    SetModeTorque {
+        id: u8,
     },
     SetModeVelocityOpenLoop {
         id: u8,

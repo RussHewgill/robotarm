@@ -2,8 +2,8 @@ use defmt::debug;
 use embassy_time::Instant;
 
 pub struct PIDController {
-    pid: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
-    pid2: self::prev::PIDController,
+    // pid: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
+    pid: self::prev::PIDController,
     ramp: f32,
 }
 
@@ -14,26 +14,34 @@ impl PIDController {
         //     p, i, d, ramp, limit
         // );
 
-        let config = discrete_pid::pid::PidConfigBuilder::default()
-            .kp(p)
-            .ki(p)
-            .kd(d)
-            .output_limits(-limit, limit)
-            .sample_time(core::time::Duration::from_micros(100))
-            .build()
-            .expect("Invalid PID config");
-        let mut pid = discrete_pid::pid::PidController::new_uninit(config);
-        pid.activate();
+        // let config = discrete_pid::pid::PidConfigBuilder::default()
+        //     .kp(p)
+        //     .ki(p)
+        //     .kd(d)
+        //     .output_limits(-limit, limit)
+        //     .sample_time(core::time::Duration::from_micros(100))
+        //     .build()
+        //     .expect("Invalid PID config");
+        // let mut pid = discrete_pid::pid::PidController::new_uninit(config);
+        // pid.activate();
+        // let _ = pid.config_mut().set_filter_tc(0.000001);
+        // // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
+        // let _ = pid.config_mut().set_use_derivative_on_measurement(true);
 
-        let _ = pid.config_mut().set_filter_tc(0.000001);
+        let pid = self::prev::PIDController::new(p, i, d, ramp, limit);
 
-        // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
-        let _ = pid.config_mut().set_use_derivative_on_measurement(true);
+        Self { pid, ramp }
+    }
 
-        let pid2 = self::prev::PIDController::new(p, i, d, ramp, limit);
-
-        // Self { pid2, ramp }
-        Self { pid, pid2, ramp }
+    #[cfg(feature = "nope")]
+    pub fn clone(&self) -> Self {
+        let config = self.pid.config().clone();
+        let pid = discrete_pid::pid::PidController::new_uninit(config);
+        Self {
+            // pid: self.pid.clone(),
+            pid,
+            ramp: self.ramp,
+        }
     }
 
     pub fn reset(&mut self) {
@@ -41,18 +49,18 @@ impl PIDController {
     }
 
     pub fn update(&mut self, setpoint: f32, input: f32, t_us: u64) -> f32 {
-        let output1 = self
-            .pid
-            .compute(input, setpoint, discrete_pid::time::Micros(t_us), None);
+        // let output = self
+        //     .pid
+        //     .compute(input, setpoint, discrete_pid::time::Micros(t_us), None);
 
-        let output2 = self.pid2.update(setpoint - input, t_us);
+        let output = self.pid.update(setpoint - input, t_us);
 
         // debug!(
         //     "PID update: setpoint: {}, input: {}, output1: {}, output2: {}",
         //     setpoint, input, output1, output2
         // );
 
-        output1
+        output
         // 0.0
     }
 }
@@ -60,34 +68,34 @@ impl PIDController {
 // #[cfg(feature = "nope")]
 impl PIDController {
     pub fn get_p(&self) -> f32 {
-        self.pid2.p
+        self.pid.p
     }
     pub fn get_i(&self) -> f32 {
-        self.pid2.i
+        self.pid.i
     }
     pub fn get_d(&self) -> f32 {
-        self.pid2.d
+        self.pid.d
     }
     pub fn get_ramp(&self) -> f32 {
         self.ramp
     }
     pub fn get_limit(&self) -> f32 {
-        self.pid2.limit
+        self.pid.limit
     }
     pub fn set_p(&mut self, p: f32) {
-        self.pid2.p = p;
+        self.pid.p = p;
     }
     pub fn set_i(&mut self, i: f32) {
-        self.pid2.i = i;
+        self.pid.i = i;
     }
     pub fn set_d(&mut self, d: f32) {
-        self.pid2.d = d;
+        self.pid.d = d;
     }
     pub fn set_ramp(&mut self, ramp: f32) {
         self.ramp = ramp;
     }
     pub fn set_limit(&mut self, limit: f32) {
-        self.pid2.limit = limit;
+        self.pid.limit = limit;
     }
 }
 

@@ -16,7 +16,8 @@ mod pid_settings {
         ui: &mut egui::Ui,
         label: &str,
         value: &mut f32,
-        tx: &tokio::sync::mpsc::Sender<SerialCommand>,
+        // tx: &tokio::sync::mpsc::Sender<SerialCommand>,
+        tx: &crossbeam_channel::Sender<SerialCommand>,
         cmd_fn: impl Fn(f32) -> SerialCommand,
     ) {
         ui.label(label);
@@ -131,6 +132,15 @@ impl App {
             }
         });
 
+        if ui.button("Set Torque").clicked() {
+            if let Some(tx) = &self.serial_cmd_tx {
+                let cmd = SerialCommand::SetModeTorque { id: 0 };
+                if let Err(e) = tx.try_send(cmd) {
+                    error!("Failed to send command: {}", e);
+                }
+            }
+        }
+
         if ui.button("Set Velocity Open Loop").clicked() {
             if let Some(tx) = &self.serial_cmd_tx {
                 let cmd = SerialCommand::SetModeVelocityOpenLoop { id: 0 };
@@ -212,15 +222,39 @@ impl App {
         });
 
         ui.horizontal(|ui| {
-            ui.label("Target Velocity:");
-            if ui
-                .add(egui::Slider::new(&mut self.target_vel, -20.0..=20.0))
-                .changed()
-            {
+            ui.label("Target Vel:");
+            let resp = ui.add(egui::Slider::new(&mut self.target_vel, -20.0..=20.0));
+            let mut send_target = None;
+
+            if resp.changed() {
+                send_target = Some(self.target_vel);
+            } else if resp.hovered() {
+                let delta = ui.input(|i| {
+                    i.events.iter().find_map(|e| match e {
+                        egui::Event::MouseWheel {
+                            unit: _,
+                            delta,
+                            modifiers,
+                        } => Some(*delta),
+                        _ => None,
+                    })
+                });
+                if let Some(delta) = delta {
+                    if delta.y > 0. && self.target_vel < 20. {
+                        self.target_vel += 0.5;
+                        send_target = Some(self.target_vel);
+                    } else if delta.y < 0. && self.target_vel > -20. {
+                        self.target_vel -= 0.5;
+                        send_target = Some(self.target_vel);
+                    }
+                }
+            }
+
+            if let Some(tgt) = send_target {
                 if let Some(tx) = &self.serial_cmd_tx {
                     let cmd = SerialCommand::SetMotorTarget {
                         id: 0,
-                        target: self.target_vel as f32,
+                        target: tgt as f32,
                     };
                     if let Err(e) = tx.try_send(cmd) {
                         error!("Failed to send command: {}", e);
@@ -248,6 +282,9 @@ impl App {
             ))
             .monospace(),
         );
+
+        ui.label(RichText::new(format!("Angle: {:>+0.3} A", self.pos)).monospace());
+        ui.label(RichText::new(format!("Velocity: {:>+0.3} A", self.vel)).monospace());
     }
 
     fn col_2(&mut self, ui: &mut egui::Ui) {

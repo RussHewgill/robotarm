@@ -11,11 +11,85 @@ mod simplefoc;
 mod ui;
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use tokio_serial::SerialPort;
+use bytes::Buf as _;
+use postcard::{accumulator::FeedResult, experimental::max_size::MaxSize};
 use tracing::{debug, error, info, trace, warn};
 
-// #[cfg(feature = "nope")]
-#[tokio::main]
+use serialport::SerialPort as _;
+
+use robotarm_protocol::SerialLogMessage;
+
+// use tokio_serial::SerialPort;
+
+#[cfg(feature = "nope")]
+// #[tokio::main]
+async fn main() -> tokio_serial::Result<()> {
+    use futures::{SinkExt as _, StreamExt as _};
+    use tokio_serial::SerialPortBuilderExt as _;
+    use tokio_util::codec::Decoder as _;
+
+    use postcard::accumulator::FeedResult;
+
+    logging::init_logs();
+
+    let rate = 115200;
+    // let rate = 921600;
+
+    let mut port = serialport::new("COM8", rate).open().unwrap();
+
+    // let mut port =
+    //     tokio_serial::SerialPortBuilderExt::open_native_async(tokio_serial::new("COM8", rate))
+    //         .unwrap();
+
+    let _ = port.write_data_terminal_ready(true);
+    // serialport::SerialPort::write_data_terminal_ready(&mut port, true)?;
+
+    debug!("timeout set: {:?}", port.timeout());
+
+    let mut cobs_buf = postcard::accumulator::CobsAccumulator::<4096>::new();
+
+    let mut raw_buf: [u8; 1024] = [0; 1024];
+
+    loop {
+        // while let Ok(ct) = tokio::io::AsyncReadExt::read(&mut port, &mut raw_buf).await {
+        while let Ok(ct) = port.read(&mut raw_buf) {
+            // Finished reading input
+            if ct == 0 {
+                break;
+            }
+
+            let buf = &raw_buf[..ct];
+            let mut window = &buf[..];
+
+            'cobs: while !window.is_empty() {
+                window = match cobs_buf.feed::<SerialLogMessage>(&window) {
+                    FeedResult::Consumed => break 'cobs,
+                    FeedResult::OverFull(new_wind) => new_wind,
+                    FeedResult::DeserError(new_wind) => new_wind,
+                    FeedResult::Success { data, remaining } => {
+                        debug!("Received message: {:?}", data);
+
+                        remaining
+                    }
+                };
+            }
+        }
+    }
+
+    // let mut framed = crate::serial::codec::SerialCodec::default().framed(port);
+
+    // let mut buf: [u8; 1024] = [0; 1024];
+    // loop {
+    //     if let Ok(n) = port.read(&mut buf) {
+    //         debug!("Read {} bytes: {:?}", n, &buf[..n]);
+    //     }
+    // }
+
+    //
+}
+
+#[cfg(feature = "nope")]
+// #[tokio::main]
 async fn main() -> tokio_serial::Result<()> {
     use futures::{SinkExt as _, StreamExt as _};
     use std::io::Read;
@@ -27,8 +101,8 @@ async fn main() -> tokio_serial::Result<()> {
     // let (serial_log_tx, serial_log_rx) = tokio::sync::mpsc::channel(100);
     // let (serial_cmd_tx, serial_cmd_rx) = tokio::sync::mpsc::channel(100);
 
-    let rate = 115200;
-    // let rate = 921600;
+    // let rate = 115200;
+    let rate = 921600;
 
     let mut port =
         tokio_serial::SerialPortBuilderExt::open_native_async(tokio_serial::new("COM8", rate))
@@ -74,8 +148,123 @@ async fn main() -> tokio_serial::Result<()> {
     // Ok(())
 }
 
-/// MARK: Main
 #[cfg(feature = "nope")]
+fn main() -> eframe::Result<()> {
+    logging::init_logs();
+
+    let (serial_log_tx, serial_log_rx) = crossbeam_channel::unbounded();
+    let (serial_cmd_tx, serial_cmd_rx) = crossbeam_channel::unbounded();
+
+    let rate = 115200;
+    // let rate = 921600;
+
+    // let mut port = serialport::new("COM8", rate).open().unwrap();
+
+    // port.write_data_terminal_ready(true).unwrap();
+
+    // let mut bs = bytes::BytesMut::with_capacity(1024);
+    // let mut raw_buf: [u8; 1024] = [0; 1024];
+
+    // let mut cobs_buf = postcard::accumulator::CobsAccumulator::<4096>::new();
+
+    #[cfg(feature = "nope")]
+    loop {
+        match port.read(&mut raw_buf) {
+            Ok(n) => {
+                debug!("Read {} bytes", n);
+                bs.extend_from_slice(&raw_buf[..n]);
+
+                let mut len;
+
+                'cobs: loop {
+                    len = bs.len();
+                    match cobs_buf.feed::<SerialLogMessage>(&mut bs[..]) {
+                        FeedResult::Consumed => {
+                            debug!("No complete message in buffer, {}", bs.len());
+                            break 'cobs;
+                        }
+                        FeedResult::OverFull(new_wind) => {
+                            debug!("Accumulator overflow");
+                            // bs = new_wind.into();
+                            panic!()
+                        }
+                        FeedResult::DeserError(new_wind) => {
+                            debug!("Deserialization error: {}", new_wind.len());
+                            // bs = new_wind.into();
+                        }
+                        FeedResult::Success { data, remaining } => {
+                            debug!("Received message: {:?}", data);
+                            // bs = remaining.into();
+
+                            let consumed = len - remaining.len();
+                            bs.advance(consumed);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::TimedOut {
+                    // debug!("Serial read timed out");
+                } else {
+                    debug!("Error reading from serial port: {:?}", e);
+                }
+            }
+        }
+    }
+
+    // works
+    #[cfg(feature = "nope")]
+    loop {
+        match port.read(&mut raw_buf) {
+            Ok(n) => {
+                // debug!("Read {} bytes: {:?}", n, &raw_buf[..n]);
+                // debug!("Read {} bytes", n);
+                // raw_buf.advance(n);
+
+                let buf = &raw_buf[..n];
+                let mut window = &buf[..];
+
+                'cobs: while !window.is_empty() {
+                    window = match cobs_buf.feed::<SerialLogMessage>(&window) {
+                        FeedResult::Consumed => break 'cobs,
+                        FeedResult::OverFull(new_wind) => new_wind,
+                        FeedResult::DeserError(new_wind) => new_wind,
+                        FeedResult::Success { data, remaining } => {
+                            debug!("Received message: {:?}", data);
+
+                            remaining
+                        }
+                    };
+                }
+            }
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::TimedOut {
+                    // debug!("Serial read timed out");
+                } else {
+                    debug!("Error reading from serial port: {:?}", e);
+                }
+            }
+        }
+    }
+
+    std::thread::spawn(move || {
+        loop {
+            let _ = serial_log_rx.recv();
+        }
+    });
+
+    let mut serial_handler = serial::SerialHandler::new("COM8", serial_log_tx, serial_cmd_rx, rate);
+
+    loop {
+        if let Err(e) = serial_handler.run() {
+            error!("Error in serial handler: {}", e);
+        }
+    }
+    // Ok(())
+}
+
+/// MARK: Main
+// #[cfg(feature = "nope")]
 fn main() -> eframe::Result<()> {
     logging::init_logs();
 
@@ -88,10 +277,13 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
 
-    let (serial_log_tx, serial_log_rx) = tokio::sync::mpsc::channel(100);
-    let (serial_cmd_tx, serial_cmd_rx) = tokio::sync::mpsc::channel(100);
+    // let (serial_log_tx, serial_log_rx) = tokio::sync::mpsc::channel(100);
+    // let (serial_cmd_tx, serial_cmd_rx) = tokio::sync::mpsc::channel(100);
+    let (serial_log_tx, serial_log_rx) = crossbeam_channel::unbounded();
+    let (serial_cmd_tx, serial_cmd_rx) = crossbeam_channel::unbounded();
 
     debug!("Starting serial thread");
+    #[cfg(feature = "nope")]
     std::thread::spawn(|| {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
@@ -112,6 +304,18 @@ fn main() -> eframe::Result<()> {
                 }
             }
         });
+    });
+
+    std::thread::spawn(|| {
+        let rate = 921600;
+        let mut serial_handler =
+            serial::SerialHandler::new("COM8", serial_log_tx, serial_cmd_rx, rate);
+
+        loop {
+            if let Err(e) = serial_handler.run() {
+                // error!("Error in serial handler: {}", e);
+            }
+        }
     });
 
     eframe::run_native(
