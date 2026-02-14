@@ -24,6 +24,7 @@ pub struct SerialHandler {
     // serial_cmd_rx: tokio::sync::mpsc::Receiver<SerialCommand>,
     serial_log_tx: crossbeam_channel::Sender<SerialLogMessage>,
     serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
+    ui_cmd_tx: crossbeam_channel::Sender<crate::ui::UiCommand>,
 
     cobs_buf: postcard::accumulator::CobsAccumulator<4096>,
     raw_buf: [u8; 1024],
@@ -38,6 +39,7 @@ impl SerialHandler {
         address: &str,
         serial_log_tx: crossbeam_channel::Sender<SerialLogMessage>,
         serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
+        ui_cmd_tx: crossbeam_channel::Sender<crate::ui::UiCommand>,
         rate: u32,
     ) -> Self {
         let port = match serialport::new(address, rate).open() {
@@ -54,6 +56,7 @@ impl SerialHandler {
             rate,
             serial_log_tx,
             serial_cmd_rx,
+            ui_cmd_tx,
 
             cobs_buf: postcard::accumulator::CobsAccumulator::new(),
             raw_buf: [0; 1024],
@@ -65,6 +68,9 @@ impl SerialHandler {
         self.cobs_buf = postcard::accumulator::CobsAccumulator::new();
         self.raw_buf = [0; 1024];
         self.bytes.clear();
+
+        self.ui_cmd_tx.send(crate::ui::UiCommand::ClearPlot)?;
+
         loop {
             match serialport::new(&self.address, self.rate).open()
             // match tokio_serial::SerialPortBuilderExt::open_native_async(tokio_serial::new(
@@ -78,9 +84,9 @@ impl SerialHandler {
                 Err(e) => {
                     debug!("Failed to connect to serial port: {e}");
                     // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                    // std::thread::sleep(std::time::Duration::from_secs(1));
+                    std::thread::sleep(std::time::Duration::from_secs(1));
                     // return Err(anyhow!("Failed to connect to serial port: {e}"));
-                    panic!()
+                    // panic!()
                 }
             }
         }

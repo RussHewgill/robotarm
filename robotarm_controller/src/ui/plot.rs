@@ -104,6 +104,14 @@ impl DataPlot {
             }
         }
     }
+
+    pub fn reset(&mut self) {
+        self.angle.clear();
+        self.vel.clear();
+        self.target_pos.clear();
+        self.target_vel.clear();
+        self.prev_time = 0.;
+    }
 }
 
 impl DataPlot {

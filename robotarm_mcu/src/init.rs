@@ -20,13 +20,13 @@ pub async fn core0_task(
     >,
 ) {
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Normal);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Inverted);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Inverted);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
+    foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
 
     info!("Starting init");
     foc.init();
@@ -37,7 +37,8 @@ pub async fn core0_task(
 
     // spawner.spawn(test_foc(foc)).unwrap();
 
-    let update_rate_hz = 20_000;
+    // let update_rate_hz = 20_000;
+    let update_rate_hz = 1_000;
     let time_limit = 2.;
 
     let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
@@ -46,17 +47,14 @@ pub async fn core0_task(
     let mut max_time =
         Instant::now() + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
 
-    // foc.set_debug_freq(10);
+    // foc.set_debug_freq(1);
     // foc.set_debug_freq(50);
     // foc.set_debug_freq(75);
-    foc.set_debug_freq(100);
+    // foc.set_debug_freq(100);
     // foc.set_debug_freq(1_000);
+    foc.set_debug_freq(0);
 
-    foc.set_vel_pid_debug(3.);
-
-    // foc.pid_velocity.set_p(0.23195632);
-    // foc.pid_velocity.set_i(15.113432);
-    // foc.pid_velocity.set_d(0.000891323);
+    // foc.set_vel_pid_debug(2.);
 
     // foc.set_target_torque(10.0);
 
@@ -64,15 +62,13 @@ pub async fn core0_task(
     // let mut tgt = 1.0;
     // foc.set_target_position(tgt);
 
-    // let tgt = 60.;
-
     let mut x = 0;
-    foc.set_target_velocity(3.14 * 1.);
 
     // // foc.set_target_torque(0.);
     // foc.set_target_torque(0.05);
 
     let v = 3.14;
+    foc.set_target_velocity(v);
 
     info!("Starting main loop");
 
@@ -96,11 +92,69 @@ pub async fn core0_task(
         );
     }
 
-    // #[cfg(feature = "nope")]
+    // basic sine wave test
+    #[cfg(feature = "nope")]
+    {
+        let mut t0 = Instant::now();
+        let mut c = 0;
+
+        let rate_hz = 5_000;
+        let mut ticker = Ticker::every(embassy_time::Duration::from_micros(1_000_000 / rate_hz));
+
+        let mut a = 0.;
+        loop {
+            ticker.next().await;
+
+            a += 0.01;
+
+            foc._set_phase_pwm(
+                libm::sinf(a + 0.5),
+                libm::sinf(a + 0.5 + core::f32::consts::PI * 2. / 3.),
+                libm::sinf(a + 0.5 + core::f32::consts::PI * 4. / 3.),
+            );
+        }
+    }
+
+    let mut c = 0;
+    let mut sum = 0u64;
+
+    // i2c read frequency test
+    for _ in 0..10_000 {
+        let t0 = Instant::now();
+        let angle = foc.encoder.read_raw_angle().await.unwrap();
+
+        let t1 = Instant::now();
+        let elapsed = t1 - t0;
+        sum += elapsed.as_micros() as u64;
+
+        c += 1;
+    }
+
+    let avg = sum as f32 / c as f32;
+    info!("Average I2C read time: {} us", avg);
+
+    #[cfg(feature = "nope")]
     loop {
         ticker.next().await;
         foc.run_commands().await;
         foc.update_foc().await;
+
+        #[cfg(feature = "nope")]
+        if Instant::now() > max_time {
+            let elapsed = Instant::now() - t0;
+            let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
+            info!(
+                "Elapsed: {}s, Cycles: {}, Freq: {}Hz",
+                elapsed.as_millis() as f32 * 1e-3,
+                c,
+                freq
+            );
+            t0 = Instant::now();
+            c = 0;
+            max_time = max_time + embassy_time::Duration::from_millis((time_limit * 5000.) as u64);
+        } else {
+            c += 1;
+        }
 
         // #[cfg(feature = "nope")]
         if Instant::now() > max_time {

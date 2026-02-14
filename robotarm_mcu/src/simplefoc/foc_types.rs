@@ -108,12 +108,21 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         const PID_VELOCITY_KP: f32 = 0.1;
         const PID_VELOCITY_KI: f32 = 0.0;
+        const PID_VELOCITY_KD: f32 = 0.0;
 
         // const PID_VELOCITY_KP: f32 = 0.5;
         // const PID_VELOCITY_KI: f32 = 10.0;
 
-        const PID_VELOCITY_KD: f32 = 0.0;
+        // const PID_VELOCITY_KP: f32 = 0.35077736;
+        // const PID_VELOCITY_KI: f32 = 23.697653;
+        // const PID_VELOCITY_KD: f32 = 0.0013006842;
+
+        // const PID_VELOCITY_KP: f32 = 0.5334584;
+        // const PID_VELOCITY_KI: f32 = 18.729868;
+        // const PID_VELOCITY_KD: f32 = 0.0038000948;
+
         const PID_VELOCITY_RAMP: f32 = 1000.0;
+        // const PID_VELOCITY_RAMP: f32 = 0.0;
         const PID_VELOCITY_LIMIT: f32 = 20.0;
 
         const PID_ANGLE_KP: f32 = 20.0;
@@ -122,7 +131,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         // const VEL_LPF_TF: f32 = 0.;
         // const VEL_LPF_TF: f32 = 0.005;
         const VEL_LPF_TF: f32 = 0.05;
-        // const VEL_LPF_TF: f32 = 0.001;
+        // const VEL_LPF_TF: f32 = 0.2;
 
         const ANGLE_LPF_TF: f32 = 0.;
         // const ANGLE_LPF_TF: f32 = 0.001;
@@ -175,7 +184,11 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     }
 
     pub fn set_debug_freq(&mut self, freq_hz: u64) {
-        self.debug_us_interval = 1_000_000 / freq_hz;
+        if freq_hz == 0 {
+            self.debug_us_interval = 0;
+        } else {
+            self.debug_us_interval = 1_000_000 / freq_hz;
+        }
     }
 
     pub fn debug_us_interval(&self) -> u64 {

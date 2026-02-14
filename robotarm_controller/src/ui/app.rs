@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use tracing::{debug, error, info, trace, warn};
@@ -26,11 +26,17 @@ pub struct App {
     pub serial_log_rx: Option<crossbeam_channel::Receiver<SerialLogMessage>>,
     #[serde(skip)]
     pub serial_cmd_tx: Option<crossbeam_channel::Sender<SerialCommand>>,
+    #[serde(skip)]
+    pub ui_cmd_rx: Option<crossbeam_channel::Receiver<crate::ui::UiCommand>>,
 
     #[serde(skip)]
     pub target_pos: f64,
     #[serde(skip)]
     pub target_vel: f64,
+
+    pub update_interval: Duration,
+    #[serde(skip)]
+    last_update: Option<Instant>,
 
     pub current: f32,
     pub voltage: (f32, f32),
@@ -60,6 +66,7 @@ impl App {
         // serial_cmd_tx: tokio::sync::mpsc::Sender<SerialCommand>,
         serial_log_rx: crossbeam_channel::Receiver<SerialLogMessage>,
         serial_cmd_tx: crossbeam_channel::Sender<SerialCommand>,
+        ui_cmd_rx: crossbeam_channel::Receiver<crate::ui::UiCommand>,
     ) -> Self {
         let mut plot = super::plot::DataPlot::default();
         // plot.window_time = 10.0;
@@ -69,9 +76,13 @@ impl App {
             t0: None,
             serial_log_rx: Some(serial_log_rx),
             serial_cmd_tx: Some(serial_cmd_tx),
+            ui_cmd_rx: Some(ui_cmd_rx),
 
             target_pos: 0.,
             target_vel: 0.,
+
+            update_interval: Duration::from_millis(500),
+            last_update: Some(Instant::now()),
 
             pos: 0.,
             vel: 0.,
@@ -97,6 +108,18 @@ impl App {
     }
 
     fn get_from_channels(&mut self) {
+        if let Some(rx) = &mut self.ui_cmd_rx {
+            while let Ok(cmd) = rx.try_recv() {
+                match cmd {
+                    crate::ui::UiCommand::ClearPlot => {
+                        debug!("Clearing plot");
+                        self.plot.reset();
+                        self.t0 = None;
+                    }
+                }
+            }
+        }
+
         if let Some(rx) = &mut self.serial_log_rx {
             while let Ok(msg) = rx.try_recv() {
                 match msg {
@@ -116,6 +139,7 @@ impl App {
                         lpf_angle,
                         lpf_vel,
                     } => {
+                        // debug!("Got motor PID settings {:#?}", msg);
                         debug!("Got motor PID settings");
 
                         self.vel_pid_p = vel_p;
@@ -156,14 +180,20 @@ impl App {
                             self.t0 = Some(timestamp);
                         }
 
-                        self.target_pos = target_position as f64;
-                        self.target_vel = target_velocity as f64;
+                        if let Some(t) = self.last_update {
+                            if t.elapsed() >= self.update_interval {
+                                self.last_update = Some(Instant::now());
 
-                        self.pos = angle as f64;
-                        self.vel = velocity as f64;
+                                self.target_pos = target_position as f64;
+                                self.target_vel = target_velocity as f64;
 
-                        self.current = motor_current;
-                        self.voltage = motor_voltage;
+                                self.pos = angle as f64;
+                                self.vel = velocity as f64;
+
+                                self.current = motor_current;
+                                self.voltage = motor_voltage;
+                            }
+                        }
                     }
                 }
             }

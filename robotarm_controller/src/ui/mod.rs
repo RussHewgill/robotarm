@@ -1,3 +1,8 @@
 pub mod app;
+pub mod controls;
 pub mod plot;
-mod controls;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UiCommand {
+    ClearPlot,
+}

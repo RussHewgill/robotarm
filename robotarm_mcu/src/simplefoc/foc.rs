@@ -95,191 +95,21 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     }
 }
 
-/// update, internal
+/// main loop
 impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
-    pub fn init(&mut self) {
-        // check driver initialized
-
-        self.motor_status = FOCStatus::MotorInitializing;
-
-        if self.motor.limit_voltage > self.pwm_driver.voltage_limit {
-            error!(
-                "Motor voltage limit {} is higher than driver voltage limit {}, constraining to driver limit",
-                self.motor.limit_voltage, self.pwm_driver.voltage_limit
-            );
-            self.motor.limit_voltage = self.pwm_driver.voltage_limit;
-        }
-
-        if self.motor.voltage_sensor_align > self.motor.limit_voltage {
-            error!(
-                "Motor voltage sensor align {} is higher than motor voltage limit {}, constraining to motor limit",
-                self.motor.voltage_sensor_align, self.motor.limit_voltage
-            );
-            self.motor.voltage_sensor_align = self.motor.limit_voltage;
-        }
-
-        // velocity control loop controls current
-        self.pid_velocity.set_limit(self.motor.limit_current);
-
-        // self.pid_angle.limit = self.motor.limit_velocity;
-
-        self.motor_status = FOCStatus::MotorReady;
-    }
-
-    pub async fn init_foc(&mut self) {
-        // self.pid_current_q.limit = self.motor.limit_voltage;
-        // self.pid_current_d.limit = self.motor.limit_voltage;
-
-        // needs phase resistance set
-        self.pid_velocity.set_limit(self.motor.limit_current);
-        // self.pid_angle.limit = self.motor.limit_velocity;
-
-        self.motor_status = FOCStatus::MotorCalibrating;
-
-        // align motor if necessary
-        // alignment necessary for encoders!
-        // sensor and motor alignment - can be skipped
-        // by setting motor.sensor_direction and motor.zero_electric_angle
-        self.align_sensor().await;
-        // self.motor.shaft_angle
-
-        //
-    }
-
-    async fn align_sensor(&mut self) {
-        let _ = self.encoder.update(Instant::now().as_micros()).await;
-        Timer::after_millis(1).await;
-        // let _ = self.encoder.update(Instant::now().as_micros()).await;
-        // Timer::after_millis(1).await;
-        self.enable();
-
-        if self.sensor_direction == SensorDirection::Unknown {
-            let n = 100;
-
-            info!("Sensor direction unknown, starting alignment procedure...");
-            // find natural direction
-            // move one electrical revolution forward
-
-            info!("Rotating motor forward to find natural direction...");
-            for i in 0..n {
-                let angle = crate::simplefoc::types::_3PI_2
-                    + crate::simplefoc::types::_2PI * (i as f32) / n as f32;
-                self.set_phase_voltage(self.motor.voltage_sensor_align, 0., angle);
-                // let _ = self.encoder.update(Instant::now().as_micros()).await;
-
-                Timer::after_millis(2).await;
-            }
-
-            let _ = self.encoder.update(Instant::now().as_micros()).await;
-            let mid_angle = self.encoder.get_angle();
-
-            info!(
-                "Mid angle: {}, now rotating backwards to find natural direction...",
-                mid_angle
-            );
-            // move one electrical revolution backwards
-            for i in (0..n).rev() {
-                let angle = crate::simplefoc::types::_3PI_2
-                    + crate::simplefoc::types::_2PI * (i as f32) / n as f32;
-                self.set_phase_voltage(self.motor.voltage_sensor_align, 0., angle);
-                // let _ = self.encoder.update(Instant::now().as_micros()).await;
-
-                Timer::after_millis(2).await;
-            }
-
-            Timer::after_millis(20).await;
-
-            let _ = self.encoder.update(Instant::now().as_micros()).await;
-            let end_angle = self.encoder.get_angle();
-
-            let moved = (mid_angle - end_angle).abs();
-
-            debug!(
-                "Sensor alignment: mid_angle: {}, end_angle: {}, moved: {}",
-                mid_angle, end_angle, moved
-            );
-
-            if (moved.abs() as f32) < (crate::simplefoc::types::_2PI / 101.0) {
-                // no movement
-                panic!(
-                    "Sensor alignment failed: no movement detected, check motor and encoder wiring"
-                );
-            } else if mid_angle < end_angle {
-                self.sensor_direction = SensorDirection::Normal;
-                info!("Sensor direction: Normal");
-            } else {
-                self.sensor_direction = SensorDirection::Inverted;
-                info!("Sensor direction: Reversed");
-            }
-
-            // self.sensor_direction = SensorDirection::Inverted;
-            // self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
-
-            // error!("TODO: implement sensor alignment procedure to determine sensor direction");
-
-            // self.disable();
-            // panic!()
-            //
-        }
-
-        // zero electric angle not known
-        // warn!("Skipping sensor alignment for testing");
-        // #[cfg(feature = "nope")]
-        if self.zero_electric_angle == NOT_SET {
-            // align the electrical phases of the motor and sensor
-            // set angle -90(270 = 3PI/2) degrees
-
-            info!("Aligning sensor, rotating motor to known angle...");
-
-            // self.motor.voltage_sensor_align = 0.5;
-            // self.motor.voltage_sensor_align = 1.0;
-            self.motor.voltage_sensor_align = 2.0;
-
-            // not sure why this is needed
-            self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
-            Timer::after_millis(2).await;
-
-            self.set_phase_voltage(
-                self.motor.voltage_sensor_align,
-                0.,
-                crate::simplefoc::types::_3PI_2,
-            );
-
-            // info!("Waiting for sensor to align...");
-
-            Timer::after_millis(700).await;
-
-            // info!("Sensor aligned, setting zero electric angle...");
-
-            // get the current zero electric angle
-            self.zero_electric_angle = 0.;
-            let electrical_angle = self.get_electrical_angle();
-            self.zero_electric_angle = electrical_angle;
-
-            // info!("Zero electric angle set to {}", self.zero_electric_angle);
-            // info!("Shaft angle at alignment position: {}", _shaft_angle);
-
-            Timer::after_millis(20).await;
-
-            // // stop everything
-            self.set_phase_voltage(0., 0., 0.);
-            Timer::after_millis(200).await;
-        }
-
-        self.disable();
-    }
-
     /// main loop
     pub async fn update_foc(&mut self) {
         // trace!("Updating FOC control loop");
 
         let t_us = Instant::now().as_micros();
 
-        if t_us - self.prev_debug_us >= self.debug_us_interval() {
-            self.debug = true;
-            self.prev_debug_us = t_us;
-        } else {
-            self.debug = false;
+        if self.debug_us_interval() > 0 {
+            if t_us - self.prev_debug_us >= self.debug_us_interval() {
+                self.debug = true;
+                self.prev_debug_us = t_us;
+            } else {
+                self.debug = false;
+            }
         }
 
         // update sensor readings
@@ -393,7 +223,13 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                                 .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
                         }
                     }
-                    // self.motor.voltage.d = 0.;
+                    match self.motor.phase_inductance {
+                        None => self.motor.voltage.d = 0.,
+                        Some(phase_inductance) => {
+                            //
+                            unimplemented!()
+                        }
+                    }
                 }
 
                 #[cfg(feature = "nope")]
@@ -518,7 +354,6 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         }
 
         if self.debug {
-            #[cfg(feature = "nope")]
             self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
                 id: 0,
                 timestamp: t_us,
@@ -528,32 +363,191 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 target_position: self.motor.target_shaft_angle,
                 target_velocity: self.motor.target_shaft_velocity,
                 motor_current: self.motor.current.q,
-                motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
-            })
-            .await;
-
-            self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
-                id: 0,
-                timestamp: t_us,
-                // position: 3.,
-                position: shaft_angle,
-                // angle: 4.,
-                angle: self.encoder.get_mechanical_angle(),
-                // velocity: 5.,
-                velocity: shaft_velocity,
-                // target_position: 6.,
-                target_position: self.motor.target_shaft_angle,
-                // target_velocity: 7.,
-                target_velocity: self.motor.target_shaft_velocity,
-                // motor_current: 8.,
-                motor_current: self.motor.current.q,
-                // motor_voltage: (9., 10.),
                 motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
             })
             .await;
         }
 
         self.debug = false;
+    }
+}
+
+/// internal
+impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
+    pub fn init(&mut self) {
+        // check driver initialized
+
+        self.motor_status = FOCStatus::MotorInitializing;
+
+        if self.motor.limit_voltage > self.pwm_driver.voltage_limit {
+            error!(
+                "Motor voltage limit {} is higher than driver voltage limit {}, constraining to driver limit",
+                self.motor.limit_voltage, self.pwm_driver.voltage_limit
+            );
+            self.motor.limit_voltage = self.pwm_driver.voltage_limit;
+        }
+
+        if self.motor.voltage_sensor_align > self.motor.limit_voltage {
+            error!(
+                "Motor voltage sensor align {} is higher than motor voltage limit {}, constraining to motor limit",
+                self.motor.voltage_sensor_align, self.motor.limit_voltage
+            );
+            self.motor.voltage_sensor_align = self.motor.limit_voltage;
+        }
+
+        // velocity control loop controls current
+        self.pid_velocity.set_limit(self.motor.limit_current);
+
+        // self.pid_angle.limit = self.motor.limit_velocity;
+
+        self.motor_status = FOCStatus::MotorReady;
+    }
+
+    pub async fn init_foc(&mut self) {
+        // self.pid_current_q.limit = self.motor.limit_voltage;
+        // self.pid_current_d.limit = self.motor.limit_voltage;
+
+        // needs phase resistance set
+        self.pid_velocity.set_limit(self.motor.limit_current);
+        // self.pid_angle.limit = self.motor.limit_velocity;
+
+        self.motor_status = FOCStatus::MotorCalibrating;
+
+        // align motor if necessary
+        // alignment necessary for encoders!
+        // sensor and motor alignment - can be skipped
+        // by setting motor.sensor_direction and motor.zero_electric_angle
+        self.align_sensor().await;
+        // self.motor.shaft_angle
+
+        //
+    }
+
+    async fn align_sensor(&mut self) {
+        let _ = self.encoder.update(Instant::now().as_micros()).await;
+        Timer::after_millis(1).await;
+        // let _ = self.encoder.update(Instant::now().as_micros()).await;
+        // Timer::after_millis(1).await;
+        self.enable();
+
+        if self.sensor_direction == SensorDirection::Unknown {
+            let n = 100;
+
+            info!("Sensor direction unknown, starting alignment procedure...");
+            // find natural direction
+            // move one electrical revolution forward
+
+            info!("Rotating motor forward to find natural direction...");
+            for i in 0..n {
+                let angle = crate::simplefoc::types::_3PI_2
+                    + crate::simplefoc::types::_2PI * (i as f32) / n as f32;
+                self.set_phase_voltage(self.motor.voltage_sensor_align, 0., angle);
+                let _ = self.encoder.update(Instant::now().as_micros()).await;
+
+                Timer::after_millis(2).await;
+            }
+
+            let _ = self.encoder.update(Instant::now().as_micros()).await;
+            let mid_angle = self.encoder.get_angle();
+
+            info!(
+                "Mid angle: {}, now rotating backwards to find natural direction...",
+                mid_angle
+            );
+            // move one electrical revolution backwards
+            for i in (0..n).rev() {
+                let angle = crate::simplefoc::types::_3PI_2
+                    + crate::simplefoc::types::_2PI * (i as f32) / n as f32;
+                self.set_phase_voltage(self.motor.voltage_sensor_align, 0., angle);
+                let _ = self.encoder.update(Instant::now().as_micros()).await;
+
+                Timer::after_millis(2).await;
+            }
+
+            Timer::after_millis(20).await;
+
+            let _ = self.encoder.update(Instant::now().as_micros()).await;
+            let end_angle = self.encoder.get_angle();
+
+            let moved = (mid_angle - end_angle).abs();
+
+            debug!(
+                "Sensor alignment: mid_angle: {}, end_angle: {}, moved: {}",
+                mid_angle, end_angle, moved
+            );
+
+            if (moved.abs() as f32) < (crate::simplefoc::types::_2PI / 101.0) {
+                // no movement
+                panic!(
+                    "Sensor alignment failed: no movement detected, check motor and encoder wiring"
+                );
+            } else if mid_angle < end_angle {
+                self.sensor_direction = SensorDirection::CW;
+                info!("Sensor direction: Normal");
+            } else {
+                self.sensor_direction = SensorDirection::CCW;
+                info!("Sensor direction: Reversed");
+            }
+
+            // self.sensor_direction = SensorDirection::Inverted;
+            // self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
+
+            // error!("TODO: implement sensor alignment procedure to determine sensor direction");
+
+            // self.disable();
+            // panic!()
+            //
+        }
+
+        // zero electric angle not known
+        // warn!("Skipping sensor alignment for testing");
+        // #[cfg(feature = "nope")]
+        if self.zero_electric_angle == NOT_SET {
+            // align the electrical phases of the motor and sensor
+            // set angle -90(270 = 3PI/2) degrees
+
+            info!("Aligning sensor, rotating motor to known angle...");
+
+            // self.motor.voltage_sensor_align = 0.5;
+            // self.motor.voltage_sensor_align = 1.0;
+            self.motor.voltage_sensor_align = 2.0;
+
+            // not sure why this is needed
+            self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
+            Timer::after_millis(2).await;
+
+            self.set_phase_voltage(
+                self.motor.voltage_sensor_align,
+                0.,
+                crate::simplefoc::types::_3PI_2,
+            );
+
+            // info!("Waiting for sensor to align...");
+
+            Timer::after_millis(700).await;
+
+            // info!("Sensor aligned, setting zero electric angle...");
+
+            // get the current zero electric angle
+            self.zero_electric_angle = 0.;
+            let electrical_angle = self.get_electrical_angle();
+            self.zero_electric_angle = electrical_angle;
+
+            // info!("Zero electric angle set to {}", self.zero_electric_angle);
+            // info!("Shaft angle at alignment position: {}", _shaft_angle);
+
+            Timer::after_millis(20).await;
+
+            // // stop everything
+            self.set_phase_voltage(0., 0., 0.);
+            Timer::after_millis(200).await;
+        }
+
+        // self.disable();
+    }
+
+    pub fn _set_phase_pwm(&mut self, duty_a: f32, duty_b: f32, duty_c: f32) {
+        self.pwm_driver.set_duty_cycles_f32(duty_a, duty_b, duty_c);
     }
 
     // Method using FOC to set Uq and Ud to the motor at the optimal angle
@@ -610,24 +604,12 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             .set_duty_cycles_f32(self.phase_v.a, self.phase_v.b, self.phase_v.c);
     }
 
+    /// shaft velocity in rad/s
     fn get_shaft_velocity(&mut self, t_us: u64) -> f32 {
-        // let dir = if self.sensor_direction == SensorDirection::Normal {
-        //     1.0
-        // } else if self.sensor_direction == SensorDirection::Inverted {
-        //     -1.0
-        // } else {
-        //     warn!("Sensor direction unknown, cannot calculate velocity");
-        //     0.0
-        //     // 1.0
-        // };
-
-        self.sensor_direction.multiplier()
-            * self
-                .lpf_velocity
-                // .filter_with_timestamp(self.encoder.get_velocity(), t_us)
-                .filter(self.encoder.get_velocity())
+        self.sensor_direction.multiplier() * self.lpf_velocity.filter(self.encoder.get_velocity())
     }
 
+    /// shaft angle in rad
     fn get_shaft_angle(&mut self) -> f32 {
         let angle = self.encoder.get_angle();
 

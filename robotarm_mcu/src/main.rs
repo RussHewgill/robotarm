@@ -370,6 +370,50 @@ async fn main(spawner: Spawner) {
     // info!("Done");
 }
 
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    let sda = p.PIN_14; // purple
+    let scl = p.PIN_15; // blue
+    // info!("set up i2c ");
+    let mut i2c_config = embassy_rp::i2c::Config::default();
+    // i2c_config.frequency = 400_000; // 400 kHz
+    i2c_config.frequency = 1_000_000; // 1 MHz
+    let i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
+
+    let mut encoder = crate::hardware::mt_6701::MT6701::new(i2c);
+
+    let update_rate_hz = 1_000_000;
+    let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
+        1_000_000 / update_rate_hz,
+    ));
+
+    let mut c = 0;
+    let mut sum = 0u64;
+
+    // i2c read frequency test
+    for _ in 0..1_000 {
+        // ticker.next().await;
+
+        let t0 = Instant::now();
+        // let angle = foc.encoder.read_raw_angle().await.unwrap();
+        // let angle = encoder.read_raw_angle().await.unwrap();
+        let _ = encoder._update(t0.as_micros()).await;
+
+        let t1 = Instant::now();
+        let elapsed = t1 - t0;
+        sum += elapsed.as_micros() as u64;
+
+        c += 1;
+    }
+
+    let avg = sum as f32 / c as f32;
+    info!("Average I2C read time: {} us", avg);
+}
+
+// #[cfg(feature = "nope")]
 #[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
@@ -391,14 +435,52 @@ fn main() -> ! {
     let voltage_limit = 2.0;
     // let voltage_limit = 3.;
 
+    #[cfg(feature = "nope")]
     let pwm_driver = {
         let mut c = embassy_rp::pwm::Config::default();
         let desired_freq_hz = 24_000;
         let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
 
+        debug!("Clock frequency: {} Hz", clock_freq_hz);
+
         c.top = 3124;
         c.divider = 1.into();
         c.phase_correct = true;
+
+        // debug!("PWM top: {}", c.top);
+        // debug!("PWM divider: {}", c.divider);
+        // debug!("PWM phase_correct: {}", c.phase_correct);
+
+        let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
+        let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
+
+        // info!("set up PWM driver");
+        crate::simplefoc::pwm_driver::PWMDriver::new(pwm0, pwm12, c, voltage_limit, 12.)
+    };
+
+    // #[cfg(feature = "nope")]
+    let pwm_driver = {
+        let mut c = embassy_rp::pwm::Config::default();
+        let desired_freq_hz = 24_000 * 1;
+        // let desired_freq_hz = 24_000 * 2;
+        // let desired_freq_hz = 24_000 * 2 * 2;
+        let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
+
+        debug!("Clock frequency: {} Hz", clock_freq_hz);
+
+        let div = 1;
+        let period = (clock_freq_hz / (desired_freq_hz * div as u32)) as u16 - 1;
+
+        c.top = period;
+        c.divider = div.into();
+        c.phase_correct = true;
+
+        // c.invert_a = true;
+        // c.invert_b = true;
+
+        debug!("PWM top: {}", c.top);
+        debug!("PWM divider: {}", c.divider);
+        debug!("PWM phase_correct: {}", c.phase_correct);
 
         let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
         let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
@@ -525,7 +607,7 @@ async fn main(spawner: Spawner) {
         // None,
     );
 
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Normal);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);

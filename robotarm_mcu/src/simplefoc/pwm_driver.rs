@@ -70,10 +70,15 @@ impl<'a> PWMDriver<'a> {
         self.pwm0.set_counter(0);
         self.pwm12.set_counter(0);
 
-        self.config.enable = true;
+        // self.config.enable = true;
 
-        self.pwm0.set_config(&self.config);
-        self.pwm12.set_config(&self.config);
+        // self.pwm0.set_config(&self.config);
+        // self.pwm12.set_config(&self.config);
+
+        embassy_rp::pwm::PwmBatch::set_enabled(true, |batch| {
+            batch.enable(&self.pwm0);
+            batch.enable(&self.pwm12);
+        });
     }
 
     pub fn disable(&mut self) {

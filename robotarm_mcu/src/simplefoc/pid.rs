@@ -2,7 +2,7 @@ use defmt::debug;
 use embassy_time::Instant;
 
 pub struct PIDController {
-    // pid: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
+    pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
     pid: self::prev::PIDController,
     ramp: f32,
 }
@@ -14,23 +14,23 @@ impl PIDController {
         //     p, i, d, ramp, limit
         // );
 
-        // let config = discrete_pid::pid::PidConfigBuilder::default()
-        //     .kp(p)
-        //     .ki(p)
-        //     .kd(d)
-        //     .output_limits(-limit, limit)
-        //     .sample_time(core::time::Duration::from_micros(100))
-        //     .build()
-        //     .expect("Invalid PID config");
-        // let mut pid = discrete_pid::pid::PidController::new_uninit(config);
-        // pid.activate();
-        // let _ = pid.config_mut().set_filter_tc(0.000001);
-        // // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
-        // let _ = pid.config_mut().set_use_derivative_on_measurement(true);
+        let config = discrete_pid::pid::PidConfigBuilder::default()
+            .kp(p)
+            .ki(i)
+            .kd(d)
+            .output_limits(-limit, limit)
+            .sample_time(core::time::Duration::from_micros(100))
+            .build()
+            .expect("Invalid PID config");
+        let mut pid2 = discrete_pid::pid::PidController::new_uninit(config);
+        pid2.activate();
+        let _ = pid2.config_mut().set_filter_tc(0.000001);
+        // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
+        let _ = pid2.config_mut().set_use_derivative_on_measurement(true);
 
         let pid = self::prev::PIDController::new(p, i, d, ramp, limit);
 
-        Self { pid, ramp }
+        Self { pid, pid2, ramp }
     }
 
     #[cfg(feature = "nope")]
@@ -48,11 +48,16 @@ impl PIDController {
         unimplemented!()
     }
 
+    #[cfg(feature = "nope")]
     pub fn update(&mut self, setpoint: f32, input: f32, t_us: u64) -> f32 {
-        // let output = self
-        //     .pid
-        //     .compute(input, setpoint, discrete_pid::time::Micros(t_us), None);
+        let output = self
+            .pid2
+            .compute(input, setpoint, discrete_pid::time::Micros(t_us), None);
+        output
+    }
 
+    // #[cfg(feature = "nope")]
+    pub fn update(&mut self, setpoint: f32, input: f32, t_us: u64) -> f32 {
         let output = self.pid.update(setpoint - input, t_us);
 
         // debug!(
@@ -65,7 +70,7 @@ impl PIDController {
     }
 }
 
-// #[cfg(feature = "nope")]
+#[cfg(feature = "nope")]
 impl PIDController {
     pub fn get_p(&self) -> f32 {
         self.pid.p
@@ -99,24 +104,24 @@ impl PIDController {
     }
 }
 
-#[cfg(feature = "nope")]
+// #[cfg(feature = "nope")]
 impl PIDController {
     pub fn get_p(&self) -> f32 {
-        self.pid.config().kp()
+        self.pid2.config().kp()
     }
     pub fn get_i(&self) -> f32 {
-        self.pid.config().ki()
+        self.pid2.config().ki()
     }
     pub fn get_d(&self) -> f32 {
-        self.pid.config().kd()
+        self.pid2.config().kd()
     }
     pub fn get_ramp(&self) -> f32 {
         self.ramp
     }
     pub fn get_limit(&self) -> f32 {
         let (a, b) = (
-            self.pid.config().output_min(),
-            self.pid.config().output_max(),
+            self.pid2.config().output_min(),
+            self.pid2.config().output_max(),
         );
         if a == -b {
             b
@@ -126,19 +131,23 @@ impl PIDController {
         }
     }
     pub fn set_p(&mut self, p: f32) {
-        let _ = self.pid.config_mut().set_kp(p);
+        let _ = self.pid2.config_mut().set_kp(p);
+        self.pid.p = p;
     }
     pub fn set_i(&mut self, i: f32) {
-        let _ = self.pid.config_mut().set_ki(i);
+        let _ = self.pid2.config_mut().set_ki(i);
+        self.pid.i = i;
     }
     pub fn set_d(&mut self, d: f32) {
-        let _ = self.pid.config_mut().set_kd(d);
+        let _ = self.pid2.config_mut().set_kd(d);
+        self.pid.d = d;
     }
     pub fn set_ramp(&mut self, ramp: f32) {
         self.ramp = ramp;
     }
     pub fn set_limit(&mut self, limit: f32) {
-        let _ = self.pid.config_mut().set_output_limits(-limit, limit);
+        let _ = self.pid2.config_mut().set_output_limits(-limit, limit);
+        self.pid.limit = limit;
     }
 }
 

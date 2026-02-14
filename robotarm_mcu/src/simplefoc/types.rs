@@ -36,8 +36,8 @@ pub struct PhaseVoltages {
 #[derive(defmt::Format, Clone, Copy, PartialEq, PartialOrd)]
 pub enum SensorDirection {
     Unknown,
-    Normal,
-    Inverted,
+    CW,
+    CCW,
 }
 
 impl SensorDirection {
@@ -47,8 +47,10 @@ impl SensorDirection {
                 defmt::warn!("Sensor direction unknown, cannot calculate velocity");
                 0.0
             }
-            SensorDirection::Normal => -1.0,
-            SensorDirection::Inverted => 1.0,
+            SensorDirection::CW => -1.0,
+            SensorDirection::CCW => 1.0,
+            // SensorDirection::CW => 1.0,
+            // SensorDirection::CCW => -1.0,
         }
     }
 }

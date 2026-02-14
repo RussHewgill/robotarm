@@ -309,6 +309,15 @@ impl App {
 
             self::pid_settings::pid_control(
                 ui,
+                "Velocity KD",
+                &mut self.vel_pid_d,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                self::pid_settings::set_vel_d,
+            );
+            ui.end_row();
+
+            self::pid_settings::pid_control(
+                ui,
                 "Velocity LPF",
                 &mut self.lpf_vel,
                 &self.serial_cmd_tx.as_ref().unwrap(),

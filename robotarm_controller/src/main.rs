@@ -281,6 +281,7 @@ fn main() -> eframe::Result<()> {
     // let (serial_cmd_tx, serial_cmd_rx) = tokio::sync::mpsc::channel(100);
     let (serial_log_tx, serial_log_rx) = crossbeam_channel::unbounded();
     let (serial_cmd_tx, serial_cmd_rx) = crossbeam_channel::unbounded();
+    let (ui_cmd_tx, ui_cmd_rx) = crossbeam_channel::unbounded();
 
     debug!("Starting serial thread");
     #[cfg(feature = "nope")]
@@ -309,7 +310,7 @@ fn main() -> eframe::Result<()> {
     std::thread::spawn(|| {
         let rate = 921600;
         let mut serial_handler =
-            serial::SerialHandler::new("COM8", serial_log_tx, serial_cmd_rx, rate);
+            serial::SerialHandler::new("COM8", serial_log_tx, serial_cmd_rx, ui_cmd_tx, rate);
 
         loop {
             if let Err(e) = serial_handler.run() {
@@ -333,7 +334,11 @@ fn main() -> eframe::Result<()> {
             //     }
             // });
 
-            Ok(Box::new(ui::app::App::new(serial_log_rx, serial_cmd_tx)))
+            Ok(Box::new(ui::app::App::new(
+                serial_log_rx,
+                serial_cmd_tx,
+                ui_cmd_rx,
+            )))
         }),
     )
 
