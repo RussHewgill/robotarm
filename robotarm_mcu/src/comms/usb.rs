@@ -22,6 +22,7 @@ static CMD_CHAN: embassy_sync::channel::Channel<
     1,
 > = embassy_sync::channel::Channel::new();
 
+#[derive(Clone)]
 pub struct UsbLogger {
     /// MCU recieves command from USB task
     rx: embassy_sync::channel::Receiver<

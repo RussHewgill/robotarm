@@ -176,6 +176,8 @@ impl App {
                             self.plot.add_point_vel(t, velocity as f64);
                             self.plot.add_point_target_vel(t, target_velocity as f64);
                             self.plot.add_point_target_pos(t, target_position as f64);
+                            self.plot.add_point_voltage(t, motor_voltage.0 as f64);
+                            self.plot.add_point_current(t, motor_current as f64);
                         } else {
                             self.t0 = Some(timestamp);
                         }
@@ -218,7 +220,7 @@ impl eframe::App for App {
         // debug!("Done");
 
         egui::SidePanel::left("Left").show(ctx, |ui| {
-            ui.heading("Plot Settings");
+            self.plot_settings(ui);
         });
 
         egui::TopBottomPanel::bottom("Bottom").show(ctx, |ui| {

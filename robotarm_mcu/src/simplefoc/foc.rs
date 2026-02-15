@@ -7,7 +7,7 @@ use crate::{
     hardware::{as5600::AS5600, encoder_sensor::EncoderSensor, mt_6701::MT6701},
     simplefoc::{
         bldc::BLDCMotor,
-        foc_types::{FOCStatus, SimpleFOC},
+        foc_types::{FOCModulation, SimpleFOC},
         lowpass::LowPassFilter,
         pid::PIDController,
         types::{MotionControlType, NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType},
@@ -113,9 +113,22 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         }
 
         // update sensor readings
-        if let Err(_e) = self.encoder.update(t_us).await {
-            error!("Failed to update encoder");
+
+        // #[cfg(feature = "nope")]
+        if self.sensor_downsample > 1 {
+            if self.sensor_us_counter >= self.sensor_downsample {
+                self.sensor_us_counter = 0;
+                let _ = self.encoder.update(t_us).await;
+            } else {
+                self.sensor_us_counter += 1;
+            }
+        } else {
+            let _ = self.encoder.update(t_us).await;
         }
+
+        // if let Err(_e) = self.encoder.update(t_us).await {
+        //     error!("Failed to update encoder");
+        // }
 
         if !self.enabled {
             return;
@@ -377,7 +390,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     pub fn init(&mut self) {
         // check driver initialized
 
-        self.motor_status = FOCStatus::MotorInitializing;
+        // self.motor_status = FOCStatus::MotorInitializing;
 
         if self.motor.limit_voltage > self.pwm_driver.voltage_limit {
             error!(
@@ -400,7 +413,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         // self.pid_angle.limit = self.motor.limit_velocity;
 
-        self.motor_status = FOCStatus::MotorReady;
+        // self.motor_status = FOCStatus::MotorReady;
     }
 
     pub async fn init_foc(&mut self) {
@@ -411,7 +424,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         self.pid_velocity.set_limit(self.motor.limit_current);
         // self.pid_angle.limit = self.motor.limit_velocity;
 
-        self.motor_status = FOCStatus::MotorCalibrating;
+        // self.motor_status = FOCStatus::MotorCalibrating;
 
         // align motor if necessary
         // alignment necessary for encoders!
@@ -587,18 +600,26 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         //     center -= (Umax+Umin) / 2;
         // }
 
-        if false {
+        if self.modulation == FOCModulation::SpaceVectorPWM {
             // Space Vector PWM modulation
             let umin = self.phase_v.a.min(self.phase_v.b.min(self.phase_v.c));
             let umax = self.phase_v.a.max(self.phase_v.b.max(self.phase_v.c));
             center = center - (umax + umin) / 2.0;
         }
 
-        // if (!modulation_centered)
+        let modulation_centered = true; // default
+        // let modulation_centered = false;
 
-        self.phase_v.a += center;
-        self.phase_v.b += center;
-        self.phase_v.c += center;
+        if !modulation_centered {
+            let umin = self.phase_v.a.min(self.phase_v.b.min(self.phase_v.c));
+            self.phase_v.a -= umin;
+            self.phase_v.b -= umin;
+            self.phase_v.c -= umin;
+        } else {
+            self.phase_v.a += center;
+            self.phase_v.b += center;
+            self.phase_v.c += center;
+        }
 
         self.pwm_driver
             .set_duty_cycles_f32(self.phase_v.a, self.phase_v.b, self.phase_v.c);

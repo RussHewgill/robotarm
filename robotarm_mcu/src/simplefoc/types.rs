@@ -14,19 +14,19 @@ pub const _RPM_TO_RADS: f32 = 0.10471975512;
 
 pub const NOT_SET: f32 = -12345.0;
 
-#[derive(defmt::Format)]
+#[derive(defmt::Format, Clone, Copy)]
 pub struct DQVoltages {
     pub d: f32,
     pub q: f32,
 }
 
-#[derive(defmt::Format)]
+#[derive(defmt::Format, Clone, Copy)]
 pub struct DQCurrents {
     pub d: f32,
     pub q: f32,
 }
 
-#[derive(defmt::Format, Default)]
+#[derive(defmt::Format, Default, Clone, Copy)]
 pub struct PhaseVoltages {
     pub a: f32,
     pub b: f32,

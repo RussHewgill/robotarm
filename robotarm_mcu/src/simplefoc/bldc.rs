@@ -7,7 +7,7 @@ use crate::simplefoc::{
     types::{DQCurrents, DQVoltages, PhaseVoltages},
 };
 
-#[derive(defmt::Format)]
+#[derive(defmt::Format, Clone)]
 pub struct BLDCMotor {
     pub pole_pairs: u8,
     pub phase_resistance: Option<f32>,

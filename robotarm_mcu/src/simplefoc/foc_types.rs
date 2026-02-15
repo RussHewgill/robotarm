@@ -12,7 +12,8 @@ use crate::{
     },
 };
 
-#[derive(defmt::Format)]
+// #[derive(defmt::Format)]
+#[cfg(feature = "nope")]
 pub enum FOCStatus {
     // Motor is not yet initialized
     MotorUninitialized = 0x00,
@@ -32,7 +33,15 @@ pub enum FOCStatus {
     MotorInitFailed = 0x0F,
 }
 
+#[derive(defmt::Format, Clone, Copy, PartialEq)]
+pub enum FOCModulation {
+    SinePWM,
+    SpaceVectorPWM,
+}
+
 pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
+    pub id: u8,
+
     // pub(super) encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     // pub(super) encoder: MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     // pub(super) encoder: MT6701<'a, DMA>,
@@ -51,13 +60,18 @@ pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
     // debug_freq_hz: u64,
     debug_us_interval: u64,
 
-    pub(super) motor_status: FOCStatus,
-
+    // sensor_us_interval: u64,
+    // pub(super) prev_sensor_us: u64,
+    pub sensor_downsample: u32,
+    pub(super) sensor_us_counter: u32,
+    // pub(super) motor_status: FOCStatus,
     pub(super) enabled: bool,
 
     pub(super) motor: BLDCMotor,
 
     pub(super) phase_v: PhaseVoltages,
+
+    pub(super) modulation: FOCModulation,
 
     pub(super) sensor_direction: SensorDirection,
     pub(super) sensor_offset: f32,
@@ -87,6 +101,8 @@ pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
 
 impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     pub fn new(
+        id: u8,
+
         // encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
         // encoder: MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
         encoder: SENSOR,
@@ -137,6 +153,8 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         // const ANGLE_LPF_TF: f32 = 0.001;
 
         SimpleFOC {
+            id,
+
             encoder,
             pwm_driver: driver,
             motor,
@@ -150,8 +168,12 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             // debug_freq_hz: 10,
             debug_us_interval: 100_000,
 
-            motor_status: FOCStatus::MotorUninitialized,
+            // sensor_us_interval: 00,
+            // prev_sensor_us: 0,
+            sensor_downsample: 1,
+            sensor_us_counter: 0,
 
+            // motor_status: FOCStatus::MotorUninitialized,
             enabled: false,
 
             sensor_direction: SensorDirection::Unknown,
@@ -162,6 +184,9 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             torque_controller: TorqueControlType::Voltage,
 
             phase_v: PhaseVoltages::default(),
+
+            // modulation: FOCModulation::SinePWM,
+            modulation: FOCModulation::SpaceVectorPWM,
 
             pid_velocity: PIDController::new(
                 PID_VELOCITY_KP,
@@ -194,6 +219,18 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     pub fn debug_us_interval(&self) -> u64 {
         self.debug_us_interval
     }
+
+    // pub fn set_sensor_update_freq(&mut self, freq_hz: u64) {
+    //     if freq_hz == 0 {
+    //         self.sensor_us_interval = 0;
+    //     } else {
+    //         self.sensor_us_interval = 1_000_000 / freq_hz;
+    //     }
+    // }
+
+    // pub fn sensor_update_us_interval(&self) -> u64 {
+    //     self.sensor_us_interval
+    // }
 
     pub fn set_vel_pid_debug(&mut self, target_input: f32) {
         let tuner = crate::simplefoc::pid_tuning::PidTuner::new(&self.pid_velocity, target_input);

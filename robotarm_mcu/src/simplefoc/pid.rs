@@ -48,7 +48,7 @@ impl PIDController {
         unimplemented!()
     }
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     pub fn update(&mut self, setpoint: f32, input: f32, t_us: u64) -> f32 {
         let output = self
             .pid2
@@ -56,7 +56,7 @@ impl PIDController {
         output
     }
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     pub fn update(&mut self, setpoint: f32, input: f32, t_us: u64) -> f32 {
         let output = self.pid.update(setpoint - input, t_us);
 

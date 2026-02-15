@@ -7,15 +7,31 @@ use eframe::egui::{self, Response};
 
 // use egui_plot::{Legend, Line, Plot, PlotPoint, PlotPoints};
 use egui_plotter::EguiBackend;
-use plotters::prelude::*;
+use plotters::{prelude::*, style::full_palette::ORANGE};
+
+use crate::ui::{self, app::App};
 
 pub struct DataPlot {
     window_time: f64,
     prev_time: f64,
+
+    pub draw_angle: bool,
     angle: VecDeque<(f64, f64)>,
+
+    pub draw_vel: bool,
     vel: VecDeque<(f64, f64)>,
+
+    pub draw_target_pos: bool,
     target_pos: VecDeque<(f64, f64)>,
+
+    pub draw_target_vel: bool,
     target_vel: VecDeque<(f64, f64)>,
+
+    pub draw_voltage: bool,
+    voltage: VecDeque<(f64, f64)>,
+
+    pub draw_current: bool,
+    current: VecDeque<(f64, f64)>,
 
     // scale_angle: f64,
     scale_vel: f64,
@@ -26,14 +42,37 @@ impl Default for DataPlot {
         Self {
             window_time: 10.,
             prev_time: 0.,
+            draw_angle: true,
             angle: VecDeque::new(),
+            draw_vel: true,
             vel: VecDeque::new(),
+            draw_target_pos: true,
             target_pos: VecDeque::new(),
+            draw_target_vel: false,
             target_vel: VecDeque::new(),
+            draw_voltage: true,
+            voltage: VecDeque::new(),
+            draw_current: true,
+            current: VecDeque::new(),
 
             // scale_angle: std::f64::consts::PI * 2.,
             scale_vel: 0.05,
         }
+    }
+}
+
+impl App {
+    pub fn plot_settings(&mut self, ui: &mut egui::Ui) {
+        ui.label("Plot settings:");
+        ui.checkbox(&mut self.plot.draw_angle, "Draw angle");
+        ui.checkbox(&mut self.plot.draw_vel, "Draw velocity");
+        ui.checkbox(&mut self.plot.draw_target_pos, "Draw target position");
+        ui.checkbox(&mut self.plot.draw_target_vel, "Draw target velocity");
+        ui.checkbox(&mut self.plot.draw_voltage, "Draw voltage");
+        ui.checkbox(&mut self.plot.draw_current, "Draw current");
+
+        // ui.add(egui::Slider::new(&mut self.plot.scale_angle, 0.1..=10.).text("Angle scale"));
+        // ui.add(egui::Slider::new(&mut self.plot.scale_vel, 0.01..=1.).text("Velocity scale"));
     }
 }
 
@@ -71,6 +110,16 @@ impl DataPlot {
         self.prev_time = t;
     }
 
+    pub fn add_point_voltage(&mut self, t: f64, voltage: f64) {
+        self.voltage.push_back((t, voltage as f64));
+        self.prev_time = t;
+    }
+
+    pub fn add_point_current(&mut self, t: f64, current: f64) {
+        self.current.push_back((t, current as f64));
+        self.prev_time = t;
+    }
+
     fn clear_old_points(&mut self, current_time: f64) {
         while let Some((t2, _)) = self.angle.front() {
             if *t2 < current_time - self.window_time {
@@ -99,6 +148,22 @@ impl DataPlot {
         while let Some((t2, _)) = self.target_vel.front() {
             if *t2 < current_time - self.window_time {
                 self.target_vel.pop_front();
+            } else {
+                break;
+            }
+        }
+
+        while let Some((t2, _)) = self.voltage.front() {
+            if *t2 < current_time - self.window_time {
+                self.voltage.pop_front();
+            } else {
+                break;
+            }
+        }
+
+        while let Some((t2, _)) = self.current.front() {
+            if *t2 < current_time - self.window_time {
+                self.current.pop_front();
             } else {
                 break;
             }
@@ -135,39 +200,83 @@ impl DataPlot {
 
         chart.configure_mesh().draw().unwrap();
 
-        // data in 0-2pi, we want -1 to 1
-        chart
-            .draw_series(LineSeries::new(
-                self.angle
-                    .iter()
-                    .map(|(t, angle)| (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)),
-                &GREEN,
-            ))
-            .unwrap()
-            .label("Position");
+        if self.draw_angle {
+            // data in 0-2pi, we want -1 to 1
+            chart
+                .draw_series(LineSeries::new(
+                    self.angle.iter().map(|(t, angle)| {
+                        (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)
+                    }),
+                    &GREEN,
+                ))
+                .unwrap()
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &GREEN))
+                .label("Position");
+        }
+
+        if self.draw_vel {
+            chart
+                .draw_series(LineSeries::new(
+                    self.vel.iter().map(|(t, vel)| (*t, *vel * self.scale_vel)),
+                    &BLUE,
+                ))
+                .unwrap()
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE))
+                .label("Velocity");
+        }
+
+        if self.draw_target_pos {
+            chart
+                .draw_series(LineSeries::new(
+                    self.target_pos.iter().map(|(t, target)| (*t, *target)),
+                    &RED,
+                ))
+                .unwrap()
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED))
+                .label("Target Pos");
+        }
+
+        if self.draw_target_vel {
+            chart
+                .draw_series(LineSeries::new(
+                    self.target_vel
+                        .iter()
+                        .map(|(t, target)| (*t, *target * self.scale_vel)),
+                    &MAGENTA,
+                ))
+                .unwrap()
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &MAGENTA))
+                .label("Target Vel");
+        }
+
+        if self.draw_voltage {
+            chart
+                .draw_series(LineSeries::new(
+                    self.voltage.iter().map(|(t, voltage)| (*t, *voltage / 12.)),
+                    &ORANGE,
+                ))
+                .unwrap()
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &ORANGE))
+                .label("Voltage");
+        }
+
+        if self.draw_current {
+            chart
+                .draw_series(LineSeries::new(
+                    self.current.iter().map(|(t, current)| (*t, *current / 2.)),
+                    &CYAN,
+                ))
+                .unwrap()
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &CYAN))
+                .label("Current");
+        }
 
         chart
-            .draw_series(LineSeries::new(
-                self.vel.iter().map(|(t, vel)| (*t, *vel * self.scale_vel)),
-                &BLUE,
-            ))
-            .unwrap()
-            .label("Velocity");
-
-        chart
-            .draw_series(LineSeries::new(
-                self.target_pos.iter().map(|(t, target)| (*t, *target)),
-                &RED,
-            ))
-            .unwrap()
-            .label("Target Pos");
-
-        // chart
-        //     .configure_series_labels()
-        //     .background_style(&WHITE.mix(0.8))
-        //     .border_style(&BLACK)
-        //     .draw()
-        //     .unwrap();
+            .configure_series_labels()
+            .border_style(&BLACK)
+            .background_style(&WHITE.mix(0.8))
+            .draw()
+            .unwrap();
 
         root.present().unwrap();
     }

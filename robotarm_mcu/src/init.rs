@@ -1,9 +1,10 @@
 use defmt::{debug, error, info, trace, warn};
 
 use embassy_time::{Instant, Ticker};
+use robotarm_protocol::SerialCommand;
 use static_cell::StaticCell;
 
-use crate::{Irqs, comms::usb::UsbLogger, hardware::encoder_sensor::EncoderSensor as _};
+use crate::{Irqs, comms::usb::UsbLogger, hardware::encoder_sensor::EncoderSensor};
 
 pub static mut CORE1_STACK: embassy_rp::multicore::Stack<4096> =
     embassy_rp::multicore::Stack::new();
@@ -11,22 +12,41 @@ pub static EXECUTOR0: StaticCell<embassy_executor::Executor> = StaticCell::new()
 pub static EXECUTOR1: StaticCell<embassy_executor::Executor> = StaticCell::new();
 
 #[embassy_executor::task]
-pub async fn core0_task(
+pub async fn core0_task0(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
-        crate::hardware::mt_6701::MT6701<
-            embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C1, embassy_rp::i2c::Async>,
+        crate::hardware::mt_6701_ssi::MT6701<
+            embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
         >,
     >,
+) {
+    core0_task(foc).await;
+}
+
+#[embassy_executor::task]
+pub async fn core0_task1(
+    mut foc: crate::simplefoc::foc_types::SimpleFOC<
+        'static,
+        crate::hardware::mt_6701_ssi::MT6701<
+            embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
+        >,
+    >,
+) {
+    core0_task(foc).await;
+}
+
+// #[embassy_executor::task]
+pub async fn core0_task<SENSOR: EncoderSensor>(
+    mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR>,
 ) {
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Normal);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Inverted);
     foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
+    foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
-    foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
+    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
 
     info!("Starting init");
     foc.init();
@@ -37,8 +57,8 @@ pub async fn core0_task(
 
     // spawner.spawn(test_foc(foc)).unwrap();
 
-    // let update_rate_hz = 20_000;
-    let update_rate_hz = 1_000;
+    let update_rate_hz = 20_000;
+    // let update_rate_hz = 1_000;
     let time_limit = 2.;
 
     let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
@@ -51,10 +71,10 @@ pub async fn core0_task(
     // foc.set_debug_freq(50);
     // foc.set_debug_freq(75);
     // foc.set_debug_freq(100);
-    // foc.set_debug_freq(1_000);
-    foc.set_debug_freq(0);
+    foc.set_debug_freq(500);
+    // foc.set_debug_freq(0);
 
-    // foc.set_vel_pid_debug(2.);
+    // foc.set_vel_pid_debug(3.);
 
     // foc.set_target_torque(10.0);
 
@@ -115,33 +135,25 @@ pub async fn core0_task(
         }
     }
 
+    let mut t0 = Instant::now();
     let mut c = 0;
-    let mut sum = 0u64;
 
-    // i2c read frequency test
-    for _ in 0..10_000 {
-        let t0 = Instant::now();
-        let angle = foc.encoder.read_raw_angle().await.unwrap();
+    foc.sensor_downsample = 0;
+    // foc.sensor_downsample = 5;
+    // foc.sensor_downsample = 8;
 
-        let t1 = Instant::now();
-        let elapsed = t1 - t0;
-        sum += elapsed.as_micros() as u64;
-
-        c += 1;
-    }
-
-    let avg = sum as f32 / c as f32;
-    info!("Average I2C read time: {} us", avg);
-
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     loop {
-        ticker.next().await;
+        embassy_futures::yield_now().await;
+
+        // ticker.next().await;
         foc.run_commands().await;
         foc.update_foc().await;
 
+        let t1 = Instant::now();
         #[cfg(feature = "nope")]
-        if Instant::now() > max_time {
-            let elapsed = Instant::now() - t0;
+        if t1 > max_time {
+            let elapsed = t1 - t0;
             let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
             info!(
                 "Elapsed: {}s, Cycles: {}, Freq: {}Hz",
@@ -149,9 +161,9 @@ pub async fn core0_task(
                 c,
                 freq
             );
-            t0 = Instant::now();
+            t0 = t1;
             c = 0;
-            max_time = max_time + embassy_time::Duration::from_millis((time_limit * 5000.) as u64);
+            max_time = t1 + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
         } else {
             c += 1;
         }
