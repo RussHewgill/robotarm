@@ -39,14 +39,14 @@ pub async fn core0_task1(
 pub async fn core0_task<SENSOR: EncoderSensor>(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR>,
 ) {
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Normal);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Inverted);
     foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
-    foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
+    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
     // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
+    foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
 
     info!("Starting init");
     foc.init();
@@ -59,7 +59,8 @@ pub async fn core0_task<SENSOR: EncoderSensor>(
 
     let update_rate_hz = 20_000;
     // let update_rate_hz = 1_000;
-    let time_limit = 2.;
+    // let time_limit = 2.;
+    let time_limit = 1.;
 
     let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
         1_000_000 / update_rate_hz,
@@ -68,10 +69,9 @@ pub async fn core0_task<SENSOR: EncoderSensor>(
         Instant::now() + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
 
     // foc.set_debug_freq(1);
-    // foc.set_debug_freq(50);
-    // foc.set_debug_freq(75);
+    // foc.set_debug_freq(10);
     // foc.set_debug_freq(100);
-    foc.set_debug_freq(500);
+    foc.set_debug_freq(1000);
     // foc.set_debug_freq(0);
 
     // foc.set_vel_pid_debug(3.);
@@ -88,7 +88,7 @@ pub async fn core0_task<SENSOR: EncoderSensor>(
     // foc.set_target_torque(0.05);
 
     let v = 3.14;
-    foc.set_target_velocity(v);
+    // foc.set_target_velocity(v);
 
     info!("Starting main loop");
 
@@ -138,13 +138,14 @@ pub async fn core0_task<SENSOR: EncoderSensor>(
     let mut t0 = Instant::now();
     let mut c = 0;
 
-    foc.sensor_downsample = 0;
-    // foc.sensor_downsample = 5;
+    // foc.sensor_downsample = 0;
+    // foc.sensor_downsample = 2;
+    foc.sensor_downsample = 5;
     // foc.sensor_downsample = 8;
 
     // #[cfg(feature = "nope")]
     loop {
-        embassy_futures::yield_now().await;
+        // embassy_futures::yield_now().await;
 
         // ticker.next().await;
         foc.run_commands().await;
@@ -168,26 +169,19 @@ pub async fn core0_task<SENSOR: EncoderSensor>(
             c += 1;
         }
 
-        // #[cfg(feature = "nope")]
+        #[cfg(feature = "nope")]
         if Instant::now() > max_time {
             match x {
                 0 => {
                     info!("Setting velocity to -1");
                     x = 1;
-                    // foc.set_target_position(1.0);
                     foc.set_target_velocity(v * -1.);
                 }
                 _ => {
                     info!("Setting velocity to 1");
                     x = 0;
-                    // foc.set_target_position(6.);
                     foc.set_target_velocity(v * 1.);
-                } // 1 => {
-                  //     // info!("Setting velocity to 0");
-                  //     x = 2;
-                  //     // foc.set_target_position(3.);
-                  //     foc.set_target_velocity(3.14 * 0.);
-                  // }
+                }
             }
             max_time = max_time + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
         }

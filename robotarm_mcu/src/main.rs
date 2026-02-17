@@ -44,6 +44,8 @@ bind_interrupts!(struct Irqs {
     // DMA_IRQ_0 => InterruptHandler<embassy_rp::peripherals::DMA_CH0>;
     USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<embassy_rp::peripherals::USB>;
     // DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<embassy_rp::peripherals::DMA_CH0>, embassy_rp::dma::InterruptHandler<embassy_rp::peripherals::DMA_CH1>;
+    // UART0_IRQ => embassy_rp::uart::InterruptHandler<embassy_rp::peripherals::UART0>;
+    UART0_IRQ => embassy_rp::uart::BufferedInterruptHandler<embassy_rp::peripherals::UART0>;
 });
 
 /// rtt tests
@@ -521,8 +523,70 @@ async fn main(spawner: Spawner) {
     }
 }
 
+// RS485 tests
 // #[cfg(feature = "nope")]
-#[cortex_m_rt::entry]
+#[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    static TX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
+    let tx_buf = &mut TX_BUF.init([0; 16])[..];
+    static RX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
+    let rx_buf = &mut RX_BUF.init([0; 16])[..];
+
+    let tx_dma = p.DMA_CH0;
+    let rx_dma = p.DMA_CH1;
+
+    let mut config = embassy_rp::uart::Config::default();
+    config.baudrate = 115_200;
+    // config.baudrate = 9600;
+
+    // let uart =
+    //     embassy_rp::uart::Uart::new(p.UART0, p.PIN_16, p.PIN_17, Irqs, tx_dma, rx_dma, config);
+
+    // let uart = embassy_rp::uart::Uart::new_blocking(p.UART0, p.PIN_16, p.PIN_17, config);
+
+    let mut uart = embassy_rp::uart::BufferedUart::new(
+        p.UART0, p.PIN_16, p.PIN_17, Irqs, tx_buf, rx_buf, config,
+    );
+
+    let mut enable = embassy_rp::gpio::Output::new(p.PIN_18, embassy_rp::gpio::Level::Low);
+    // let mut enable = embassy_rp::gpio::Output::new(p.PIN_18, embassy_rp::gpio::Level::High);
+
+    // let mut tx = max485_async::Max485::new(uart, enable, embassy_time::Delay);
+    // let mut tx = crate::comms::rs485::Max485::new(uart, enable, embassy_time::Delay);
+
+    let mut tx = crate::comms::rs485::Max485::new(uart, enable);
+
+    // use embedded_io_async::Write;
+
+    // tx.flush();
+
+    let mut x = 0;
+
+    // let (mut tx, rx) = uart.split();
+
+    // use embedded_io_async::{Read, Write};
+
+    let mut buf = [0u8; 16];
+
+    loop {
+        // debug!("Sending: {}", x);
+        // tx.send(&[x]).await.unwrap();
+
+        let n = tx.receive(&mut buf).await;
+
+        if n > 0 {
+            debug!("Received {}: {:?}", n, &buf[..n]);
+        }
+
+        // x += 1;
+        // Timer::after(embassy_time::Duration::from_millis(1000)).await;
+    }
+}
+
+#[cfg(feature = "nope")]
+// #[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
@@ -580,29 +644,6 @@ fn main() -> ! {
 
     // let voltage_limit = 2.0;
     let voltage_limit = 4.;
-
-    #[cfg(feature = "nope")]
-    let pwm_driver = {
-        let mut c = embassy_rp::pwm::Config::default();
-        let desired_freq_hz = 24_000;
-        let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
-
-        debug!("Clock frequency: {} Hz", clock_freq_hz);
-
-        c.top = 3124;
-        c.divider = 1.into();
-        c.phase_correct = true;
-
-        // debug!("PWM top: {}", c.top);
-        // debug!("PWM divider: {}", c.divider);
-        // debug!("PWM phase_correct: {}", c.phase_correct);
-
-        let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
-        let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
-
-        // info!("set up PWM driver");
-        crate::simplefoc::pwm_driver::PWMDriver::new(pwm0, pwm12, c, voltage_limit, 12.)
-    };
 
     // #[cfg(feature = "nope")]
     let (pwm_driver0, pwm_driver1) = {
@@ -674,41 +715,68 @@ fn main() -> ! {
     let usb = comms::usb::UsbLogger::new();
     let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
-    // info!("set up FOC");
-    let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
+    // // info!("set up FOC");
+    // let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
+    //     0,
+    //     encoder0,
+    //     pwm_driver0,
+    //     enable_pin0,
+    //     motor_config0,
+    //     Some(usb.clone()),
+    //     // None,
+    // );
+
+    // let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
+    //     1,
+    //     encoder1,
+    //     pwm_driver1,
+    //     enable_pin1,
+    //     motor_config1,
+    //     Some(usb),
+    //     // None,
+    // );
+
+    let foc = crate::simplefoc::foc_types::SimpleFOC::new(
         0,
-        encoder0,
+        // encoder0,
+        encoder1,
         pwm_driver0,
         enable_pin0,
         motor_config0,
-        Some(usb.clone()),
-        // None,
-    );
-
-    let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
-        1,
-        encoder1,
-        pwm_driver1,
-        enable_pin1,
-        motor_config1,
         Some(usb),
         // None,
     );
 
+    // second core runs USB
+    // #[cfg(feature = "nope")]
     embassy_rp::multicore::spawn_core1(
         p.CORE1,
         unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
         move || {
             let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
-            // executor1.run(|spawner| spawner.spawn(core1_task(driver)).unwrap());
             executor1.run(|spawner| crate::comms::usb::UsbMonitor::init(&spawner, driver));
+        },
+    );
+
+    // second core runs motor
+    #[cfg(feature = "nope")]
+    embassy_rp::multicore::spawn_core1(
+        p.CORE1,
+        unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
+        move || {
+            let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
+            executor1.run(|spawner| {
+                spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
+            });
         },
     );
 
     let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
     executor0.run(|spawner| {
-        spawner.spawn(crate::init::core0_task0(foc0)).unwrap();
-        spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
+        // spawner.spawn(crate::init::core0_task0(foc)).unwrap();
+        // spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
+        spawner.spawn(crate::init::core0_task1(foc)).unwrap();
+        // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
     });
 }
 

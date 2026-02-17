@@ -5,6 +5,7 @@
 #![allow(unused_doc_comments)]
 #![allow(unexpected_cfgs)]
 
+pub mod kinematics;
 mod logging;
 mod serial;
 mod simplefoc;
@@ -20,6 +21,41 @@ use serialport::SerialPort as _;
 use robotarm_protocol::SerialLogMessage;
 
 // use tokio_serial::SerialPort;
+
+// k test
+fn main() {
+    logging::init_logs();
+
+    // let rate = 9600;
+    let rate = 115200;
+    let mut port = serialport::new("COM11", rate).open().unwrap();
+
+    let mut raw_buf: [u8; 1024] = [0; 1024];
+
+    let mut x = 0;
+
+    debug!("Looping");
+    loop {
+        // if let Ok(n) = port.read(&mut raw_buf) {
+        //     debug!("Read {}", n);
+        //     for i in &raw_buf[..n] {
+        //         print!("{:02X} ", i);
+        //     }
+        //     println!();
+        // }
+
+        debug!("Sending");
+        port.write(&[x]).unwrap();
+        // std::thread::sleep(std::time::Duration::from_micros(1000));
+        // port.write(&[0xff]).unwrap();
+
+        x += 1;
+
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+    }
+
+    //
+}
 
 #[cfg(feature = "nope")]
 // #[tokio::main]
@@ -264,7 +300,7 @@ fn main() -> eframe::Result<()> {
 }
 
 /// MARK: Main
-// #[cfg(feature = "nope")]
+#[cfg(feature = "nope")]
 fn main() -> eframe::Result<()> {
     logging::init_logs();
 

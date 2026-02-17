@@ -50,9 +50,9 @@ impl Default for DataPlot {
             target_pos: VecDeque::new(),
             draw_target_vel: false,
             target_vel: VecDeque::new(),
-            draw_voltage: true,
+            draw_voltage: false,
             voltage: VecDeque::new(),
-            draw_current: true,
+            draw_current: false,
             current: VecDeque::new(),
 
             // scale_angle: std::f64::consts::PI * 2.,
@@ -64,12 +64,12 @@ impl Default for DataPlot {
 impl App {
     pub fn plot_settings(&mut self, ui: &mut egui::Ui) {
         ui.label("Plot settings:");
-        ui.checkbox(&mut self.plot.draw_angle, "Draw angle");
-        ui.checkbox(&mut self.plot.draw_vel, "Draw velocity");
-        ui.checkbox(&mut self.plot.draw_target_pos, "Draw target position");
-        ui.checkbox(&mut self.plot.draw_target_vel, "Draw target velocity");
-        ui.checkbox(&mut self.plot.draw_voltage, "Draw voltage");
-        ui.checkbox(&mut self.plot.draw_current, "Draw current");
+        ui.checkbox(&mut self.plot.draw_angle, "Angle");
+        ui.checkbox(&mut self.plot.draw_vel, "Velocity");
+        ui.checkbox(&mut self.plot.draw_target_pos, "Target position");
+        ui.checkbox(&mut self.plot.draw_target_vel, "Target velocity");
+        ui.checkbox(&mut self.plot.draw_voltage, "Voltage");
+        ui.checkbox(&mut self.plot.draw_current, "Current");
 
         // ui.add(egui::Slider::new(&mut self.plot.scale_angle, 0.1..=10.).text("Angle scale"));
         // ui.add(egui::Slider::new(&mut self.plot.scale_vel, 0.01..=1.).text("Velocity scale"));
@@ -228,7 +228,9 @@ impl DataPlot {
         if self.draw_target_pos {
             chart
                 .draw_series(LineSeries::new(
-                    self.target_pos.iter().map(|(t, target)| (*t, *target)),
+                    self.target_pos.iter().map(|(t, angle)| {
+                        (*t, -(*angle - std::f64::consts::PI) / std::f64::consts::PI)
+                    }),
                     &RED,
                 ))
                 .unwrap()

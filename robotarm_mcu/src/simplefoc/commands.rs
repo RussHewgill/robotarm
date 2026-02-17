@@ -69,22 +69,24 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                 );
             }
             SerialCommand::RequestSettings { id } => {
-                if let Some(logger) = &mut self.usb_logger {
-                    logger.send_log_msg(SerialLogMessage::MotorPID {
-                        id,
-                        vel_p: self.pid_velocity.get_p(),
-                        vel_i: self.pid_velocity.get_i(),
-                        vel_d: self.pid_velocity.get_d(),
-                        vel_ramp: self.pid_velocity.get_ramp(),
-                        vel_limit: self.pid_velocity.get_limit(),
-                        angle_p: self.pid_angle.get_p(),
-                        angle_i: self.pid_angle.get_i(),
-                        angle_d: self.pid_angle.get_d(),
-                        angle_ramp: self.pid_angle.get_ramp(),
-                        angle_limit: self.pid_angle.get_limit(),
-                        lpf_angle: self.lpf_angle.tf,
-                        lpf_vel: self.lpf_velocity.tf,
-                    });
+                if id == self.id {
+                    if let Some(logger) = &mut self.usb_logger {
+                        logger.send_log_msg(SerialLogMessage::MotorPID {
+                            id: self.id,
+                            vel_p: self.pid_velocity.get_p(),
+                            vel_i: self.pid_velocity.get_i(),
+                            vel_d: self.pid_velocity.get_d(),
+                            vel_ramp: self.pid_velocity.get_ramp(),
+                            vel_limit: self.pid_velocity.get_limit(),
+                            angle_p: self.pid_angle.get_p(),
+                            angle_i: self.pid_angle.get_i(),
+                            angle_d: self.pid_angle.get_d(),
+                            angle_ramp: self.pid_angle.get_ramp(),
+                            angle_limit: self.pid_angle.get_limit(),
+                            lpf_angle: self.lpf_angle.tf,
+                            lpf_vel: self.lpf_velocity.tf,
+                        });
+                    }
                 }
             }
             SerialCommand::SetEnabled { id, enabled } => {

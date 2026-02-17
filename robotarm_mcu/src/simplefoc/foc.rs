@@ -368,7 +368,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         if self.debug {
             self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
-                id: 0,
+                id: self.id,
                 timestamp: t_us,
                 position: shaft_angle,
                 angle: self.encoder.get_mechanical_angle(),

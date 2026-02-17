@@ -46,3 +46,6 @@ serialport = "4.8.1"
 crossbeam-channel = "0.5.15"
 # serial2 = { version = "0.2.33", features = ["windows"] }
 
+k = "0.32.0"
+nalgebra = "0.30.1"
+

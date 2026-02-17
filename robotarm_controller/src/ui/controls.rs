@@ -22,7 +22,7 @@ mod pid_settings {
     ) {
         ui.label(label);
 
-        let resp = ui.add(egui::DragValue::new(value).fixed_decimals(4));
+        let resp = ui.add(egui::DragValue::new(value).fixed_decimals(6));
 
         let send_resp = ui.button("Send");
         let zero_resp = ui.button("Zero");
@@ -107,7 +107,7 @@ impl App {
 
     fn col_1(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui.button("Enabled Motor").clicked() {
+            if ui.button("Enable Motor").clicked() {
                 if let Some(tx) = &self.serial_cmd_tx {
                     let cmd = SerialCommand::SetEnabled {
                         id: 0,
@@ -283,8 +283,8 @@ impl App {
             .monospace(),
         );
 
-        ui.label(RichText::new(format!("Angle: {:>+0.3} A", self.pos)).monospace());
-        ui.label(RichText::new(format!("Velocity: {:>+0.3} A", self.vel)).monospace());
+        ui.label(RichText::new(format!("Angle: {:>+0.3} rad", self.pos)).monospace());
+        ui.label(RichText::new(format!("Velocity: {:>+0.3} rad/s", self.vel)).monospace());
     }
 
     fn col_2(&mut self, ui: &mut egui::Ui) {
