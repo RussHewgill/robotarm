@@ -1,7 +1,7 @@
 use defmt::{debug, error, info, trace, warn};
 use embassy_rp::gpio::Output;
 use embassy_time::{Instant, Timer};
-use robotarm_protocol::{SerialCommand, SerialLogMessage};
+use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlType};
 
 use crate::{
     hardware::{as5600::AS5600, encoder_sensor::EncoderSensor, mt_6701::MT6701},
@@ -10,7 +10,7 @@ use crate::{
         foc_types::{FOCModulation, SimpleFOC},
         lowpass::LowPassFilter,
         pid::PIDController,
-        types::{MotionControlType, NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType},
+        types::{NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType},
     },
 };
 
@@ -40,13 +40,13 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     pub fn enable(&mut self) {
         self.enabled = true;
-        self.enable_pin.set_high();
+        // self.enable_pin.set_high();
         self.pwm_driver.enable();
     }
 
     pub fn disable(&mut self) {
         self.enabled = false;
-        self.enable_pin.set_low();
+        // self.enable_pin.set_low();
         self.set_phase_voltage(0., 0., 0.);
         self.pwm_driver.disable();
     }
@@ -370,6 +370,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
                 id: self.id,
                 timestamp: t_us,
+                motion_control: self.motion_control,
                 position: shaft_angle,
                 angle: self.encoder.get_mechanical_angle(),
                 velocity: shaft_velocity,
@@ -408,8 +409,8 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             self.motor.voltage_sensor_align = self.motor.limit_voltage;
         }
 
-        // velocity control loop controls current
-        self.pid_velocity.set_limit(self.motor.limit_current);
+        // // velocity control loop controls current
+        // self.pid_velocity.set_limit(self.motor.limit_current);
 
         // self.pid_angle.limit = self.motor.limit_velocity;
 
@@ -420,9 +421,9 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         // self.pid_current_q.limit = self.motor.limit_voltage;
         // self.pid_current_d.limit = self.motor.limit_voltage;
 
-        // needs phase resistance set
-        self.pid_velocity.set_limit(self.motor.limit_current);
-        // self.pid_angle.limit = self.motor.limit_velocity;
+        // // needs phase resistance set
+        // self.pid_velocity.set_limit(self.motor.limit_current);
+        // // self.pid_angle.limit = self.motor.limit_velocity;
 
         // self.motor_status = FOCStatus::MotorCalibrating;
 

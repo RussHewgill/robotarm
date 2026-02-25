@@ -1,18 +1,18 @@
-use std::time::{Duration, Instant};
-
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use tracing::{debug, error, info, trace, warn};
 
 use egui::RichText;
+use std::time::{Duration, Instant};
 
 use robotarm_protocol::{SerialCommand, SerialLogMessage};
 
 use serde::{Deserialize, Serialize};
 
+use crate::simplefoc::types::FocStatus;
+
 #[derive(Default, Deserialize, Serialize)]
-#[serde(default)]
+// #[serde(default)]
 pub struct App {
-    #[serde(skip)]
     pub plot: super::plot::DataPlot,
 
     #[serde(skip)]
@@ -29,181 +29,59 @@ pub struct App {
     #[serde(skip)]
     pub ui_cmd_rx: Option<crossbeam_channel::Receiver<crate::ui::UiCommand>>,
 
-    #[serde(skip)]
-    pub target_pos: f64,
-    #[serde(skip)]
-    pub target_vel: f64,
-
     pub update_interval: Duration,
     #[serde(skip)]
-    last_update: Option<Instant>,
-
-    pub current: f32,
-    pub voltage: (f32, f32),
-
-    pub pos: f64,
-    pub vel: f64,
-
-    pub vel_pid_p: f32,
-    pub vel_pid_i: f32,
-    pub vel_pid_d: f32,
-    pub vel_pid_ramp: f32,
-    pub vel_pid_limit: f32,
-
-    pub pos_pid_p: f32,
-    pub pos_pid_i: f32,
-    pub pos_pid_d: f32,
-    pub pos_pid_ramp: f32,
-    pub pos_pid_limit: f32,
-
-    pub lpf_angle: f32,
-    pub lpf_vel: f32,
+    pub(super) last_update: Option<Instant>,
+    // pub motion_control:
+    #[serde(skip)]
+    pub status: FocStatus,
 }
 
 impl App {
     pub fn new(
+        cc: &eframe::CreationContext<'_>,
         // serial_log_rx: tokio::sync::mpsc::Receiver<SerialLogMessage>,
         // serial_cmd_tx: tokio::sync::mpsc::Sender<SerialCommand>,
         serial_log_rx: crossbeam_channel::Receiver<SerialLogMessage>,
         serial_cmd_tx: crossbeam_channel::Sender<SerialCommand>,
         ui_cmd_rx: crossbeam_channel::Receiver<crate::ui::UiCommand>,
     ) -> Self {
-        let mut plot = super::plot::DataPlot::default();
+        let mut out = if let Some(storage) = cc.storage {
+            // debug!("Restoring app state");
+            let out: App = match eframe::get_value(storage, eframe::APP_KEY) {
+                Some(out) => out,
+                None => {
+                    // warn!("No previous app state found, using default");
+                    App::default()
+                }
+            };
+            // debug!("out.plot = {:#?}", out.plot);
+            out
+        } else {
+            // warn!("using default app state");
+            Self::default()
+        };
+
+        // let mut plot = super::plot::DataPlot::default();
         // plot.window_time = 10.0;
-        Self {
-            plot,
-            // t0: Some(Instant::now()),
-            t0: None,
-            serial_log_rx: Some(serial_log_rx),
-            serial_cmd_tx: Some(serial_cmd_tx),
-            ui_cmd_rx: Some(ui_cmd_rx),
 
-            target_pos: 0.,
-            target_vel: 0.,
+        // let mut status = FocStatus::default();
 
-            update_interval: Duration::from_millis(500),
-            last_update: Some(Instant::now()),
+        out.t0 = None;
+        out.serial_log_rx = Some(serial_log_rx);
+        out.serial_cmd_tx = Some(serial_cmd_tx);
+        out.ui_cmd_rx = Some(ui_cmd_rx);
+        out.last_update = Some(Instant::now());
 
-            pos: 0.,
-            vel: 0.,
-
-            current: 0.,
-            voltage: (0., 0.),
-
-            vel_pid_p: 0.,
-            vel_pid_i: 0.,
-            vel_pid_d: 0.,
-            vel_pid_ramp: 0.,
-            vel_pid_limit: 0.,
-
-            pos_pid_p: 0.,
-            pos_pid_i: 0.,
-            pos_pid_d: 0.,
-            pos_pid_ramp: 0.,
-            pos_pid_limit: 0.,
-
-            lpf_angle: 0.,
-            lpf_vel: 0.,
-        }
-    }
-
-    fn get_from_channels(&mut self) {
-        if let Some(rx) = &mut self.ui_cmd_rx {
-            while let Ok(cmd) = rx.try_recv() {
-                match cmd {
-                    crate::ui::UiCommand::ClearPlot => {
-                        debug!("Clearing plot");
-                        self.plot.reset();
-                        self.t0 = None;
-                    }
-                }
-            }
-        }
-
-        if let Some(rx) = &mut self.serial_log_rx {
-            while let Ok(msg) = rx.try_recv() {
-                match msg {
-                    // SerialLogMessage::Ping => {}
-                    SerialLogMessage::MotorPID {
-                        id,
-                        vel_p,
-                        vel_i,
-                        vel_d,
-                        vel_ramp,
-                        vel_limit,
-                        angle_p,
-                        angle_i,
-                        angle_d,
-                        angle_ramp,
-                        angle_limit,
-                        lpf_angle,
-                        lpf_vel,
-                    } => {
-                        // debug!("Got motor PID settings {:#?}", msg);
-                        debug!("Got motor PID settings");
-
-                        self.vel_pid_p = vel_p;
-                        self.vel_pid_i = vel_i;
-                        self.vel_pid_d = vel_d;
-                        self.vel_pid_ramp = vel_ramp;
-                        self.vel_pid_limit = vel_limit;
-
-                        self.pos_pid_p = angle_p;
-                        self.pos_pid_i = angle_i;
-                        self.pos_pid_d = angle_d;
-                        self.pos_pid_ramp = angle_ramp;
-                        self.pos_pid_limit = angle_limit;
-
-                        self.lpf_angle = lpf_angle;
-                        self.lpf_vel = lpf_vel;
-                    }
-                    SerialLogMessage::MotorData {
-                        id,
-                        timestamp,
-                        position,
-                        angle,
-                        velocity,
-                        target_position,
-                        target_velocity,
-                        motor_current,
-                        motor_voltage,
-                    } => {
-                        // debug!("Got motor data");
-
-                        if let Some(t0) = self.t0 {
-                            let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
-                            self.plot.add_point_angle(t, angle as f64);
-                            self.plot.add_point_vel(t, velocity as f64);
-                            self.plot.add_point_target_vel(t, target_velocity as f64);
-                            self.plot.add_point_target_pos(t, target_position as f64);
-                            self.plot.add_point_voltage(t, motor_voltage.0 as f64);
-                            self.plot.add_point_current(t, motor_current as f64);
-                        } else {
-                            self.t0 = Some(timestamp);
-                        }
-
-                        if let Some(t) = self.last_update {
-                            if t.elapsed() >= self.update_interval {
-                                self.last_update = Some(Instant::now());
-
-                                self.target_pos = target_position as f64;
-                                self.target_vel = target_velocity as f64;
-
-                                self.pos = angle as f64;
-                                self.vel = velocity as f64;
-
-                                self.current = motor_current;
-                                self.voltage = motor_voltage;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        out
     }
 }
 
 impl eframe::App for App {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
+    }
+
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         ctx.request_repaint_after(std::time::Duration::from_millis(1_000 / 120));
         // ctx.request_repaint_after(std::time::Duration::from_millis(1_000 / 60));
@@ -211,9 +89,9 @@ impl eframe::App for App {
         // if cfg!(debug_assertions) && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         //     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         // }
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        }
+        // if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        //     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        // }
 
         // debug!("Fetching serial data");
         self.get_from_channels();

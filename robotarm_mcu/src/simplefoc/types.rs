@@ -61,17 +61,3 @@ pub enum TorqueControlType {
     // DCCurrent,
     // FOCCurrent,
 }
-
-#[derive(defmt::Format, Clone, Copy, PartialEq)]
-pub enum MotionControlType {
-    Torque,
-    Velocity,
-    Angle,
-    VelocityOpenLoop,
-}
-
-impl MotionControlType {
-    pub fn is_open_loop(&self) -> bool {
-        matches!(self, MotionControlType::VelocityOpenLoop)
-    }
-}

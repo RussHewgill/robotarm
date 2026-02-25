@@ -9,18 +9,21 @@ use embassy_usb::{
 use postcard::accumulator::FeedResult;
 use static_cell::StaticCell;
 
-static LOG_CHAN: embassy_sync::channel::Channel<
+pub type LogChannel = embassy_sync::channel::Channel<
     embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
     // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
     robotarm_protocol::SerialLogMessage,
     1,
-> = embassy_sync::channel::Channel::new();
-static CMD_CHAN: embassy_sync::channel::Channel<
+>;
+pub type CmdChannel = embassy_sync::channel::Channel<
     embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
     // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
     robotarm_protocol::SerialCommand,
     1,
-> = embassy_sync::channel::Channel::new();
+>;
+
+pub static LOG_CHAN: LogChannel = LogChannel::new();
+pub static CMD_CHAN: CmdChannel = CmdChannel::new();
 
 #[derive(Clone)]
 pub struct UsbLogger {

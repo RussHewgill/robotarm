@@ -1,7 +1,7 @@
 use defmt::{debug, error, info, trace, warn};
 
 use embassy_time::{Instant, Ticker};
-use robotarm_protocol::SerialCommand;
+use robotarm_protocol::{SerialCommand, types::MotionControlType};
 use static_cell::StaticCell;
 
 use crate::{Irqs, comms::usb::UsbLogger, hardware::encoder_sensor::EncoderSensor};
@@ -39,14 +39,14 @@ pub async fn core0_task1(
 pub async fn core0_task<SENSOR: EncoderSensor>(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR>,
 ) {
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Inverted);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
-    foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
+    // foc.set_motion_control(MotionControlType::Torque);
+    // foc.set_motion_control(MotionControlType::Velocity);
+    // foc.set_motion_control(MotionControlType::Angle);
+    foc.set_motion_control(MotionControlType::VelocityOpenLoop);
 
     info!("Starting init");
     foc.init();
@@ -68,10 +68,10 @@ pub async fn core0_task<SENSOR: EncoderSensor>(
     let mut max_time =
         Instant::now() + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
 
-    // foc.set_debug_freq(1);
+    // foc.set_debug_freq(2);
     // foc.set_debug_freq(10);
-    // foc.set_debug_freq(100);
-    foc.set_debug_freq(1000);
+    foc.set_debug_freq(100);
+    // foc.set_debug_freq(1000);
     // foc.set_debug_freq(0);
 
     // foc.set_vel_pid_debug(3.);
@@ -139,8 +139,9 @@ pub async fn core0_task<SENSOR: EncoderSensor>(
     let mut c = 0;
 
     // foc.sensor_downsample = 0;
-    // foc.sensor_downsample = 2;
-    foc.sensor_downsample = 5;
+    // foc.sensor_downsample = 1;
+    foc.sensor_downsample = 2;
+    // foc.sensor_downsample = 5;
     // foc.sensor_downsample = 8;
 
     // #[cfg(feature = "nope")]

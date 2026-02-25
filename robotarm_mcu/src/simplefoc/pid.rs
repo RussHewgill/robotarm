@@ -146,6 +146,7 @@ impl PIDController {
         self.ramp = ramp;
     }
     pub fn set_limit(&mut self, limit: f32) {
+        debug!("Setting PID limit to {}", limit);
         let _ = self.pid2.config_mut().set_output_limits(-limit, limit);
         self.pid.limit = limit;
     }

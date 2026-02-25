@@ -23,6 +23,7 @@ use robotarm_protocol::SerialLogMessage;
 // use tokio_serial::SerialPort;
 
 // k test
+#[cfg(feature = "nope")]
 fn main() {
     logging::init_logs();
 
@@ -35,23 +36,69 @@ fn main() {
     let mut x = 0;
 
     debug!("Looping");
+    #[cfg(feature = "nope")]
     loop {
-        // if let Ok(n) = port.read(&mut raw_buf) {
-        //     debug!("Read {}", n);
-        //     for i in &raw_buf[..n] {
-        //         print!("{:02X} ", i);
-        //     }
-        //     println!();
-        // }
+        if let Ok(n) = port.read(&mut raw_buf) {
+            debug!("Read {}", n);
+            for i in &raw_buf[..n] {
+                print!("{:02X} ", i);
+            }
+            println!();
+        }
 
-        debug!("Sending");
-        port.write(&[x]).unwrap();
-        // std::thread::sleep(std::time::Duration::from_micros(1000));
-        // port.write(&[0xff]).unwrap();
+        // debug!("Sending");
+        // port.write(&[x]).unwrap();
+        // // std::thread::sleep(std::time::Duration::from_micros(1000));
+        // // port.write(&[0xff]).unwrap();
 
         x += 1;
 
         std::thread::sleep(std::time::Duration::from_millis(1000));
+    }
+
+    let mut cobs_buf = postcard::accumulator::CobsAccumulator::<4096>::new();
+
+    // let out = cobs_buf.feed::<[u8; 4]>(&[9, 188, 3, 218, 2, 252, 2, 222, 3, 0]);
+
+    // match out {
+    //     FeedResult::Consumed => debug!("Consumed"),
+    //     FeedResult::OverFull(new_wind) => debug!("Overfull: {:?}", new_wind),
+    //     FeedResult::DeserError(new_wind) => debug!("Deserialization error: {:?}", new_wind),
+    //     FeedResult::Success { data, remaining } => {
+    //         debug!("Success: {:?}, remaining: {:?}", data, remaining);
+    //     }
+    // }
+    // debug!("Feed result: {:?}", out);
+
+    // #[cfg(feature = "nope")]
+    loop {
+        // while let Ok(ct) = tokio::io::AsyncReadExt::read(&mut port, &mut raw_buf).await {
+        while let Ok(ct) = port.read(&mut raw_buf) {
+            debug!("Read {} bytes", ct);
+            // Finished reading input
+            if ct == 0 {
+                break;
+            }
+
+            let buf = &raw_buf[..ct];
+            let mut window = &buf[..];
+
+            'cobs: while !window.is_empty() {
+                window = match cobs_buf.feed::<[u8; 4]>(&window) {
+                    FeedResult::Consumed => break 'cobs,
+                    FeedResult::OverFull(new_wind) => new_wind,
+                    FeedResult::DeserError(new_wind) => {
+                        debug!("Deserialization error");
+                        new_wind
+                    }
+                    FeedResult::Success { data, remaining } => {
+                        debug!("Received message: {:?}", data);
+
+                        remaining
+                    }
+                };
+            }
+        }
     }
 
     //
@@ -71,7 +118,8 @@ async fn main() -> tokio_serial::Result<()> {
     let rate = 115200;
     // let rate = 921600;
 
-    let mut port = serialport::new("COM8", rate).open().unwrap();
+    // let mut port = serialport::new("COM8", rate).open().unwrap();
+    let mut port = serialport::new("COM11", rate).open().unwrap();
 
     // let mut port =
     //     tokio_serial::SerialPortBuilderExt::open_native_async(tokio_serial::new("COM8", rate))
@@ -300,7 +348,7 @@ fn main() -> eframe::Result<()> {
 }
 
 /// MARK: Main
-#[cfg(feature = "nope")]
+// #[cfg(feature = "nope")]
 fn main() -> eframe::Result<()> {
     logging::init_logs();
 
@@ -320,33 +368,15 @@ fn main() -> eframe::Result<()> {
     let (ui_cmd_tx, ui_cmd_rx) = crossbeam_channel::unbounded();
 
     debug!("Starting serial thread");
-    #[cfg(feature = "nope")]
     std::thread::spawn(|| {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async move {
-            let rate = 921600;
-            let mut serial_handler = serial::SerialHandler::new(
-                tokio_serial::SerialPortBuilderExt::open_native_async(tokio_serial::new(
-                    "COM8", rate,
-                ))
-                .unwrap(),
-                serial_log_tx,
-                serial_cmd_rx,
-                rate,
-            );
-
-            loop {
-                if let Err(e) = serial_handler.run().await {
-                    // error!("Error in serial handler: {}", e);
-                }
-            }
-        });
-    });
-
-    std::thread::spawn(|| {
+        let port = "COM8";
         let rate = 921600;
+
+        // let port = "COM11";
+        // let rate = 115200;
+
         let mut serial_handler =
-            serial::SerialHandler::new("COM8", serial_log_tx, serial_cmd_rx, ui_cmd_tx, rate);
+            serial::SerialHandler::new(port, serial_log_tx, serial_cmd_rx, ui_cmd_tx, rate);
 
         loop {
             if let Err(e) = serial_handler.run() {
@@ -371,6 +401,7 @@ fn main() -> eframe::Result<()> {
             // });
 
             Ok(Box::new(ui::app::App::new(
+                cc,
                 serial_log_rx,
                 serial_cmd_tx,
                 ui_cmd_rx,

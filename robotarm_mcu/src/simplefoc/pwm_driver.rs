@@ -6,6 +6,8 @@ pub struct PWMDriver<'a> {
     pwm12: embassy_rp::pwm::Pwm<'a>,
     // pwm1: embassy_rp::pwm::PwmOutput<'a>,
     // pwm2: embassy_rp::pwm::PwmOutput<'a>,
+    enable_pin: embassy_rp::gpio::Output<'a>,
+
     config: embassy_rp::pwm::Config,
 
     pub voltage_limit: f32,
@@ -19,15 +21,18 @@ impl<'a> PWMDriver<'a> {
         mut pwm0: embassy_rp::pwm::Pwm<'a>,
         mut pwm12: embassy_rp::pwm::Pwm<'a>,
 
-        mut config: embassy_rp::pwm::Config,
         // pwm2: embassy_rp::pwm::Pwm<'a>,
+        enable_pin: embassy_rp::gpio::Output<'a>,
+
+        mut config: embassy_rp::pwm::Config,
+
         voltage_limit: f32,
         voltage_supply: f32,
     ) -> Self {
         let max_duty_cycle = pwm0.max_duty_cycle();
 
-        debug!("Max duty cycle0: {}", max_duty_cycle);
-        debug!("Max duty cycle12: {}", pwm12.max_duty_cycle());
+        // debug!("Max duty cycle0: {}", max_duty_cycle);
+        // debug!("Max duty cycle12: {}", pwm12.max_duty_cycle());
 
         config.enable = false;
 
@@ -37,6 +42,7 @@ impl<'a> PWMDriver<'a> {
         let mut out = Self {
             pwm0,
             pwm12,
+            enable_pin,
             config,
             voltage_limit,
             voltage_supply,
@@ -67,6 +73,8 @@ impl<'a> PWMDriver<'a> {
         self.disable();
         debug!("Enabling PWM Driver");
 
+        self.enable_pin.set_high();
+
         self.pwm0.set_counter(0);
         self.pwm12.set_counter(0);
 
@@ -83,6 +91,9 @@ impl<'a> PWMDriver<'a> {
 
     pub fn disable(&mut self) {
         debug!("Disabling PWM Driver");
+
+        self.enable_pin.set_low();
+
         let _ = self.pwm0.set_duty_cycle_fully_off();
         match self.pwm12.split_by_ref() {
             (Some(mut pwm1), Some(mut pwm2)) => {

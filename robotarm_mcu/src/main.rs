@@ -524,8 +524,8 @@ async fn main(spawner: Spawner) {
 }
 
 // RS485 tests
-// #[cfg(feature = "nope")]
-#[embassy_executor::main]
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -568,31 +568,128 @@ async fn main(spawner: Spawner) {
 
     // use embedded_io_async::{Read, Write};
 
-    let mut buf = [0u8; 16];
+    // let mut buf = [0u8; 16];
+
+    // let data: [u8; 4] = [0xDE, 0xAD, 0xBE, 0xEF];
+    let mut data: [u8; 16] = [0; 16];
+
+    // let data = postcard::to_slice_cobs(&[0xDE, 0xAD, 0xBE, 0xEF], &mut data).unwrap();
+    // debug!("Encoded message {}: {:?}", data.len(), data);
 
     loop {
         // debug!("Sending: {}", x);
         // tx.send(&[x]).await.unwrap();
 
-        let n = tx.receive(&mut buf).await;
+        // let msg = robotarm_protocol::SerialLogMessage::MotorData {
+        //     id: x,
+        //     timestamp: Instant::now().as_micros(),
+        //     position: 0.,
+        //     angle: 0.,
+        //     velocity: 0.,
+        //     target_position: 0.,
+        //     target_velocity: 0.,
+        //     motor_current: 0.,
+        //     motor_voltage: (0., 0.),
+        // };
 
-        if n > 0 {
-            debug!("Received {}: {:?}", n, &buf[..n]);
-        }
+        let msg: [u8; 4] = [x, x + 1, x + 2, x + 3];
 
-        // x += 1;
-        // Timer::after(embassy_time::Duration::from_millis(1000)).await;
+        let msg = postcard::to_slice_cobs(&msg, &mut data).unwrap();
+
+        debug!("Sending");
+        // tx.send(msg).await.unwrap();
+        tx._send(&msg).await.unwrap();
+
+        // let n = tx.receive(&mut buf).await;
+
+        // if n > 0 {
+        //     debug!("Received {}: {:?}", n, &buf[..n]);
+        // }
+
+        x += 1;
+        Timer::after(embassy_time::Duration::from_millis(1000)).await;
     }
 }
 
 #[cfg(feature = "nope")]
-// #[cortex_m_rt::entry]
+// #[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    // #[cfg(feature = "nope")]
+    let mut encoder = {
+        let miso = p.PIN_16;
+        // let mosi = p.PIN_19;
+
+        let sck = p.PIN_18;
+        let cs = p.PIN_17;
+
+        let mut config = embassy_rp::spi::Config::default();
+        config.frequency = 4_000_000;
+        config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+        config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+        // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
+
+        let mut spi =
+            embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, config);
+
+        // Configure CS
+        let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
+
+        // let mut buf: [u8; 4] = [0; 4];
+
+        let mut encoder = crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
+
+        encoder
+    };
+
+    #[cfg(feature = "nope")]
+    let mut encoder = {
+        let miso = p.PIN_12;
+        // let mosi = p.PIN_15;
+
+        let sck = p.PIN_14;
+        let cs = p.PIN_13;
+
+        let mut config = embassy_rp::spi::Config::default();
+        config.frequency = 4_000_000;
+        config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+        config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+        // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
+
+        let mut spi =
+            embassy_rp::spi::Spi::new_rxonly(p.SPI1, sck, miso, p.DMA_CH2, p.DMA_CH3, config);
+
+        // Configure CS
+        let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
+
+        // let mut buf: [u8; 4] = [0; 4];
+
+        let mut encoder = crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
+
+        encoder
+    };
+
+    loop {
+        let raw_angle = encoder.read_raw_angle_debug().await.unwrap();
+
+        let angle = (raw_angle as f32 / 16384_f32) * simplefoc::types::_2PI;
+
+        debug!("Angle: {}", angle);
+
+        Timer::after(embassy_time::Duration::from_millis(100)).await;
+    }
+}
+
+// #[cfg(feature = "nope")]
+#[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
+    // #[cfg(feature = "nope")]
     let encoder0 = {
         let miso = p.PIN_16;
-        let mosi = p.PIN_19;
+        // let mosi = p.PIN_19;
 
         let sck = p.PIN_18;
         let cs = p.PIN_17;
@@ -618,7 +715,7 @@ fn main() -> ! {
 
     let encoder1 = {
         let miso = p.PIN_12;
-        let mosi = p.PIN_15;
+        // let mosi = p.PIN_15;
 
         let sck = p.PIN_14;
         let cs = p.PIN_13;
@@ -665,17 +762,18 @@ fn main() -> ! {
         // c.invert_a = true;
         // c.invert_b = true;
 
-        debug!("PWM top: {}", c.top);
-        debug!("PWM divider: {}", c.divider);
-        debug!("PWM phase_correct: {}", c.phase_correct);
+        // debug!("PWM top: {}", c.top);
+        // debug!("PWM divider: {}", c.divider);
+        // debug!("PWM phase_correct: {}", c.phase_correct);
 
         let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
         let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
 
-        // info!("set up PWM driver");
+        let enable_pin0 = embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low);
         let driver0 = crate::simplefoc::pwm_driver::PWMDriver::new(
             pwm0,
             pwm12,
+            enable_pin0,
             c.clone(),
             voltage_limit,
             12.,
@@ -684,14 +782,18 @@ fn main() -> ! {
         let pwm3 = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, c.clone());
         let pwm45 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE4, p.PIN_8, p.PIN_9, c.clone());
 
-        let driver1 =
-            crate::simplefoc::pwm_driver::PWMDriver::new(pwm3, pwm45, c, voltage_limit, 12.);
+        let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
+        let driver1 = crate::simplefoc::pwm_driver::PWMDriver::new(
+            pwm3,
+            pwm45,
+            enable_pin1,
+            c,
+            voltage_limit,
+            12.,
+        );
 
         (driver0, driver1)
     };
-
-    let enable_pin0 = embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low);
-    let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
 
     // let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
     //     7, // pole pairs
@@ -704,9 +806,10 @@ fn main() -> ! {
     // );
 
     let motor_config0 = crate::simplefoc::bldc::BLDCMotor::new(
-        7,          // pole pairs
-        Some(9.2),  // phase resistance
-        Some(120.), // motor kv
+        7,         // pole pairs
+        Some(9.2), // phase resistance
+        // Some(120.), // motor kv
+        Some(140.), // motor kv
         // None,
         None,
     );
@@ -715,27 +818,45 @@ fn main() -> ! {
     let usb = comms::usb::UsbLogger::new();
     let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
-    // // info!("set up FOC");
-    // let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
-    //     0,
-    //     encoder0,
-    //     pwm_driver0,
-    //     enable_pin0,
-    //     motor_config0,
-    //     Some(usb.clone()),
-    //     // None,
-    // );
+    #[cfg(feature = "nope")]
+    let max485 = {
+        static TX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
+        let tx_buf = &mut TX_BUF.init([0; 16])[..];
+        static RX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
+        let rx_buf = &mut RX_BUF.init([0; 16])[..];
 
-    // let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
-    //     1,
-    //     encoder1,
-    //     pwm_driver1,
-    //     enable_pin1,
-    //     motor_config1,
-    //     Some(usb),
-    //     // None,
-    // );
+        let mut config = embassy_rp::uart::Config::default();
+        config.baudrate = 115_200;
+        // config.baudrate = 9600;
 
+        let mut uart = embassy_rp::uart::BufferedUart::new(
+            p.UART0, p.PIN_16, p.PIN_17, Irqs, tx_buf, rx_buf, config,
+        );
+
+        let mut enable = embassy_rp::gpio::Output::new(p.PIN_18, embassy_rp::gpio::Level::Low);
+
+        crate::comms::rs485::Max485::new(uart, enable)
+    };
+
+    let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
+        0,
+        encoder0,
+        pwm_driver1,
+        motor_config1,
+        Some(usb.clone()),
+        // None,
+    );
+
+    let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
+        0,
+        encoder1,
+        pwm_driver0,
+        motor_config0,
+        Some(usb),
+        // None,
+    );
+
+    #[cfg(feature = "nope")]
     let foc = crate::simplefoc::foc_types::SimpleFOC::new(
         0,
         // encoder0,
@@ -758,6 +879,17 @@ fn main() -> ! {
         },
     );
 
+    // second core runs rs485
+    #[cfg(feature = "nope")]
+    embassy_rp::multicore::spawn_core1(
+        p.CORE1,
+        unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
+        move || {
+            let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
+            executor1.run(|spawner| crate::comms::rs485::init_rs485_logger(&spawner, max485));
+        },
+    );
+
     // second core runs motor
     #[cfg(feature = "nope")]
     embassy_rp::multicore::spawn_core1(
@@ -773,9 +905,9 @@ fn main() -> ! {
 
     let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
     executor0.run(|spawner| {
-        // spawner.spawn(crate::init::core0_task0(foc)).unwrap();
-        // spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
-        spawner.spawn(crate::init::core0_task1(foc)).unwrap();
+        // spawner.spawn(crate::init::core0_task0(foc0)).unwrap();
+        spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
+        // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
         // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
     });
 }

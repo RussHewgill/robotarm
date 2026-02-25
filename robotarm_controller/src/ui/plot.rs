@@ -1,7 +1,8 @@
-use std::collections::VecDeque;
-
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use tracing::{debug, error, info, trace, warn};
+
+use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 
 use eframe::egui::{self, Response};
 
@@ -11,26 +12,36 @@ use plotters::{prelude::*, style::full_palette::ORANGE};
 
 use crate::ui::{self, app::App};
 
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DataPlot {
+    #[serde(default)]
     window_time: f64,
+    #[serde(skip)]
     prev_time: f64,
 
     pub draw_angle: bool,
+    #[serde(skip)]
     angle: VecDeque<(f64, f64)>,
 
     pub draw_vel: bool,
+    #[serde(skip)]
     vel: VecDeque<(f64, f64)>,
+    vel_bounds: (f64, f64),
 
     pub draw_target_pos: bool,
+    #[serde(skip)]
     target_pos: VecDeque<(f64, f64)>,
 
     pub draw_target_vel: bool,
+    #[serde(skip)]
     target_vel: VecDeque<(f64, f64)>,
 
     pub draw_voltage: bool,
+    #[serde(skip)]
     voltage: VecDeque<(f64, f64)>,
 
     pub draw_current: bool,
+    #[serde(skip)]
     current: VecDeque<(f64, f64)>,
 
     // scale_angle: f64,
@@ -46,6 +57,7 @@ impl Default for DataPlot {
             angle: VecDeque::new(),
             draw_vel: true,
             vel: VecDeque::new(),
+            vel_bounds: (-6.28, 6.28),
             draw_target_pos: true,
             target_pos: VecDeque::new(),
             draw_target_vel: false,
@@ -56,7 +68,8 @@ impl Default for DataPlot {
             current: VecDeque::new(),
 
             // scale_angle: std::f64::consts::PI * 2.,
-            scale_vel: 0.05,
+            // scale_vel: 0.05,
+            scale_vel: 1.0,
         }
     }
 }
@@ -98,11 +111,17 @@ impl DataPlot {
     pub fn add_point_vel(&mut self, t: f64, vel: f64) {
         self.vel.push_back((t, vel));
         self.prev_time = t;
+
+        self.vel_bounds.0 = self.vel_bounds.0.min(vel);
+        self.vel_bounds.1 = self.vel_bounds.1.max(vel);
     }
 
     pub fn add_point_target_vel(&mut self, t: f64, target: f64) {
         self.target_vel.push_back((t, target));
         self.prev_time = t;
+
+        self.vel_bounds.0 = self.vel_bounds.0.min(target);
+        self.vel_bounds.1 = self.vel_bounds.1.max(target);
     }
 
     pub fn add_point_target_pos(&mut self, t: f64, target: f64) {
@@ -168,6 +187,16 @@ impl DataPlot {
                 break;
             }
         }
+
+        self.vel_bounds = (-6.28, 6.28);
+        for (_, v) in self.vel.iter() {
+            self.vel_bounds.0 = self.vel_bounds.0.min(*v);
+            self.vel_bounds.1 = self.vel_bounds.1.max(*v);
+        }
+        for (_, v) in self.target_vel.iter() {
+            self.vel_bounds.0 = self.vel_bounds.0.min(*v);
+            self.vel_bounds.1 = self.vel_bounds.1.max(*v);
+        }
     }
 
     pub fn reset(&mut self) {
@@ -176,6 +205,8 @@ impl DataPlot {
         self.target_pos.clear();
         self.target_vel.clear();
         self.prev_time = 0.;
+
+        self.vel_bounds = (-6.28, 6.28);
     }
 }
 
@@ -190,15 +221,24 @@ impl DataPlot {
             .margin(5)
             .x_label_area_size(30)
             .y_label_area_size(30)
+            .right_y_label_area_size(30)
             .build_cartesian_2d(
                 self.prev_time - self.window_time..self.prev_time,
                 -1f64..1f64,
             )
-            .unwrap();
-
-        // chart.set_secondary_coord(0f64..self.window_time, -20f64..20f64);
+            .unwrap()
+            .set_secondary_coord(
+                self.prev_time - self.window_time..self.prev_time,
+                self.vel_bounds.0..self.vel_bounds.1,
+            );
 
         chart.configure_mesh().draw().unwrap();
+
+        chart
+            .configure_secondary_axes()
+            .y_desc("Velocity (rad/s)")
+            .draw()
+            .unwrap();
 
         if self.draw_angle {
             // data in 0-2pi, we want -1 to 1
@@ -216,7 +256,7 @@ impl DataPlot {
 
         if self.draw_vel {
             chart
-                .draw_series(LineSeries::new(
+                .draw_secondary_series(LineSeries::new(
                     self.vel.iter().map(|(t, vel)| (*t, *vel * self.scale_vel)),
                     &BLUE,
                 ))
@@ -240,7 +280,7 @@ impl DataPlot {
 
         if self.draw_target_vel {
             chart
-                .draw_series(LineSeries::new(
+                .draw_secondary_series(LineSeries::new(
                     self.target_vel
                         .iter()
                         .map(|(t, target)| (*t, *target * self.scale_vel)),

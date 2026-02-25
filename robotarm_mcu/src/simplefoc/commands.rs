@@ -1,10 +1,7 @@
 use defmt::{debug, error};
-use robotarm_protocol::{SerialCommand, SerialLogMessage};
+use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlType};
 
-use crate::{
-    hardware::encoder_sensor::EncoderSensor,
-    simplefoc::{foc_types::SimpleFOC, types::MotionControlType},
-};
+use crate::{hardware::encoder_sensor::EncoderSensor, simplefoc::foc_types::SimpleFOC};
 
 impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
     // #[cfg(feature = "nope")]

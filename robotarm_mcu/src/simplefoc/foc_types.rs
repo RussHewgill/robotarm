@@ -1,5 +1,6 @@
 use defmt::{debug, error, info, trace, warn};
 use embassy_rp::gpio::Output;
+use robotarm_protocol::types::MotionControlType;
 
 use crate::{
     comms::usb::UsbLogger,
@@ -8,7 +9,7 @@ use crate::{
         bldc::BLDCMotor,
         lowpass::LowPassFilter,
         pid::PIDController,
-        types::{MotionControlType, NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType},
+        types::{NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType},
     },
 };
 
@@ -51,8 +52,7 @@ pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
     //     MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     pub(super) pwm_driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
 
-    pub(super) enable_pin: Output<'a>,
-
+    // pub(super) enable_pin: Output<'a>,
     pub usb_logger: Option<UsbLogger>,
 
     pub(super) debug: bool,
@@ -108,8 +108,6 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         encoder: SENSOR,
         driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
 
-        enable_pin: Output<'a>,
-
         motor: BLDCMotor,
 
         usb_logger: Option<UsbLogger>,
@@ -124,7 +122,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         const PID_VELOCITY_KP: f32 = 0.1;
         const PID_VELOCITY_KI: f32 = 0.0;
-        const PID_VELOCITY_KD: f32 = 0.0;
+        const PID_VELOCITY_KD: f32 = 0.0005;
 
         // const PID_VELOCITY_KP: f32 = 0.08;
         // const PID_VELOCITY_KI: f32 = 0.0;
@@ -139,18 +137,19 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         const PID_VELOCITY_RAMP: f32 = 1000.0;
         // const PID_VELOCITY_RAMP: f32 = 0.0;
-        const PID_VELOCITY_LIMIT: f32 = 20.0;
+        const PID_VELOCITY_LIMIT: f32 = 100.;
 
-        const PID_ANGLE_KP: f32 = 30.0;
-        const PID_ANGLE_LIMIT: f32 = 20.0;
+        const PID_ANGLE_KP: f32 = 20.0;
+        // const PID_ANGLE_LIMIT: f32 = 20.0;
+        const PID_ANGLE_LIMIT: f32 = 100.0;
 
         // const VEL_LPF_TF: f32 = 0.;
-        const VEL_LPF_TF: f32 = 0.01;
-        // const VEL_LPF_TF: f32 = 0.05;
+        // const VEL_LPF_TF: f32 = 0.01;
+        const VEL_LPF_TF: f32 = 0.05;
         // const VEL_LPF_TF: f32 = 0.2;
 
         // const ANGLE_LPF_TF: f32 = 0.;
-        const ANGLE_LPF_TF: f32 = 0.0005;
+        const ANGLE_LPF_TF: f32 = 0.005;
 
         SimpleFOC {
             id,
@@ -158,8 +157,6 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             encoder,
             pwm_driver: driver,
             motor,
-
-            enable_pin,
 
             usb_logger,
 

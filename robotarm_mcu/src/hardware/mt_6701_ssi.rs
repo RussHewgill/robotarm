@@ -64,40 +64,6 @@ impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
 //     config: Config
 
 impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
-    #[cfg(feature = "nope")]
-    pub fn new<T: embassy_rp::spi::Instance>(
-        spi: Peri<'static, T>,
-        sck: Peri<'static, impl embassy_rp::spi::ClkPin<T>>,
-        miso: Peri<'static, impl embassy_rp::spi::MisoPin<T>>,
-        tx_dma: Peri<'static, impl embassy_rp::dma::Channel>,
-        rx_dma: Peri<'static, impl embassy_rp::dma::Channel>,
-        cs: Output<'static>,
-    ) -> Self {
-        let mut config = embassy_rp::spi::Config::default();
-        config.frequency = 4_000_000;
-        config.polarity = embassy_rp::spi::Polarity::IdleHigh;
-        config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
-
-        let mut spi = embassy_rp::spi::Spi::new_rxonly(spi, sck, miso, tx_dma, rx_dma, config);
-
-        Self {
-            spi,
-            cs,
-
-            buf: [0; 4],
-
-            min_elapsed_time: 0.0001, // 100 microseconds
-
-            velocity: 0.0,
-            angle_prev: 0.0,
-            angle_prev_ts: 0,
-            vel_angle_prev: 0.0,
-            vel_angle_prev_ts: 0,
-            full_rotations: 0,
-            vel_full_rotations: 0,
-        }
-    }
-
     pub fn new(mut spi: SPI, cs: Output<'static>) -> Self {
         Self {
             spi,
@@ -144,6 +110,52 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
         self.velocity
     }
 
+    pub async fn read_raw_angle_debug(&mut self) -> Result<u16, MT6701Error> {
+        self.cs.set_low();
+        self.spi
+            .read(&mut self.buf[..4])
+            .await
+            .map_err(|_| MT6701Error::SPIError)?;
+        self.cs.set_high();
+
+        // Bit 0-13: 14-bit Angle Data D[13:0]
+        // Bit 14-17: 4-bit Magnetic Field Status Mg[3:0]
+        // Bit 18-23: 6-bit CRC Code CRC[5:0]
+
+        let xs = [self.buf[0], self.buf[1]];
+        let raw_angle = (u16::from_be_bytes(xs) >> 1) & 0x3FFF;
+
+        let status = (u16::from_be_bytes(xs) >> 14) & 0b1111;
+
+        // status[1:0] = 0: Normal, 1: Too Strong, 2: Too Weak
+        // status[2] = unused
+        // status[3] = 0: Normal, 1: loss of track
+
+        // debug!("Status: {:04b}", status);
+        match status & 0b11 {
+            0 => debug!("Magnetic field: Normal"),
+            1 => debug!("Magnetic field: Too Strong"),
+            2 => debug!("Magnetic field: Too Weak"),
+            _ => debug!("Magnetic field: Unknown: {:04b}", status),
+        }
+
+        // if (status & 0b1000) != 0 {
+        //     debug!("Loss of track detected!");
+        // }
+
+        let crc = ((u16::from_be_bytes(xs) >> 18) & 0x3F) as u8;
+
+        // CRC Data Range: D[13:0] and Mg[3:0] total 18-bit, D[13] is the MSB, Mg[0] is the LSB
+        // CRC polynomial: X6+X+1, MSB steam in first.
+
+        Ok(raw_angle)
+    }
+
+    // pub async fn read_raw_angle(&mut self) -> Result<u16, MT6701Error> {
+    //     self.read_raw_angle_debug().await
+    // }
+
+    // #[cfg(feature = "nope")]
     pub async fn read_raw_angle(&mut self) -> Result<u16, MT6701Error> {
         self.cs.set_low();
         self.spi
@@ -154,6 +166,8 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
 
         let xs = [self.buf[0], self.buf[1]];
         let angle = (u16::from_be_bytes(xs) >> 1) & 0x3FFF;
+
+        // debug!("Angle: {}", angle);
 
         Ok(angle)
     }
