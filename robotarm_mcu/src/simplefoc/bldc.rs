@@ -14,6 +14,8 @@ pub struct BLDCMotor {
     pub motor_kv: Option<f32>,
     pub phase_inductance: Option<f32>,
 
+    pub torque_constant: Option<f32>,
+
     // pub(super) target: f32,
     // pub(super) feed_forward_velocity: f32,
     // pub(super) shaft_angle: f32,
@@ -46,12 +48,15 @@ impl BLDCMotor {
         phase_resistance: Option<f32>,
         motor_kv: Option<f32>,
         phase_inductance: Option<f32>,
+        torque_constant: Option<f32>,
     ) -> Self {
         Self {
             pole_pairs,
             phase_resistance,
             motor_kv,
             phase_inductance,
+
+            torque_constant,
 
             // target: 0.0,
             // feed_forward_velocity: 0.0,

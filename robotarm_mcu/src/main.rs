@@ -740,7 +740,9 @@ fn main() -> ! {
     };
 
     // let voltage_limit = 2.0;
-    let voltage_limit = 4.;
+    // let voltage_limit = 4.;
+    let voltage_limit = 6.;
+    // let voltage_limit = 10.;
 
     // #[cfg(feature = "nope")]
     let (pwm_driver0, pwm_driver1) = {
@@ -812,6 +814,7 @@ fn main() -> ! {
         Some(140.), // motor kv
         // None,
         None,
+        None,
     );
     let motor_config1 = motor_config0.clone();
 
@@ -841,8 +844,8 @@ fn main() -> ! {
     let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
         0,
         encoder0,
-        pwm_driver1,
-        motor_config1,
+        pwm_driver0,
+        motor_config0,
         Some(usb.clone()),
         // None,
     );
@@ -850,8 +853,8 @@ fn main() -> ! {
     let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
         0,
         encoder1,
-        pwm_driver0,
-        motor_config0,
+        pwm_driver1,
+        motor_config1,
         Some(usb),
         // None,
     );
@@ -905,8 +908,8 @@ fn main() -> ! {
 
     let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
     executor0.run(|spawner| {
-        // spawner.spawn(crate::init::core0_task0(foc0)).unwrap();
-        spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
+        spawner.spawn(crate::init::core0_task0(foc0)).unwrap();
+        // spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
         // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
         // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
     });

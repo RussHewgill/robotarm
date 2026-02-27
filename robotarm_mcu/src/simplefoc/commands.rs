@@ -65,6 +65,29 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
                     id, rate_hz
                 );
             }
+            // SerialCommand::SetSensorOffset { id, offset } => {
+            //     if id == self.id {
+            //         debug!(
+            //             "Received SetSensorOffset command: id: {}, current offset: {}, sensor_offset: {}",
+            //             id, self.sensor_offset, offset
+            //         );
+            //         match offset {
+            //             Some(offset) => self.sensor_offset = offset,
+            //             None => self.sensor_offset = 0.0,
+            //         }
+            //         // self.sensor_offset = offset;
+            //         // self.set_zero_angle();
+            //         // let position = self.encoder.get_mechanical_angle();
+            //         // self.zero_electric_angle = position;
+            //     }
+            // }
+            SerialCommand::SetFeedForward { id, ff } => {
+                self.feed_forward_torque = ff;
+                debug!(
+                    "Received SetFeedForward command: id: {}, feed_forward_torque: {}",
+                    id, ff
+                );
+            }
             SerialCommand::RequestSettings { id } => {
                 if id == self.id {
                     if let Some(logger) = &mut self.usb_logger {

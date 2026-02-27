@@ -4,7 +4,11 @@ use embassy_time::{Instant, Ticker};
 use robotarm_protocol::{SerialCommand, types::MotionControlType};
 use static_cell::StaticCell;
 
-use crate::{Irqs, comms::usb::UsbLogger, hardware::encoder_sensor::EncoderSensor};
+use crate::{
+    Irqs,
+    comms::usb::UsbLogger,
+    hardware::{current_sensor::NoCurrentSensor, encoder_sensor::EncoderSensor},
+};
 
 pub static mut CORE1_STACK: embassy_rp::multicore::Stack<4096> =
     embassy_rp::multicore::Stack::new();
@@ -39,9 +43,9 @@ pub async fn core0_task1(
 pub async fn core0_task<SENSOR: EncoderSensor>(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR>,
 ) {
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Inverted);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // foc.set_motion_control(MotionControlType::Torque);
     // foc.set_motion_control(MotionControlType::Velocity);
@@ -70,11 +74,11 @@ pub async fn core0_task<SENSOR: EncoderSensor>(
 
     // foc.set_debug_freq(2);
     // foc.set_debug_freq(10);
-    foc.set_debug_freq(100);
-    // foc.set_debug_freq(1000);
+    // foc.set_debug_freq(100);
+    foc.set_debug_freq(500);
     // foc.set_debug_freq(0);
 
-    // foc.set_vel_pid_debug(3.);
+    // foc.set_vel_pid_debug(0.);
 
     // foc.set_target_torque(10.0);
 

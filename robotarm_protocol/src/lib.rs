@@ -22,6 +22,7 @@ pub enum SerialLogMessage {
         target_velocity: f32,
         motor_current: f32,
         motor_voltage: (f32, f32),
+        feed_forward: f32,
     },
     MotorPID {
         id: u8,
@@ -51,6 +52,10 @@ pub enum SerialCommand {
         id: u8,
         enabled: bool,
     },
+    // SetSensorOffset {
+    //     id: u8,
+    //     offset: Option<f32>,
+    // },
     SetDebugRate {
         id: u8,
         rate_hz: u16,
@@ -87,6 +92,10 @@ pub enum SerialCommand {
         id: u8,
         lpf_vel: Option<f32>,
         lpf_angle: Option<f32>,
+    },
+    SetFeedForward {
+        id: u8,
+        ff: f32,
     },
     SetMotorTarget {
         id: u8,

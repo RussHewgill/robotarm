@@ -68,6 +68,7 @@ impl App {
                         target_velocity,
                         motor_current,
                         motor_voltage,
+                        feed_forward,
                     } => {
                         // debug!("Got motor data {:#?}", msg);
                         // debug!("Got motor data");
@@ -98,7 +99,16 @@ impl App {
                                 self.status.vel = velocity as f64;
 
                                 self.status.current = motor_current;
+
+                                // {
+                                //     let mult =
+                                //     let offset =
+                                //     self.status.current = (motor_current * mult) + offset;
+                                // }
+
                                 self.status.voltage = motor_voltage;
+
+                                self.status.feed_forward = feed_forward as f64;
                             }
                         }
                     }

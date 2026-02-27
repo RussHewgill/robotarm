@@ -72,6 +72,7 @@ impl App {
         out.serial_cmd_tx = Some(serial_cmd_tx);
         out.ui_cmd_rx = Some(ui_cmd_rx);
         out.last_update = Some(Instant::now());
+        out.update_interval = Duration::from_millis(500);
 
         out
     }

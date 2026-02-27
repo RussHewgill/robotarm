@@ -60,6 +60,9 @@ discrete_pid = { version = "0.1.0", default-features = false }
 # max485-async = "0.2.0"
 # embedded-io-async = "0.7"
 embedded-io-async = "0.6.1"
+micromath = { version = "2.1.0", features = ["vector", "quaternion"] }
+
+bitflags = "2.4"
 
 [patch.crates-io]
 as5600 = { git = "https://github.com/barafael/as5600-rs" }

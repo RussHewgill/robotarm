@@ -313,12 +313,12 @@ impl DataPlot {
                 .label("Current");
         }
 
-        chart
-            .configure_series_labels()
-            .border_style(&BLACK)
-            .background_style(&WHITE.mix(0.8))
-            .draw()
-            .unwrap();
+        // chart
+        //     .configure_series_labels()
+        //     .border_style(&BLACK)
+        //     .background_style(&WHITE.mix(0.8))
+        //     .draw()
+        //     .unwrap();
 
         root.present().unwrap();
     }

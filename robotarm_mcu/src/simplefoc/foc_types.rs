@@ -4,7 +4,10 @@ use robotarm_protocol::types::MotionControlType;
 
 use crate::{
     comms::usb::UsbLogger,
-    hardware::{as5600::AS5600, encoder_sensor::EncoderSensor, mt_6701_adc::MT6701},
+    hardware::{
+        as5600::AS5600, current_sensor::CurrentSensor, encoder_sensor::EncoderSensor,
+        mt_6701_adc::MT6701,
+    },
     simplefoc::{
         bldc::BLDCMotor,
         lowpass::LowPassFilter,
@@ -40,14 +43,17 @@ pub enum FOCModulation {
     SpaceVectorPWM,
 }
 
-pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
+pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub id: u8,
 
     // pub(super) encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     // pub(super) encoder: MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     // pub(super) encoder: MT6701<'a, DMA>,
     // pub encoder: MT6701<'a, DMA>,
-    pub encoder: SENSOR,
+    pub encoder: ENCODER,
+
+    pub current_sensor: Option<CURRENT>,
+
     // encoder:
     //     MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     pub(super) pwm_driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
@@ -79,6 +85,8 @@ pub struct SimpleFOC<'a, SENSOR: EncoderSensor> {
 
     pub(super) motion_control: MotionControlType,
     pub(super) torque_controller: TorqueControlType,
+
+    pub feed_forward_torque: f32,
 
     // pub(super) pid_current_q: PIDController,
     // pub(super) pid_current_d: PIDController,
@@ -122,7 +130,9 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         const PID_VELOCITY_KP: f32 = 0.1;
         const PID_VELOCITY_KI: f32 = 0.0;
-        const PID_VELOCITY_KD: f32 = 0.0005;
+        const PID_VELOCITY_KD: f32 = 0.0;
+
+        // const PID_VELOCITY_KD: f32 = 0.0005;
 
         // const PID_VELOCITY_KP: f32 = 0.08;
         // const PID_VELOCITY_KI: f32 = 0.0;
@@ -155,6 +165,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             id,
 
             encoder,
+            current_sensor: None,
             pwm_driver: driver,
             motor,
 
@@ -179,6 +190,8 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
             motion_control: MotionControlType::Angle,
             torque_controller: TorqueControlType::Voltage,
+
+            feed_forward_torque: 0.0,
 
             phase_v: PhaseVoltages::default(),
 

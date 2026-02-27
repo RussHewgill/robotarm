@@ -14,6 +14,8 @@ pub struct FocStatus {
 
     pub gear_ratio: f64,
 
+    pub feed_forward: f64,
+
     pub current: f32,
     pub voltage: (f32, f32),
 

@@ -23,7 +23,7 @@ mod pid_settings {
     ) {
         ui.label(label);
 
-        let resp = ui.add(egui::DragValue::new(value).fixed_decimals(6));
+        let resp = ui.add(egui::DragValue::new(value).fixed_decimals(4));
 
         let send_resp = ui.button("Send");
         let zero_resp = ui.button("Zero");
@@ -306,6 +306,8 @@ impl App {
             // if resp.sc
             let mut send_target = None;
 
+            let mut inc = 0.5;
+
             if !matches!(
                 self.status.motion_control,
                 Some(robotarm_protocol::MotionControlType::Angle)
@@ -314,6 +316,12 @@ impl App {
                 send_target = Some(self.status.target_pos);
             } else if resp.hovered() {
                 let delta = ui.input(|i| {
+                    if i.modifiers.shift {
+                        inc = 1.0;
+                    } else if i.modifiers.ctrl {
+                        inc = 0.1;
+                    }
+
                     i.events.iter().find_map(|e| match e {
                         egui::Event::MouseWheel {
                             unit: _,
@@ -323,12 +331,13 @@ impl App {
                         _ => None,
                     })
                 });
+
                 if let Some(delta) = delta {
                     if delta.y > 0. && self.status.target_pos < 10. {
-                        self.status.target_pos += 0.5;
+                        self.status.target_pos += inc;
                         send_target = Some(self.status.target_pos);
                     } else if delta.y < 0. && self.status.target_pos > -10. {
-                        self.status.target_pos -= 0.5;
+                        self.status.target_pos -= inc;
                         send_target = Some(self.status.target_pos);
                     }
                 }
@@ -347,6 +356,17 @@ impl App {
                 let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
                 self.send_command(cmd);
             }
+
+            // if ui.button("Zero Position").clicked() {
+            //     let cmd = SerialCommand::SetSensorOffset {
+            //         id: 0,
+            //         offset: Some(self.status.pos as f32),
+            //     };
+            //     self.send_command(cmd);
+
+            //     let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
+            //     self.send_command(cmd);
+            // }
         });
 
         ui.horizontal(|ui| {
@@ -406,6 +426,23 @@ impl App {
             if ui.button("Reset Target").clicked() {
                 self.status.target_vel = 0.0;
                 let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
+                self.send_command(cmd);
+            }
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Feedforward:");
+
+            let resp = ui.add(egui::Slider::new(
+                &mut self.status.feed_forward,
+                -10.0..=10.0,
+            ));
+
+            if resp.changed() {
+                let cmd = SerialCommand::SetFeedForward {
+                    id: 0,
+                    ff: self.status.feed_forward as f32,
+                };
                 self.send_command(cmd);
             }
         });

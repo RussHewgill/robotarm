@@ -26,7 +26,8 @@ impl PIDController {
         pid2.activate();
         let _ = pid2.config_mut().set_filter_tc(0.000001);
         // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
-        let _ = pid2.config_mut().set_use_derivative_on_measurement(true);
+        // let _ = pid2.config_mut().set_use_derivative_on_measurement(true);
+        let _ = pid2.config_mut().set_use_derivative_on_measurement(false);
 
         let pid = self::prev::PIDController::new(p, i, d, ramp, limit);
 
