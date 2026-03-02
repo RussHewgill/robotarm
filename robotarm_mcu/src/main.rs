@@ -38,6 +38,7 @@ pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
 ];
 
 bind_interrupts!(struct Irqs {
+    I2C0_IRQ => embassy_rp::i2c::InterruptHandler<embassy_rp::peripherals::I2C0>;
     I2C1_IRQ => embassy_rp::i2c::InterruptHandler<embassy_rp::peripherals::I2C1>;
     // I2C1_IRQ => InterruptHandler<embassy_rp::peripherals::I2C1>;
     ADC_IRQ_FIFO => embassy_rp::adc::InterruptHandler;
@@ -616,7 +617,7 @@ async fn main(spawner: Spawner) {
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let mut encoder = {
         let miso = p.PIN_16;
         // let mosi = p.PIN_19;
@@ -670,14 +671,68 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
+    let sda = p.PIN_20;
+    let scl = p.PIN_21;
+
+    let mut i2c_config = embassy_rp::i2c::Config::default();
+    // i2c_config.frequency = 400_000;
+    i2c_config.frequency = 1_000_000;
+
+    let mut i2c = embassy_rp::i2c::I2c::new_async(p.I2C0, scl, sda, Irqs, i2c_config);
+
+    let address0 = 0b1000000;
+    let address1 = 0b1000001;
+    let mut sensor = crate::hardware::ina226::INA226::new(i2c, address0, address1);
+
+    hardware::current_sensor::CurrentSensor::init(&mut sensor)
+        .await
+        .unwrap();
+
+    let c = sensor.configuration0().await.unwrap();
+    debug!("INA226 config: {:#?}", c);
+
+    for _ in 0..5 {
+        let mut c = 0;
+        let mut sum = 0u64;
+
+        // i2c read frequency test
+        for _ in 0..1_000 {
+            // ticker.next().await;
+
+            let t0 = Instant::now();
+            // let angle = foc.encoder.read_raw_angle().await.unwrap();
+            // let angle = encoder.read_raw_angle().await.unwrap();
+            // let _ = encoder._update(t0.as_micros()).await;
+            hardware::current_sensor::CurrentSensor::get_phase_currents(&mut sensor)
+                .await
+                .unwrap();
+
+            let t1 = Instant::now();
+            let elapsed = t1 - t0;
+            sum += elapsed.as_micros() as u64;
+
+            c += 1;
+        }
+
+        let avg = sum as f32 / c as f32;
+        info!("Average I2C read time: {} us", avg);
+    }
+
+    #[cfg(feature = "nope")]
     loop {
-        let raw_angle = encoder.read_raw_angle_debug().await.unwrap();
+        let b = sensor.bus_voltage_millivolts0().await.unwrap();
+        debug!("Bus 0 voltage: {} mV", b);
 
-        let angle = (raw_angle as f32 / 16384_f32) * simplefoc::types::_2PI;
+        let c = sensor.current_amps0().await.unwrap();
+        debug!("Current 0: {} mA", c);
 
-        debug!("Angle: {}", angle);
+        let b = sensor.bus_voltage_millivolts1().await.unwrap();
+        debug!("Bus 1 voltage: {} mV", b);
 
-        Timer::after(embassy_time::Duration::from_millis(100)).await;
+        let c = sensor.current_amps1().await.unwrap();
+        debug!("Current 1: {} mA", c);
+
+        // Timer::after(embassy_time::Duration::from_millis(1000)).await;
     }
 }
 
@@ -737,6 +792,20 @@ fn main() -> ! {
         let mut encoder = crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
 
         encoder
+    };
+
+    let current_sensor = {
+        let sda = p.PIN_20;
+        let scl = p.PIN_21;
+
+        let mut i2c_config = embassy_rp::i2c::Config::default();
+        i2c_config.frequency = 1_000_000;
+
+        let mut i2c = embassy_rp::i2c::I2c::new_async(p.I2C0, scl, sda, Irqs, i2c_config);
+
+        let address0 = 0b1000000;
+        let address1 = 0b1000001;
+        crate::hardware::ina226::INA226::new(i2c, address0, address1)
     };
 
     // let voltage_limit = 2.0;
@@ -844,20 +913,23 @@ fn main() -> ! {
     let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
         0,
         encoder0,
+        // None::<()>,
+        Some(current_sensor),
         pwm_driver0,
         motor_config0,
         Some(usb.clone()),
         // None,
     );
 
-    let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
-        0,
-        encoder1,
-        pwm_driver1,
-        motor_config1,
-        Some(usb),
-        // None,
-    );
+    // let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
+    //     0,
+    //     encoder1,
+    //     None::<()>,
+    //     pwm_driver1,
+    //     motor_config1,
+    //     Some(usb),
+    //     // None,
+    // );
 
     #[cfg(feature = "nope")]
     let foc = crate::simplefoc::foc_types::SimpleFOC::new(

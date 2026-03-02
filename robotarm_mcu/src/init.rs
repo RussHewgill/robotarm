@@ -7,7 +7,7 @@ use static_cell::StaticCell;
 use crate::{
     Irqs,
     comms::usb::UsbLogger,
-    hardware::{current_sensor::NoCurrentSensor, encoder_sensor::EncoderSensor},
+    hardware::{current_sensor::CurrentSensor, encoder_sensor::EncoderSensor, ina226::INA226},
 };
 
 pub static mut CORE1_STACK: embassy_rp::multicore::Stack<4096> =
@@ -21,6 +21,9 @@ pub async fn core0_task0(
         'static,
         crate::hardware::mt_6701_ssi::MT6701<
             embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
+        >,
+        INA226<
+            embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         >,
     >,
 ) {
@@ -40,8 +43,8 @@ pub async fn core0_task1(
 }
 
 // #[embassy_executor::task]
-pub async fn core0_task<SENSOR: EncoderSensor>(
-    mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR>,
+pub async fn core0_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
+    mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR, CURRENT>,
 ) {
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
@@ -142,11 +145,13 @@ pub async fn core0_task<SENSOR: EncoderSensor>(
     let mut t0 = Instant::now();
     let mut c = 0;
 
-    // foc.sensor_downsample = 0;
-    // foc.sensor_downsample = 1;
-    foc.sensor_downsample = 2;
-    // foc.sensor_downsample = 5;
-    // foc.sensor_downsample = 8;
+    // foc.angle_sensor_downsample = 0;
+    // foc.angle_sensor_downsample = 1;
+    foc.angle_sensor_downsample = 2;
+    // foc.angle_sensor_downsample = 5;
+    // foc.angle_sensor_downsample = 8;
+
+    foc.current_sensor_downsample = 10;
 
     // #[cfg(feature = "nope")]
     loop {
@@ -154,10 +159,11 @@ pub async fn core0_task<SENSOR: EncoderSensor>(
 
         // ticker.next().await;
         foc.run_commands().await;
+        foc.loop_foc().await;
         foc.update_foc().await;
 
         let t1 = Instant::now();
-        #[cfg(feature = "nope")]
+        // #[cfg(feature = "nope")]
         if t1 > max_time {
             let elapsed = t1 - t0;
             let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);

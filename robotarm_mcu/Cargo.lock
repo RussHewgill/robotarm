@@ -1161,6 +1161,7 @@ version = "0.1.0"
 dependencies = [
  "as5600",
  "bitflags 2.10.0",
+ "byteorder",
  "cortex-m",
  "cortex-m-rt",
  "defmt",

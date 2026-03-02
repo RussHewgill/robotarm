@@ -21,9 +21,23 @@ pub struct DQVoltages {
 }
 
 #[derive(defmt::Format, Clone, Copy)]
+pub struct ABCurrents {
+    pub alpha: f32,
+    pub beta: f32,
+}
+
+#[derive(defmt::Format, Clone, Copy)]
 pub struct DQCurrents {
     pub d: f32,
     pub q: f32,
+}
+
+#[derive(defmt::Format, Clone, Copy)]
+pub enum PhaseCurrents {
+    Three { a: f32, b: f32, c: f32 },
+    TwoAB { a: f32, b: f32 },
+    TwoBC { b: f32, c: f32 },
+    TwoAC { a: f32, c: f32 },
 }
 
 #[derive(defmt::Format, Default, Clone, Copy)]
@@ -58,6 +72,6 @@ impl SensorDirection {
 #[derive(defmt::Format, Clone, Copy, PartialEq)]
 pub enum TorqueControlType {
     Voltage,
-    // DCCurrent,
-    // FOCCurrent,
+    DCCurrent,
+    FOCCurrent,
 }

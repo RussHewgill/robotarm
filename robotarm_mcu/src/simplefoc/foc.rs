@@ -4,7 +4,12 @@ use embassy_time::{Instant, Timer};
 use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlType};
 
 use crate::{
-    hardware::{as5600::AS5600, encoder_sensor::EncoderSensor, mt_6701::MT6701},
+    hardware::{
+        as5600::AS5600,
+        current_sensor::{self, CurrentSensor},
+        encoder_sensor::EncoderSensor,
+        mt_6701::MT6701,
+    },
     simplefoc::{
         bldc::BLDCMotor,
         foc_types::{FOCModulation, SimpleFOC},
@@ -15,7 +20,7 @@ use crate::{
 };
 
 /// debug
-impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     pub async fn debug_update_sensor(&mut self) {
         // if let Err(_e) = self.encoder.update(Instant::now().as_micros()).await {
         //     error!("Failed to update encoder");
@@ -37,7 +42,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 }
 
 /// control, info
-impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     pub fn enable(&mut self) {
         self.enabled = true;
         // self.enable_pin.set_high();
@@ -96,7 +101,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 }
 
 /// internal
-impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     pub fn init(&mut self) {
         // check driver initialized
 
@@ -133,6 +138,10 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         // // needs phase resistance set
         // self.pid_velocity.set_limit(self.motor.limit_current);
         // // self.pid_angle.limit = self.motor.limit_velocity;
+
+        if let Some(current_sensor) = &mut self.current_sensor {
+            current_sensor.init().await.unwrap();
+        }
 
         // self.motor_status = FOCStatus::MotorCalibrating;
 
@@ -269,6 +278,10 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
         // self.disable();
     }
 
+    async fn align_current_sensor(&mut self) {
+        unimplemented!()
+    }
+
     pub fn _set_phase_pwm(&mut self, duty_a: f32, duty_b: f32, duty_c: f32) {
         self.pwm_driver.set_duty_cycles_f32(duty_a, duty_b, duty_c);
     }
@@ -368,7 +381,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 }
 
 /// helpers
-impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     /// normalizing radian angle to [0,2PI]
     fn normalize_angle(angle: f32) -> f32 {
         let angle = angle % (2.0 * core::f32::consts::PI);

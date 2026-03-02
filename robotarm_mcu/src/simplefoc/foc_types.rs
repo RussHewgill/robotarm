@@ -5,7 +5,9 @@ use robotarm_protocol::types::MotionControlType;
 use crate::{
     comms::usb::UsbLogger,
     hardware::{
-        as5600::AS5600, current_sensor::CurrentSensor, encoder_sensor::EncoderSensor,
+        as5600::AS5600,
+        current_sensor::{self, CurrentSensor},
+        encoder_sensor::EncoderSensor,
         mt_6701_adc::MT6701,
     },
     simplefoc::{
@@ -66,10 +68,17 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     // debug_freq_hz: u64,
     debug_us_interval: u64,
 
+    pub motion_downsample: u32,
+    pub(super) motion_downsample_counter: u32,
+
     // sensor_us_interval: u64,
     // pub(super) prev_sensor_us: u64,
-    pub sensor_downsample: u32,
-    pub(super) sensor_us_counter: u32,
+    pub angle_sensor_downsample: u32,
+    pub(super) angle_sensor_downsample_counter: u32,
+
+    pub current_sensor_downsample: u32,
+    pub(super) current_sensor_downsample_counter: u32,
+
     // pub(super) motor_status: FOCStatus,
     pub(super) enabled: bool,
 
@@ -107,13 +116,15 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub(super) openloop_shaft_angle: f32,
 }
 
-impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     pub fn new(
         id: u8,
 
         // encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
         // encoder: MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
-        encoder: SENSOR,
+        encoder: ENCODER,
+        current_sensor: Option<CURRENT>,
+
         driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
 
         motor: BLDCMotor,
@@ -130,9 +141,9 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
 
         const PID_VELOCITY_KP: f32 = 0.1;
         const PID_VELOCITY_KI: f32 = 0.0;
-        const PID_VELOCITY_KD: f32 = 0.0;
+        // const PID_VELOCITY_KD: f32 = 0.0;
 
-        // const PID_VELOCITY_KD: f32 = 0.0005;
+        const PID_VELOCITY_KD: f32 = 0.0005;
 
         // const PID_VELOCITY_KP: f32 = 0.08;
         // const PID_VELOCITY_KI: f32 = 0.0;
@@ -165,7 +176,7 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             id,
 
             encoder,
-            current_sensor: None,
+            current_sensor,
             pwm_driver: driver,
             motor,
 
@@ -176,10 +187,16 @@ impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
             // debug_freq_hz: 10,
             debug_us_interval: 100_000,
 
+            motion_downsample: 0,
+            motion_downsample_counter: 0,
+
             // sensor_us_interval: 00,
             // prev_sensor_us: 0,
-            sensor_downsample: 1,
-            sensor_us_counter: 0,
+            angle_sensor_downsample: 1,
+            angle_sensor_downsample_counter: 0,
+
+            current_sensor_downsample: 1,
+            current_sensor_downsample_counter: 0,
 
             // motor_status: FOCStatus::MotorUninitialized,
             enabled: false,

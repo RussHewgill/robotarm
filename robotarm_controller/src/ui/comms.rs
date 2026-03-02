@@ -68,6 +68,8 @@ impl App {
                         target_velocity,
                         motor_current,
                         motor_voltage,
+                        sensor_currents,
+                        measured_iq,
                         feed_forward,
                     } => {
                         // debug!("Got motor data {:#?}", msg);
@@ -80,7 +82,12 @@ impl App {
                             self.plot.add_point_target_vel(t, target_velocity as f64);
                             self.plot.add_point_target_pos(t, target_position as f64);
                             self.plot.add_point_voltage(t, motor_voltage.0 as f64);
-                            self.plot.add_point_current(t, motor_current as f64);
+                            // self.plot.add_point_current(t, motor_current as f64);
+                            if let Some((current_d, current_q)) = sensor_currents {
+                                self.plot
+                                    .add_point_current(t, current_d as f64, current_q as f64);
+                            }
+                            // self.plot.add_point_current(t, );
                         } else {
                             self.t0 = Some(timestamp);
                         }
@@ -91,7 +98,8 @@ impl App {
                             if t.elapsed() >= self.update_interval {
                                 self.last_update = Some(Instant::now());
 
-                                self.status.target_pos = target_position as f64;
+                                self.status.target_pos =
+                                    target_position as f64 + self.status.angle_offset;
                                 self.status.target_vel = target_velocity as f64;
 
                                 self.status.pos = position as f64;
@@ -99,6 +107,11 @@ impl App {
                                 self.status.vel = velocity as f64;
 
                                 self.status.current = motor_current;
+
+                                if let Some((a, b)) = sensor_currents {
+                                    self.status.sensor_currents = (a, b);
+                                    self.status.current_iq = measured_iq.unwrap_or(0.);
+                                }
 
                                 // {
                                 //     let mult =

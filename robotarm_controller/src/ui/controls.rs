@@ -2,9 +2,9 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use egui_extras::Size;
 use tracing::{debug, error, info, trace, warn};
 
-use egui::RichText;
+use egui::{Color32, RichText, Sense, Stroke, Vec2};
 
-use crate::ui::app::App;
+use crate::ui::{app::App, controls::scrollable::make_scrollable};
 use robotarm_protocol::SerialCommand;
 
 mod pid_settings {
@@ -23,7 +23,7 @@ mod pid_settings {
     ) {
         ui.label(label);
 
-        let resp = ui.add(egui::DragValue::new(value).fixed_decimals(4));
+        let resp = ui.add(egui::DragValue::new(value).fixed_decimals(5));
 
         let send_resp = ui.button("Send");
         let zero_resp = ui.button("Zero");
@@ -88,6 +88,55 @@ mod pid_settings {
             lpf_vel: Some(lpf),
             lpf_angle: None,
         }
+    }
+}
+
+mod scrollable {
+
+    pub fn make_scrollable(
+        ui: &mut egui::Ui,
+        resp: egui::Response,
+        mut inc: f64,
+        inc2: (f64, f64),
+        curr: &mut f64,
+        min: f64,
+        max: f64,
+    ) -> Option<f64> {
+        if resp.hovered() {
+            let delta = ui.input(|i| {
+                if i.modifiers.shift {
+                    inc = inc2.1;
+                } else if i.modifiers.ctrl {
+                    inc = inc2.0;
+                }
+
+                i.events.iter().find_map(|e| match e {
+                    egui::Event::MouseWheel {
+                        unit: _,
+                        delta,
+                        modifiers,
+                    } => Some(*delta),
+                    _ => None,
+                })
+            });
+
+            if let Some(delta) = delta {
+                if delta.y > 0. && *curr < max {
+                    *curr += inc;
+                    return Some(*curr);
+                } else if delta.y < 0. && *curr > min {
+                    *curr -= inc;
+                    return Some(*curr);
+                }
+            }
+        }
+
+        if ui.button("Reset").clicked() {
+            *curr = 0.0;
+            return Some(*curr);
+        }
+
+        None
     }
 }
 
@@ -158,6 +207,46 @@ impl App {
                 .monospace(),
             );
             ui.end_row();
+
+            ui.collapsing("Phase Currents", |ui| {
+                ui.label(
+                    RichText::new(format!("{:>+0.3} A", self.status.sensor_currents.0)).monospace(),
+                );
+                ui.label(
+                    RichText::new(format!("{:>+0.3} A", self.status.sensor_currents.1)).monospace(),
+                );
+            });
+            ui.end_row();
+
+            // TEST
+            self.status.angle_offset = -0.28;
+
+            // calculate current torque
+            let kv = 140.;
+            let phase_resistance = 9.2; // ohms
+
+            let torque_constant = 8.27 / kv; // Nm/A
+
+            let a = self.status.sensor_currents.0;
+            let b = self.status.sensor_currents.1;
+            let c = -(a + b);
+
+            // clarke transform
+            let i_alpha = a;
+            let i_beta = (a + 2.0 * b) / (3.0f32).sqrt();
+
+            let current_magnitude = (i_alpha.powi(2) + i_beta.powi(2)).sqrt();
+
+            let torque = torque_constant * current_magnitude;
+
+            // let quadrature_current = iq = -i_alpha *
+
+            ui.label(RichText::new("Torque").monospace());
+            ui.label(RichText::new(format!("{:>+0.4} Nm", torque)).monospace());
+
+            ui.end_row();
+
+            //
         });
     }
 
@@ -258,28 +347,18 @@ impl App {
             ) {
             } else if resp.changed() {
                 send_target = Some(self.status.target_voltage);
-            } else if resp.hovered() {
-                let delta = ui.input(|i| {
-                    i.events.iter().find_map(|e| match e {
-                        egui::Event::MouseWheel {
-                            unit: _,
-                            delta,
-                            modifiers,
-                        } => Some(*delta),
-                        _ => None,
-                    })
-                });
-                if let Some(delta) = delta {
-                    if delta.y > 0. && self.status.target_voltage < self.status.vel_pid_limit {
-                        self.status.target_voltage += 0.5;
-                        send_target = Some(self.status.target_voltage);
-                    } else if delta.y < 0.
-                        && self.status.target_voltage > -self.status.vel_pid_limit
-                    {
-                        self.status.target_voltage -= 0.5;
-                        send_target = Some(self.status.target_voltage);
-                    }
-                }
+            }
+
+            if let Some(tgt) = make_scrollable(
+                ui,
+                resp,
+                0.5,
+                (0.1, 1.0),
+                &mut self.status.target_voltage,
+                -self.status.vel_pid_limit,
+                self.status.vel_pid_limit,
+            ) {
+                send_target = Some(tgt);
             }
 
             if let Some(tgt) = send_target {
@@ -290,11 +369,11 @@ impl App {
                 self.send_command(cmd);
             }
 
-            if ui.button("Reset Target").clicked() {
-                self.status.target_voltage = 0.0;
-                let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
-                self.send_command(cmd);
-            }
+            // if ui.button("Reset Target").clicked() {
+            //     self.status.target_voltage = 0.0;
+            //     let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
+            //     self.send_command(cmd);
+            // }
         });
 
         ui.horizontal(|ui| {
@@ -314,48 +393,35 @@ impl App {
             ) {
             } else if resp.changed() {
                 send_target = Some(self.status.target_pos);
-            } else if resp.hovered() {
-                let delta = ui.input(|i| {
-                    if i.modifiers.shift {
-                        inc = 1.0;
-                    } else if i.modifiers.ctrl {
-                        inc = 0.1;
-                    }
+            }
 
-                    i.events.iter().find_map(|e| match e {
-                        egui::Event::MouseWheel {
-                            unit: _,
-                            delta,
-                            modifiers,
-                        } => Some(*delta),
-                        _ => None,
-                    })
-                });
-
-                if let Some(delta) = delta {
-                    if delta.y > 0. && self.status.target_pos < 10. {
-                        self.status.target_pos += inc;
-                        send_target = Some(self.status.target_pos);
-                    } else if delta.y < 0. && self.status.target_pos > -10. {
-                        self.status.target_pos -= inc;
-                        send_target = Some(self.status.target_pos);
-                    }
-                }
+            if let Some(tgt) = self::scrollable::make_scrollable(
+                ui,
+                resp,
+                // 0.5,
+                // (0.1, 1.0),
+                3.14 / 4.,
+                (3.14 / 8., 3.14 / 2.),
+                &mut self.status.target_pos,
+                -10.,
+                10.,
+            ) {
+                send_target = Some(tgt);
             }
 
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetMotorTarget {
                     id: 0,
-                    target: self.status.target_pos as f32,
+                    target: self.status.target_pos as f32 - self.status.angle_offset as f32,
                 };
                 self.send_command(cmd);
             }
 
-            if ui.button("Reset Target").clicked() {
-                self.status.target_pos = 0.0;
-                let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
-                self.send_command(cmd);
-            }
+            // if ui.button("Reset Target").clicked() {
+            //     self.status.target_pos = 0.0;
+            //     let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
+            //     self.send_command(cmd);
+            // }
 
             // if ui.button("Zero Position").clicked() {
             //     let cmd = SerialCommand::SetSensorOffset {
@@ -387,32 +453,18 @@ impl App {
             )) {
             } else if resp.changed() {
                 send_target = Some(self.status.target_vel);
-            } else if resp.hovered() {
-                let delta = ui.input(|i| {
-                    i.events.iter().find_map(|e| match e {
-                        egui::Event::MouseWheel {
-                            unit: _,
-                            delta,
-                            modifiers,
-                        } => Some(*delta),
-                        _ => None,
-                    })
-                });
-                if let Some(delta) = delta {
-                    if delta.y > 0. && self.status.target_vel < self.status.vel_pid_limit {
-                        // self.target_vel += 1.0;
-                        // self.status.target_vel += 3.14 / 2.;
-                        self.status.target_vel += 3.14 * 2.;
-                        // send_target = Some(self.target_vel * self.gear_ratio);
-                        send_target = Some(self.status.target_vel);
-                    } else if delta.y < 0. && self.status.target_vel > -self.status.vel_pid_limit {
-                        // self.target_vel -= 1.0;
-                        // self.status.target_vel -= 3.14 / 2.;
-                        self.status.target_vel -= 3.14 * 2.;
-                        // send_target = Some(self.target_vel * self.gear_ratio);
-                        send_target = Some(self.status.target_vel);
-                    }
-                }
+            }
+
+            if let Some(tgt) = make_scrollable(
+                ui,
+                resp,
+                3.14 / 2.,
+                (3.14 / 4., 3.14),
+                &mut self.status.target_vel,
+                -self.status.vel_pid_limit,
+                self.status.vel_pid_limit,
+            ) {
+                send_target = Some(tgt);
             }
 
             if let Some(tgt) = send_target {
@@ -423,11 +475,11 @@ impl App {
                 self.send_command(cmd);
             }
 
-            if ui.button("Reset Target").clicked() {
-                self.status.target_vel = 0.0;
-                let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
-                self.send_command(cmd);
-            }
+            // if ui.button("Reset Target").clicked() {
+            //     self.status.target_vel = 0.0;
+            //     let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
+            //     self.send_command(cmd);
+            // }
         });
 
         ui.horizontal(|ui| {
@@ -437,8 +489,25 @@ impl App {
                 &mut self.status.feed_forward,
                 -10.0..=10.0,
             ));
+            let mut send_target = None;
 
             if resp.changed() {
+                send_target = Some(self.status.feed_forward);
+            }
+
+            if let Some(tgt) = make_scrollable(
+                ui,
+                resp,
+                0.1,
+                (0.05, 0.25),
+                &mut self.status.feed_forward,
+                -self.status.vel_pid_limit,
+                self.status.vel_pid_limit,
+            ) {
+                send_target = Some(tgt);
+            }
+
+            if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetFeedForward {
                     id: 0,
                     ff: self.status.feed_forward as f32,
@@ -446,6 +515,82 @@ impl App {
                 self.send_command(cmd);
             }
         });
+
+        ui.horizontal(|ui| {
+            let ball_bearing_mass = 3.528; // g
+
+            ui.label("Arm torque (3.528 g * dm, 90 deg):");
+
+            let resp = ui.add(egui::Slider::new(
+                &mut self.status.feed_forward,
+                -10.0..=10.0,
+            ));
+            let mut send_target = None;
+
+            if resp.changed() {
+                send_target = Some(self.status.feed_forward);
+            }
+
+            if let Some(tgt) = make_scrollable(
+                ui,
+                resp,
+                0.1,
+                (0.05, 0.25),
+                &mut self.status.feed_forward,
+                -self.status.vel_pid_limit,
+                self.status.vel_pid_limit,
+            ) {
+                send_target = Some(tgt);
+            }
+
+            if let Some(tgt) = send_target {
+                let cmd = SerialCommand::SetFeedForward {
+                    id: 0,
+                    ff: self.status.feed_forward as f32,
+                };
+                self.send_command(cmd);
+            }
+        });
+
+        ui.horizontal(|ui| {
+            let size = Vec2::splat(16.0);
+            let (response, painter) = ui.allocate_painter(size, Sense::hover());
+
+            let rect = response.rect;
+            let c = rect.center();
+            let r = rect.width() / 2.0 - 1.0;
+            let color = Color32::from_gray(128);
+            let stroke = Stroke::new(1.0, color);
+            painter.circle_stroke(c, r, stroke);
+
+            // draw line from center to edge based on angle
+            let angle = self.status.pos as f32 + self.status.angle_offset as f32;
+            let end_pos = egui::pos2(c.x + r * angle.sin(), c.y - r * angle.cos());
+
+            painter.line_segment([c, end_pos], stroke);
+
+            let prev_offset = self.status.angle_offset;
+
+            ui.label("Angle Offset");
+            let resp = ui.add(egui::Slider::new(
+                &mut self.status.angle_offset,
+                -10.0..=10.0,
+            ));
+
+            if let Some(tgt) = make_scrollable(
+                ui,
+                resp,
+                3.14 / 2.,
+                (3.14 / 16., 3.14),
+                &mut self.status.angle_offset,
+                -10.,
+                10.,
+            ) {
+                self.status.target_pos = self.status.target_pos + (tgt - prev_offset);
+            }
+        });
+
+        //
     }
 
     fn col_2(&mut self, ui: &mut egui::Ui) {

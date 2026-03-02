@@ -42,7 +42,9 @@ pub struct DataPlot {
 
     pub draw_current: bool,
     #[serde(skip)]
-    current: VecDeque<(f64, f64)>,
+    current_d: VecDeque<(f64, f64)>,
+    #[serde(skip)]
+    current_q: VecDeque<(f64, f64)>,
 
     // scale_angle: f64,
     scale_vel: f64,
@@ -65,7 +67,8 @@ impl Default for DataPlot {
             draw_voltage: false,
             voltage: VecDeque::new(),
             draw_current: false,
-            current: VecDeque::new(),
+            current_d: VecDeque::new(),
+            current_q: VecDeque::new(),
 
             // scale_angle: std::f64::consts::PI * 2.,
             // scale_vel: 0.05,
@@ -134,8 +137,9 @@ impl DataPlot {
         self.prev_time = t;
     }
 
-    pub fn add_point_current(&mut self, t: f64, current: f64) {
-        self.current.push_back((t, current as f64));
+    pub fn add_point_current(&mut self, t: f64, current_d: f64, current_q: f64) {
+        self.current_d.push_back((t, current_d as f64));
+        self.current_q.push_back((t, current_q as f64));
         self.prev_time = t;
     }
 
@@ -180,9 +184,17 @@ impl DataPlot {
             }
         }
 
-        while let Some((t2, _)) = self.current.front() {
+        while let Some((t2, _)) = self.current_d.front() {
             if *t2 < current_time - self.window_time {
-                self.current.pop_front();
+                self.current_d.pop_front();
+            } else {
+                break;
+            }
+        }
+
+        while let Some((t2, _)) = self.current_q.front() {
+            if *t2 < current_time - self.window_time {
+                self.current_q.pop_front();
             } else {
                 break;
             }
@@ -204,6 +216,10 @@ impl DataPlot {
         self.vel.clear();
         self.target_pos.clear();
         self.target_vel.clear();
+        self.voltage.clear();
+        self.current_d.clear();
+        self.current_q.clear();
+
         self.prev_time = 0.;
 
         self.vel_bounds = (-6.28, 6.28);
@@ -303,14 +319,38 @@ impl DataPlot {
         }
 
         if self.draw_current {
+            // chart
+            //     .draw_series(LineSeries::new(
+            //         self.current.iter().map(|(t, current)| (*t, *current / 2.)),
+            //         &CYAN,
+            //     ))
+            //     .unwrap()
+            //     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &CYAN))
+            //     .label("Current");
+
+            let current_scale = 10.0;
+
             chart
                 .draw_series(LineSeries::new(
-                    self.current.iter().map(|(t, current)| (*t, *current / 2.)),
+                    self.current_d
+                        .iter()
+                        .map(|(t, current)| (*t, *current * current_scale)),
                     &CYAN,
                 ))
                 .unwrap()
                 .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &CYAN))
-                .label("Current");
+                .label("Current Id");
+
+            chart
+                .draw_series(LineSeries::new(
+                    self.current_q
+                        .iter()
+                        .map(|(t, current)| (*t, *current * current_scale)),
+                    &YELLOW,
+                ))
+                .unwrap()
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &YELLOW))
+                .label("Current Iq");
         }
 
         // chart

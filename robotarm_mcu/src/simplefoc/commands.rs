@@ -1,9 +1,12 @@
 use defmt::{debug, error};
 use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlType};
 
-use crate::{hardware::encoder_sensor::EncoderSensor, simplefoc::foc_types::SimpleFOC};
+use crate::{
+    hardware::{current_sensor::CurrentSensor, encoder_sensor::EncoderSensor},
+    simplefoc::foc_types::SimpleFOC,
+};
 
-impl<'a, SENSOR: EncoderSensor> SimpleFOC<'a, SENSOR> {
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     // #[cfg(feature = "nope")]
     pub async fn run_commands(&mut self) {
         let mut cmds = heapless::Vec::<SerialCommand, 4>::new();

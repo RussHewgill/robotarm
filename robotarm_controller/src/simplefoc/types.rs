@@ -19,9 +19,14 @@ pub struct FocStatus {
     pub current: f32,
     pub voltage: (f32, f32),
 
+    pub sensor_currents: (f32, f32),
+    pub current_iq: f32,
+
     pub pos: f64,
     pub angle: f64,
     pub vel: f64,
+
+    pub angle_offset: f64,
 
     pub vel_pid_p: f32,
     pub vel_pid_i: f32,

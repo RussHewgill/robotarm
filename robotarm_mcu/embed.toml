@@ -6,8 +6,9 @@ chip = "RP235x"
 enabled = true
 # show_timestamps = true
 up_channels = [
-    { channel = 0, mode = "BlockIfFull", format = "Defmt" },
-    { channel = 1, mode = "BlockIfFull", format = "String", socket = "127.0.0.1:12345" },
+    { channel = 0, mode = "BlockIfFull", format = "Defmt", log_format = "[{L}] {f}:{l}{s}" },
+    # { channel = 0, mode = "BlockIfFull", format = "Defmt" },
+    # { channel = 1, mode = "BlockIfFull", format = "String", socket = "127.0.0.1:12345" },
 ]
 
 [default.gdb]
