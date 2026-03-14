@@ -35,9 +35,7 @@ pub struct DQCurrents {
 #[derive(defmt::Format, Clone, Copy)]
 pub enum PhaseCurrents {
     Three { a: f32, b: f32, c: f32 },
-    TwoAB { a: f32, b: f32 },
-    TwoBC { b: f32, c: f32 },
-    TwoAC { a: f32, c: f32 },
+    Two { a: f32, b: f32 },
 }
 
 #[derive(defmt::Format, Default, Clone, Copy)]

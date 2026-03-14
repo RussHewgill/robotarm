@@ -41,12 +41,6 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             // read_current = true;
         }
 
-        // // MARK: DEBUG CURRENT
-        // let electrical_angle = self.get_electrical_angle();
-        // if let Some(current_sensor) = &mut self.current_sensor {
-        //     let _ = current_sensor.get_foc_currents(electrical_angle).await;
-        // }
-
         if matches!(self.motion_control, MotionControlType::VelocityOpenLoop) {
             return;
         }
@@ -70,6 +64,16 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
 
             if read_current {
+                // match current_sensor.get_phase_currents().await {
+                //     Ok(currents) => {
+                //         // self.motor.current = currents;
+                //         // debug!("Phase currents: {:?}", currents);
+                //     }
+                //     Err(e) => {
+                //         error!("Error reading current");
+                //     }
+                // }
+
                 match current_sensor.get_foc_currents(electrical_angle).await {
                     Ok(currents) => {
                         // self.motor.current = currents;
@@ -90,8 +94,34 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 unimplemented!()
             }
             TorqueControlType::FOCCurrent => {
-                if let Some(current_sensor) = &mut self.current_sensor {}
-                // error!("TODO: implement FOC current control");
+                let Some(current_sensor) = &mut self.current_sensor else {
+                    error!("FOC current control requires a current sensor");
+                    unimplemented!()
+                };
+
+                // let Some(current) = current_sensor.prev_foc_currents() else {
+                //     error!("FOC current control requires a current sensor reading");
+                //     unimplemented!()
+                // };
+
+                if let Some(current) = current_sensor.prev_foc_currents() {
+                    // filter values
+                    self.motor.current.q =
+                        self.lpf_current_q.filter_with_timestamp(current.q, t_us);
+                    self.motor.current.d =
+                        self.lpf_current_d.filter_with_timestamp(current.d, t_us);
+
+                    // calculate the phase voltages
+                    self.motor.voltage.q = self.pid_current_q.update(
+                        self.motor.target_current,
+                        self.motor.current.q,
+                        t_us,
+                    );
+                    self.motor.voltage.d =
+                        self.pid_current_d.update(0., self.motor.current.d, t_us);
+                } else {
+                    error!("FOC current control requires a current sensor reading");
+                }
             }
         }
 
@@ -335,8 +365,6 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 None
             };
 
-            let measured_iq = None;
-
             self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
                 id: self.id,
                 timestamp: t_us,
@@ -348,7 +376,6 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 target_velocity: self.motor.target_shaft_velocity,
                 motor_current: self.motor.current.q,
                 sensor_currents,
-                measured_iq,
                 motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
                 feed_forward: self.feed_forward_torque,
             })

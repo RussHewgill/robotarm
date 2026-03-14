@@ -84,6 +84,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     //     self.encoder.get_position() as f32
     // }
 
+    pub fn set_voltage_limit(&mut self, voltage_limit: f32) {
+        // self.motor.limit_voltage = voltage_limit;
+        warn!("TODO: allow setting voltage");
+    }
+
     pub fn get_position_requested(&self) -> f32 {
         self.motor.target_shaft_angle
     }

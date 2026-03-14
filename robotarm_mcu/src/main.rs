@@ -11,7 +11,6 @@ mod hardware;
 mod init;
 mod simplefoc;
 
-use crate::hardware::encoder_sensor::EncoderSensor;
 use defmt::{debug, error, info, trace, warn};
 use static_cell::StaticCell;
 
@@ -21,6 +20,8 @@ use {defmt_rtt as _, panic_probe as _};
 use embassy_executor::{Spawner, raw};
 use embassy_rp::{bind_interrupts, pwm::SetDutyCycle};
 use embassy_time::{Instant, Ticker, Timer};
+
+use crate::hardware::encoder_sensor::EncoderSensor;
 
 // use crate::simplefoc::SimpleFOC;
 
@@ -644,7 +645,7 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     let mut encoder = {
         let miso = p.PIN_12;
         // let mosi = p.PIN_15;
@@ -653,7 +654,7 @@ async fn main(spawner: Spawner) {
         let cs = p.PIN_13;
 
         let mut config = embassy_rp::spi::Config::default();
-        config.frequency = 4_000_000;
+        config.frequency = 1_000_000;
         config.polarity = embassy_rp::spi::Polarity::IdleHigh;
         config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
         // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
@@ -671,27 +672,24 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
-    let sda = p.PIN_20;
-    let scl = p.PIN_21;
+    loop {
+        encoder.update(Instant::now().as_micros()).await.unwrap();
+        let angle = encoder.get_angle();
 
-    let mut i2c_config = embassy_rp::i2c::Config::default();
-    // i2c_config.frequency = 400_000;
-    i2c_config.frequency = 1_000_000;
+        // let angle = encoder.read_raw_angle_debug().await.unwrap();
 
-    let mut i2c = embassy_rp::i2c::I2c::new_async(p.I2C0, scl, sda, Irqs, i2c_config);
+        debug!("Angle: {}", angle);
 
-    let address0 = 0b1000000;
-    let address1 = 0b1000001;
-    let mut sensor = crate::hardware::ina226::INA226::new(i2c, address0, address1);
+        Timer::after(embassy_time::Duration::from_millis(100)).await;
+    }
 
-    hardware::current_sensor::CurrentSensor::init(&mut sensor)
-        .await
-        .unwrap();
+    #[cfg(feature = "nope")]
+    for _ in 0..10 {
+        let update_rate_hz = 1_000_000;
+        let mut ticker = Ticker::every(embassy_time::Duration::from_micros(
+            1_000_000 / update_rate_hz,
+        ));
 
-    let c = sensor.configuration0().await.unwrap();
-    debug!("INA226 config: {:#?}", c);
-
-    for _ in 0..5 {
         let mut c = 0;
         let mut sum = 0u64;
 
@@ -702,10 +700,7 @@ async fn main(spawner: Spawner) {
             let t0 = Instant::now();
             // let angle = foc.encoder.read_raw_angle().await.unwrap();
             // let angle = encoder.read_raw_angle().await.unwrap();
-            // let _ = encoder._update(t0.as_micros()).await;
-            hardware::current_sensor::CurrentSensor::get_phase_currents(&mut sensor)
-                .await
-                .unwrap();
+            let _ = encoder._update(t0.as_micros()).await;
 
             let t1 = Instant::now();
             let elapsed = t1 - t0;
@@ -715,29 +710,168 @@ async fn main(spawner: Spawner) {
         }
 
         let avg = sum as f32 / c as f32;
-        info!("Average I2C read time: {} us", avg);
+        info!("Average SSI read time: {} us", avg);
     }
 
     #[cfg(feature = "nope")]
-    loop {
-        let b = sensor.bus_voltage_millivolts0().await.unwrap();
-        debug!("Bus 0 voltage: {} mV", b);
+    {
+        let sda = p.PIN_20;
+        let scl = p.PIN_21;
 
-        let c = sensor.current_amps0().await.unwrap();
-        debug!("Current 0: {} mA", c);
+        let mut i2c_config = embassy_rp::i2c::Config::default();
+        // i2c_config.frequency = 400_000;
+        i2c_config.frequency = 1_000_000;
 
-        let b = sensor.bus_voltage_millivolts1().await.unwrap();
-        debug!("Bus 1 voltage: {} mV", b);
+        let mut i2c = embassy_rp::i2c::I2c::new_async(p.I2C0, scl, sda, Irqs, i2c_config);
 
-        let c = sensor.current_amps1().await.unwrap();
-        debug!("Current 1: {} mA", c);
+        let address0 = 0b1000000;
+        let address1 = 0b1000001;
+        let mut sensor = crate::hardware::ina226::INA226::new(i2c, address0, address1);
 
-        // Timer::after(embassy_time::Duration::from_millis(1000)).await;
+        hardware::current_sensor::CurrentSensor::init(&mut sensor)
+            .await
+            .unwrap();
+
+        let c = sensor.configuration0().await.unwrap();
+        debug!("INA226 config: {:#?}", c);
+
+        for _ in 0..5 {
+            let mut c = 0;
+            let mut sum = 0u64;
+
+            // i2c read frequency test
+            for _ in 0..1_000 {
+                // ticker.next().await;
+
+                let t0 = Instant::now();
+                // let angle = foc.encoder.read_raw_angle().await.unwrap();
+                // let angle = encoder.read_raw_angle().await.unwrap();
+                // let _ = encoder._update(t0.as_micros()).await;
+                hardware::current_sensor::CurrentSensor::get_phase_currents(&mut sensor)
+                    .await
+                    .unwrap();
+
+                let t1 = Instant::now();
+                let elapsed = t1 - t0;
+                sum += elapsed.as_micros() as u64;
+
+                c += 1;
+            }
+
+            let avg = sum as f32 / c as f32;
+            info!("Average I2C read time: {} us", avg);
+        }
+
+        #[cfg(feature = "nope")]
+        loop {
+            let b = sensor.bus_voltage_millivolts0().await.unwrap();
+            debug!("Bus 0 voltage: {} mV", b);
+
+            let c = sensor.current_amps0().await.unwrap();
+            debug!("Current 0: {} mA", c);
+
+            let b = sensor.bus_voltage_millivolts1().await.unwrap();
+            debug!("Bus 1 voltage: {} mV", b);
+
+            let c = sensor.current_amps1().await.unwrap();
+            debug!("Current 1: {} mA", c);
+
+            // Timer::after(embassy_time::Duration::from_millis(1000)).await;
+        }
     }
 }
 
+/// ADS1256 test
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    let miso = p.PIN_12;
+    let mosi = p.PIN_15;
+
+    let sck = p.PIN_14;
+    let cs = p.PIN_13;
+
+    let mut config = embassy_rp::spi::Config::default();
+    // config.frequency = 1_000_000;
+    config.frequency = 400_000;
+    config.polarity = embassy_rp::spi::Polarity::IdleLow;
+    config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+    // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
+
+    let mut spi =
+            // embassy_rp::spi::Spi::new_rxonly(p.SPI1, sck, miso, p.DMA_CH2, p.DMA_CH3, config);
+            embassy_rp::spi::Spi::new(p.SPI1, sck, mosi, miso, p.DMA_CH2, p.DMA_CH3, config);
+
+    debug!("SPI initialized");
+
+    let cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
+    let mut reset = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
+    let data_ready_pin = embassy_rp::gpio::Input::new(p.PIN_9, embassy_rp::gpio::Pull::Up);
+
+    let config = crate::hardware::ads1256::Config {
+        gain: crate::hardware::ads1256::PGA::Gain64,
+        sampling_rate: crate::hardware::ads1256::SamplingRate::Sps10,
+    };
+
+    let mut sensor = crate::hardware::ads1256::ADS1256::new(spi, cs, reset, data_ready_pin, config);
+
+    // sensor.test_init().await.unwrap();
+    sensor.init().await.unwrap();
+    debug!("ADS1256 initialized");
+
+    loop {
+        let data = sensor
+            .read_channel(
+                hardware::ads1256::Channel::AIN0,
+                hardware::ads1256::Channel::AIN1,
+            )
+            .await
+            .unwrap();
+        // sensor.test_read().await.unwrap();
+
+        debug!("Read data: {}", data);
+
+        // Timer::after_millis(1000).await;
+
+        // debug!("Setting low");
+        // reset.set_low();
+        // Timer::after_millis(1).await;
+        // debug!("Setting high");
+        // reset.set_high();
+        // Timer::after_millis(1).await;
+    }
+
+    //
+}
+
+/// INA240 test
 // #[cfg(feature = "nope")]
-#[cortex_m_rt::entry]
+#[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    use embassy_rp::adc::{Adc, Channel, Config, InterruptHandler};
+    use embassy_rp::gpio::Pull;
+
+    let mut adc = Adc::new(p.ADC, Irqs, Config::default());
+    let mut dma = p.DMA_CH0;
+    let mut pin0 = Channel::new_pin(p.PIN_26, Pull::Up);
+    let mut pin1 = Channel::new_pin(p.PIN_27, Pull::Up);
+
+    // Peri<'_, impl dma::Channel>
+    // adc.read_many(&mut pin, &mut buf, div, dma.reborrow()).await.unwrap();
+
+    let mut sensor = crate::hardware::ina240::INA240::new(pin0, pin1, adc, dma);
+
+    // sensor.read_voltage().await.unwrap();
+
+    //
+}
+
+#[cfg(feature = "nope")]
+// #[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
@@ -809,8 +943,8 @@ fn main() -> ! {
     };
 
     // let voltage_limit = 2.0;
-    // let voltage_limit = 4.;
-    let voltage_limit = 6.;
+    let voltage_limit = 2.;
+    // let voltage_limit = 6.;
     // let voltage_limit = 10.;
 
     // #[cfg(feature = "nope")]
@@ -866,25 +1000,23 @@ fn main() -> ! {
         (driver0, driver1)
     };
 
-    // let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
-    //     7, // pole pairs
-    //     // 11.2, // phase resistance (TODO: measure this)
-    //     Some(5.35), // phase resistance (TODO: measure this)
-    //     // Some(260.), // motor kv
-    //     Some(220.), // measured
-    //     // None,
-    //     None,
+    // let motor_config0 = crate::simplefoc::bldc::bldcmotor::new(
+    //     7,         // pole pairs
+    //     some(9.2), // phase resistance
+    //     some(140.), // motor kv
+    //     none,
+    //     none,
     // );
 
     let motor_config0 = crate::simplefoc::bldc::BLDCMotor::new(
-        7,         // pole pairs
-        Some(9.2), // phase resistance
-        // Some(120.), // motor kv
-        Some(140.), // motor kv
-        // None,
+        11,        // pole pairs
+        Some(4.8), // phase resistance
+        Some(61.), // motor kv
+        // Some(0.0026), // phase inductance
         None,
         None,
     );
+
     let motor_config1 = motor_config0.clone();
 
     let usb = comms::usb::UsbLogger::new();
@@ -912,7 +1044,7 @@ fn main() -> ! {
 
     let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
         0,
-        encoder0,
+        encoder1,
         // None::<()>,
         Some(current_sensor),
         pwm_driver0,
@@ -980,9 +1112,9 @@ fn main() -> ! {
 
     let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
     executor0.run(|spawner| {
-        spawner.spawn(crate::init::core0_task0(foc0)).unwrap();
+        // spawner.spawn(crate::init::core0_task0(foc0)).unwrap();
         // spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
-        // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
+        spawner.spawn(crate::init::core0_task1(foc0)).unwrap();
         // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
     });
 }

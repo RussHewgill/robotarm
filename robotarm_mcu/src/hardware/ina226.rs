@@ -1,5 +1,6 @@
-use byteorder::{BigEndian, ByteOrder as _};
 use defmt::{Format, debug, error, info, trace, warn};
+
+use byteorder::{BigEndian, ByteOrder as _};
 
 use crate::hardware::ina226::config::*;
 
@@ -62,7 +63,7 @@ where
 
         // debug!("Current amps: {}", c0);
 
-        let currents = crate::simplefoc::types::PhaseCurrents::TwoAB {
+        let currents = crate::simplefoc::types::PhaseCurrents::Two {
             a: c0 as f32,
             b: c1 as f32,
         };

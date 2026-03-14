@@ -93,7 +93,7 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub(super) zero_electric_angle: f32,
 
     pub(super) motion_control: MotionControlType,
-    pub(super) torque_controller: TorqueControlType,
+    pub torque_controller: TorqueControlType,
 
     pub feed_forward_torque: f32,
 
@@ -112,6 +112,13 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     // pub(super) lpf_velocity: LowPassFilter,
     pub(super) lpf_velocity: LowPassFilter,
     pub(super) lpf_angle: LowPassFilter,
+
+    pub(super) pid_current_q: PIDController,
+    pub(super) pid_current_d: PIDController,
+
+    pub(super) lpf_current_q: LowPassFilter,
+    pub(super) lpf_current_d: LowPassFilter,
+    pub(super) max_current: f32,
 
     pub(super) openloop_shaft_angle: f32,
 }
@@ -172,6 +179,12 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // const ANGLE_LPF_TF: f32 = 0.;
         const ANGLE_LPF_TF: f32 = 0.005;
 
+        const PID_CURR_KP: f32 = 3.0;
+        const PID_CURR_KI: f32 = 300.0;
+        const PID_CURR_KD: f32 = 0.0;
+        const PID_CURR_RAMP: f32 = 0.0;
+        const PID_CURR_LIMIT: f32 = 12.0;
+
         SimpleFOC {
             id,
 
@@ -230,6 +243,25 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
             lpf_velocity: LowPassFilter::new(VEL_LPF_TF),
             lpf_angle: LowPassFilter::new(ANGLE_LPF_TF),
+
+            lpf_current_q: LowPassFilter::new(0.05),
+            lpf_current_d: LowPassFilter::new(0.05),
+
+            pid_current_q: PIDController::new(
+                PID_CURR_KP,
+                PID_CURR_KI,
+                PID_CURR_KD,
+                PID_CURR_RAMP,
+                PID_CURR_LIMIT,
+            ),
+            pid_current_d: PIDController::new(
+                PID_CURR_KP,
+                PID_CURR_KI,
+                PID_CURR_KD,
+                PID_CURR_RAMP,
+                PID_CURR_LIMIT,
+            ),
+            max_current: 2.0,
 
             openloop_shaft_angle: 0.,
         }

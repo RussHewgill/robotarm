@@ -218,8 +218,8 @@ impl App {
             });
             ui.end_row();
 
-            // TEST
-            self.status.angle_offset = -0.28;
+            // // TEST
+            // self.status.angle_offset = -0.28;
 
             // calculate current torque
             let kv = 140.;
@@ -227,24 +227,34 @@ impl App {
 
             let torque_constant = 8.27 / kv; // Nm/A
 
-            let a = self.status.sensor_currents.0;
-            let b = self.status.sensor_currents.1;
-            let c = -(a + b);
+            let (a, b) = self.status.sensor_currents;
 
-            // clarke transform
-            let i_alpha = a;
-            let i_beta = (a + 2.0 * b) / (3.0f32).sqrt();
-
-            let current_magnitude = (i_alpha.powi(2) + i_beta.powi(2)).sqrt();
-
-            let torque = torque_constant * current_magnitude;
+            let current_magnitude = (a.powi(2) + b.powi(2)).sqrt();
+            let torque = torque_constant * current_magnitude; // Nm
 
             // let quadrature_current = iq = -i_alpha *
 
             ui.label(RichText::new("Torque").monospace());
-            ui.label(RichText::new(format!("{:>+0.4} Nm", torque)).monospace());
+            ui.label(RichText::new(format!("{:>+0.4} Ncm", torque * 100.)).monospace());
+            ui.end_row();
+
+            // at -1.57 rad with no load, torque is 0.51 Ncm with a 50mm arm, or 0.102 N
+            // let force = (0.51 / 100.) / 0.05; // N
+            let force = 0.0051 / 0.05; // N
+
+            // find force at current angle
+            let angle =
+                ((self.status.pos + self.status.angle_offset) * self.status.gear_ratio) as f32;
+            let force = force * angle.sin();
+
+            ui.label(RichText::new("Force").monospace());
+            ui.label(RichText::new(format!("{:>+0.4} mN", force * 1000.0)).monospace());
 
             ui.end_row();
+
+            ui.label("Gear Ratio");
+            let resp =
+                ui.add(egui::Slider::new(&mut self.status.gear_ratio, -20.0..=20.0).integer());
 
             //
         });
@@ -400,11 +410,14 @@ impl App {
                 resp,
                 // 0.5,
                 // (0.1, 1.0),
-                3.14 / 4.,
-                (3.14 / 8., 3.14 / 2.),
+                3.14 / 4. * self.status.gear_ratio,
+                (
+                    3.14 / 8. * self.status.gear_ratio,
+                    3.14 / 2. * self.status.gear_ratio,
+                ),
                 &mut self.status.target_pos,
-                -10.,
-                10.,
+                -10. * self.status.gear_ratio,
+                10. * self.status.gear_ratio,
             ) {
                 send_target = Some(tgt);
             }
@@ -412,7 +425,10 @@ impl App {
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetMotorTarget {
                     id: 0,
-                    target: self.status.target_pos as f32 - self.status.angle_offset as f32,
+
+                    // target: ((self.status.target_pos + self.status.angle_offset)
+                    //     * self.status.gear_ratio) as f32,
+                    target: (self.status.target_pos + self.status.angle_offset) as f32,
                 };
                 self.send_command(cmd);
             }
@@ -564,7 +580,9 @@ impl App {
             painter.circle_stroke(c, r, stroke);
 
             // draw line from center to edge based on angle
-            let angle = self.status.pos as f32 + self.status.angle_offset as f32;
+            // let angle = self.status.pos as f32 + self.status.angle_offset as f32;
+            let angle =
+                ((self.status.pos + self.status.angle_offset) * self.status.gear_ratio) as f32;
             let end_pos = egui::pos2(c.x + r * angle.sin(), c.y - r * angle.cos());
 
             painter.line_segment([c, end_pos], stroke);

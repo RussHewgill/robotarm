@@ -69,7 +69,6 @@ impl App {
                         motor_current,
                         motor_voltage,
                         sensor_currents,
-                        measured_iq,
                         feed_forward,
                     } => {
                         // debug!("Got motor data {:#?}", msg);
@@ -110,7 +109,6 @@ impl App {
 
                                 if let Some((a, b)) = sensor_currents {
                                     self.status.sensor_currents = (a, b);
-                                    self.status.current_iq = measured_iq.unwrap_or(0.);
                                 }
 
                                 // {

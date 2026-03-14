@@ -37,6 +37,9 @@ pub async fn core0_task1(
         crate::hardware::mt_6701_ssi::MT6701<
             embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
         >,
+        INA226<
+            embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+        >,
     >,
 ) {
     core0_task(foc).await;
@@ -153,6 +156,11 @@ pub async fn core0_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     foc.current_sensor_downsample = 10;
 
+    // foc.angle_sensor_downsample = 1;
+    // foc.current_sensor_downsample = 1;
+
+    // foc.torque_controller = crate::simplefoc::types::TorqueControlType::FOCCurrent;
+
     // #[cfg(feature = "nope")]
     loop {
         // embassy_futures::yield_now().await;
@@ -175,7 +183,7 @@ pub async fn core0_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
             );
             t0 = t1;
             c = 0;
-            max_time = t1 + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
+            max_time = t1 + embassy_time::Duration::from_millis((time_limit * 5000.) as u64);
         } else {
             c += 1;
         }

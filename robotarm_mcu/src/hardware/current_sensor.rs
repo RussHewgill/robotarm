@@ -19,10 +19,34 @@ pub trait CurrentSensor {
 
     async fn get_foc_currents(&mut self, electrical_angle: f32) -> Result<DQCurrents, Self::Error> {
         let currents = self.get_phase_currents().await?;
+
         let ab_currents = self.get_ab_currents(currents).await;
+
         let dq_currents = self.get_dq_currents(ab_currents, electrical_angle).await;
+
         self.set_prev_foc_currents(dq_currents);
         Ok(dq_currents)
+    }
+
+    async fn get_dc_current(&mut self, electrical_angle: f32) -> Result<f32, Self::Error> {
+        let currents = self.get_phase_currents().await?;
+
+        let ab_currents = self.get_ab_currents(currents).await;
+
+        let st = libm::sinf(electrical_angle);
+        let ct = libm::cosf(electrical_angle);
+
+        // (ABcurrent.beta*ct - ABcurrent.alpha*st) > 0 ? 1 : -1;
+        let sign = if ab_currents.beta * ct - ab_currents.alpha * st > 0.0 {
+            1.0
+        } else {
+            -1.0
+        };
+
+        Ok(sign
+            * libm::sqrtf(
+                ab_currents.alpha * ab_currents.alpha + ab_currents.beta * ab_currents.beta,
+            ))
     }
 
     async fn get_phase_currents(&mut self) -> Result<PhaseCurrents, Self::Error>;
@@ -37,35 +61,11 @@ pub trait CurrentSensor {
             PhaseCurrents::Three { a, b, c } => {
                 unimplemented!()
             }
-            PhaseCurrents::TwoAB { a, b } => {
+            PhaseCurrents::Two { a, b } => {
                 alpha = a;
                 beta = _1_SQRT3 * a + _2_SQRT3 * b;
             }
-            _ => unimplemented!(),
         }
-
-        //         if(!current.c){
-        //     // if only two measured currents
-        //     i_alpha = current.a;
-        //     i_beta = _1_SQRT3 * current.a + _2_SQRT3 * current.b;
-        // }else if(!current.a){
-        //     // if only two measured currents
-        //     float a = -current.c - current.b;
-        //     i_alpha = a;
-        //     i_beta = _1_SQRT3 * a + _2_SQRT3 * current.b;
-        // }else if(!current.b){
-        //     // if only two measured currents
-        //     float b = -current.a - current.c;
-        //     i_alpha = current.a;
-        //     i_beta = _1_SQRT3 * current.a + _2_SQRT3 * b;
-        // } else {
-        //     // signal filtering using identity a + b + c = 0. Assumes measurement error is normally distributed.
-        //     float mid = (1.f/3) * (current.a + current.b + current.c);
-        //     float a = current.a - mid;
-        //     float b = current.b - mid;
-        //     i_alpha = a;
-        //     i_beta = _1_SQRT3 * a + _2_SQRT3 * b;
-        // }
 
         ABCurrents { alpha, beta }
     }

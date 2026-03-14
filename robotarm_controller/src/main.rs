@@ -12,9 +12,10 @@ mod simplefoc;
 mod ui;
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
+use tracing::{debug, error, info, trace, warn};
+
 use bytes::Buf as _;
 use postcard::{accumulator::FeedResult, experimental::max_size::MaxSize};
-use tracing::{debug, error, info, trace, warn};
 
 use serialport::SerialPort as _;
 

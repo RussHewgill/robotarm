@@ -1,17 +1,17 @@
-pub mod codec;
-
-use std::time::Duration;
+// pub mod codec;
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use bytes::{Buf as _, BufMut, BytesMut};
-use postcard::accumulator::FeedResult;
 use tracing::{debug, error, info, trace, warn};
 
-use futures::{SinkExt as _, StreamExt};
-use tokio_serial::{SerialPort as _, SerialStream};
-use tokio_util::codec::Decoder as _;
+use bytes::{Buf as _, BufMut, BytesMut};
+use postcard::accumulator::FeedResult;
+use std::time::Duration;
 
-use crate::serial::codec::SerialCodec;
+// use futures::{SinkExt as _, StreamExt};
+// use tokio_serial::{SerialPort as _, SerialStream};
+// use tokio_util::codec::Decoder as _;
+
+// use crate::serial::codec::SerialCodec;
 use robotarm_protocol::{SerialCommand, SerialLogMessage};
 
 pub struct SerialHandler {
@@ -291,32 +291,6 @@ impl SerialHandler {
             }
 
             //
-        }
-
-        #[cfg(feature = "nope")]
-        loop {
-            while let Ok(ct) = port.read(&mut raw_buf) {
-                // Finished reading input
-                if ct == 0 {
-                    break;
-                }
-
-                let buf = &raw_buf[..ct];
-                let mut window = &buf[..];
-
-                'cobs: while !window.is_empty() {
-                    window = match cobs_buf.feed::<SerialLogMessage>(&window) {
-                        FeedResult::Consumed => break 'cobs,
-                        FeedResult::OverFull(new_wind) => new_wind,
-                        FeedResult::DeserError(new_wind) => new_wind,
-                        FeedResult::Success { data, remaining } => {
-                            debug!("Received message: {:?}", data);
-
-                            remaining
-                        }
-                    };
-                }
-            }
         }
     }
 
