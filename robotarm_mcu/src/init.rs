@@ -7,7 +7,10 @@ use static_cell::StaticCell;
 use crate::{
     Irqs,
     comms::usb::UsbLogger,
-    hardware::{current_sensor::CurrentSensor, encoder_sensor::EncoderSensor, ina226::INA226},
+    hardware::{
+        current_sensor::CurrentSensor, encoder_sensor::EncoderSensor, ina226::INA226,
+        ina240::INA240,
+    },
 };
 
 pub static mut CORE1_STACK: embassy_rp::multicore::Stack<4096> =
@@ -37,9 +40,13 @@ pub async fn core0_task1(
         crate::hardware::mt_6701_ssi::MT6701<
             embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
         >,
-        INA226<
-            embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
-        >,
+        // INA226<
+        //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+        // >,
+        // INA240<embassy_rp::peripherals::DMA_CH0>,
+    >,
+    mut output_encoder: crate::hardware::mt_6701::MT6701<
+        embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
     >,
 ) {
     core0_task(foc).await;
@@ -150,7 +157,7 @@ pub async fn core0_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.angle_sensor_downsample = 0;
     // foc.angle_sensor_downsample = 1;
-    foc.angle_sensor_downsample = 2;
+    // foc.angle_sensor_downsample = 2;
     // foc.angle_sensor_downsample = 5;
     // foc.angle_sensor_downsample = 8;
 
@@ -171,7 +178,7 @@ pub async fn core0_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         foc.update_foc().await;
 
         let t1 = Instant::now();
-        // #[cfg(feature = "nope")]
+        #[cfg(feature = "nope")]
         if t1 > max_time {
             let elapsed = t1 - t0;
             let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);

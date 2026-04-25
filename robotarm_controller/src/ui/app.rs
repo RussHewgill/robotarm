@@ -74,7 +74,7 @@ impl App {
         out.last_update = Some(Instant::now());
         out.update_interval = Duration::from_millis(500);
 
-        out.status.gear_ratio = 8.;
+        out.status.gear_ratio = 30.;
 
         out
     }

@@ -107,6 +107,7 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub pid_angle: PIDController,
 
     pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
+    // pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning_vel::VelocityAutoTuner>,
     pub(super) pid_angle_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
 
     // pub(super) lpf_velocity: LowPassFilter,
@@ -148,13 +149,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         const PID_VELOCITY_KP: f32 = 0.1;
         const PID_VELOCITY_KI: f32 = 0.0;
-        // const PID_VELOCITY_KD: f32 = 0.0;
-
         const PID_VELOCITY_KD: f32 = 0.0005;
 
-        // const PID_VELOCITY_KP: f32 = 0.08;
-        // const PID_VELOCITY_KI: f32 = 0.0;
-        // const PID_VELOCITY_KD: f32 = 0.00015;
+        // const PID_VELOCITY_KP: f32 = 3.4;
+        // const PID_VELOCITY_KI: f32 = 99.;
+        // const PID_VELOCITY_KD: f32 = 0.;
 
         // const PID_VELOCITY_KP: f32 = 0.5;
         // const PID_VELOCITY_KI: f32 = 10.0;

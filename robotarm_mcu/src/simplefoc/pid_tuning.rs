@@ -40,7 +40,7 @@ impl PidTuner {
             hysteresis: 1.0,
             output_low,
             output_high,
-            cycles_requested: 100,
+            cycles_requested: 10,
             cycle_count: 0,
             // timeout_ms: 30_000,
             output_state: true,
@@ -90,9 +90,13 @@ impl PidTuner {
             if a > 0. {
                 let ku = (4.0 * d) / (core::f32::consts::PI * a);
 
-                let kp_c = 0.6;
-                let ti_c = 0.5;
-                let td_c = 0.125;
+                // let kp_c = 0.6;
+                // let ti_c = 0.5;
+                // let td_c = 0.125;
+
+                let kp_c = 0.05; // Very soft proportional gain
+                let ti_c = 1.0; // Relaxed integral time
+                let td_c = 0.0; // Disable derivative action to stop high-frequency vibrations
 
                 // // Tuning rules
                 // if (_mode == PESSEN_INTEGRAL_RULE)

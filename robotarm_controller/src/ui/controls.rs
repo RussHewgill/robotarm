@@ -13,14 +13,16 @@ mod pid_settings {
 
     use robotarm_protocol::SerialCommand;
 
-    pub(super) fn pid_control(
+    pub(super) fn pid_control<F>(
         ui: &mut egui::Ui,
         label: &str,
-        value: &mut f32,
+        value: &mut F,
         // tx: &tokio::sync::mpsc::Sender<SerialCommand>,
         tx: &crossbeam_channel::Sender<SerialCommand>,
-        cmd_fn: impl Fn(f32) -> SerialCommand,
-    ) {
+        cmd_fn: impl Fn(F) -> SerialCommand,
+    ) where
+        F: egui::emath::Numeric + Copy,
+    {
         ui.label(label);
 
         let resp = ui.add(egui::DragValue::new(value).fixed_decimals(5));
@@ -41,7 +43,7 @@ mod pid_settings {
         }
 
         if zero_resp.clicked() {
-            *value = 0.0;
+            *value = F::from_f64(0.0);
             let cmd = cmd_fn(*value);
             if let Err(e) = tx.try_send(cmd) {
                 error!("Failed to send command: {}", e);
@@ -87,6 +89,17 @@ mod pid_settings {
             id: 0,
             lpf_vel: Some(lpf),
             lpf_angle: None,
+        }
+    }
+
+    pub(super) fn set_vel_limit(limit: f64) -> SerialCommand {
+        SerialCommand::SetVelocityPID {
+            id: 0,
+            p: None,
+            i: None,
+            d: None,
+            ramp: None,
+            limit: Some(limit as f32),
         }
     }
 }
@@ -253,8 +266,9 @@ impl App {
             ui.end_row();
 
             ui.label("Gear Ratio");
+            ui.end_row();
             let resp =
-                ui.add(egui::Slider::new(&mut self.status.gear_ratio, -20.0..=20.0).integer());
+                ui.add(egui::Slider::new(&mut self.status.gear_ratio, -20.0..=30.0).integer());
 
             //
         });
@@ -646,6 +660,15 @@ impl App {
                 &mut self.status.lpf_vel,
                 &self.serial_cmd_tx.as_ref().unwrap(),
                 self::pid_settings::set_vel_lpf,
+            );
+            ui.end_row();
+
+            self::pid_settings::pid_control(
+                ui,
+                "Velocity Limit",
+                &mut self.status.vel_pid_limit,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                self::pid_settings::set_vel_limit,
             );
             ui.end_row();
         });

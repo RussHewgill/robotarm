@@ -13,3 +13,25 @@ pub trait EncoderSensor {
 
     fn reset_position(&mut self);
 }
+
+// impl EncoderSensor for () {
+//     type Error = ();
+
+//     async fn update(&mut self, _ts_us: u64) -> Result<(), Self::Error> {
+//         Ok(())
+//     }
+
+//     fn get_mechanical_angle(&self) -> f32 {
+//         unimplemented!()
+//     }
+
+//     fn get_angle(&self) -> f32 {
+//         unimplemented!()
+//     }
+
+//     fn get_velocity(&mut self) -> f32 {
+//         unimplemented!()
+//     }
+
+//     fn reset_position(&mut self) {}
+// }

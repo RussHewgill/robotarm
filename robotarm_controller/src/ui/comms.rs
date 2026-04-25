@@ -57,6 +57,14 @@ impl App {
                         self.status.lpf_angle = lpf_angle;
                         self.status.lpf_vel = lpf_vel;
                     }
+                    SerialLogMessage::EncoderData {
+                        id,
+                        timestamp,
+                        position,
+                        velocity,
+                    } => {
+                        debug!("TODO: Got encoder data {:#?}", id);
+                    }
                     SerialLogMessage::MotorData {
                         id,
                         timestamp,

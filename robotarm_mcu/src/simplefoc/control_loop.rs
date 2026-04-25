@@ -41,13 +41,6 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             // read_current = true;
         }
 
-        if matches!(self.motion_control, MotionControlType::VelocityOpenLoop) {
-            return;
-        }
-        if !self.enabled {
-            return;
-        }
-
         let electrical_angle = self.get_electrical_angle();
 
         if let Some(current_sensor) = &mut self.current_sensor {
@@ -83,6 +76,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     }
                 }
             }
+        }
+
+        if matches!(self.motion_control, MotionControlType::VelocityOpenLoop) {
+            return;
+        }
+        if !self.enabled {
+            return;
         }
 
         match self.torque_controller {
@@ -385,5 +385,42 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         self.debug = false;
 
         //
+    }
+}
+
+#[cfg(feature = "nope")]
+/// PID tuning
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
+    pub async fn pid_tuning_loop(
+        &mut self,
+        tuner: &mut crate::simplefoc::pid_tuning_vel::VelocityAutoTuner,
+    ) -> bool {
+        let t_us = Instant::now().as_micros();
+
+        let _ = self.encoder.update(t_us).await;
+
+        let electrical_angle = self.get_electrical_angle();
+
+        let shaft_velocity = self.get_shaft_velocity(t_us);
+
+        let (q, d) = tuner.update(t_us, shaft_velocity);
+
+        match tuner.state {
+            crate::simplefoc::pid_tuning_vel::AutoTuneState::Done => {
+                self.set_phase_voltage(0., 0., electrical_angle);
+
+                debug!("PID tuning done! Kp: {}, Ki: {}", tuner.kp, tuner.ki);
+
+                return true;
+            }
+            _ => {}
+        }
+
+        self.motor.voltage.q = q;
+        self.motor.voltage.d = d;
+
+        self.set_phase_voltage(self.motor.voltage.q, self.motor.voltage.d, electrical_angle);
+
+        false
     }
 }

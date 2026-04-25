@@ -25,6 +25,12 @@ pub enum SerialLogMessage {
         motor_voltage: (f32, f32),
         feed_forward: f32,
     },
+    EncoderData {
+        id: u8,
+        timestamp: u64,
+        position: f32,
+        velocity: Option<f32>,
+    },
     MotorPID {
         id: u8,
         vel_p: f32,

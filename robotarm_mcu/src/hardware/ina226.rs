@@ -53,6 +53,7 @@ where
         else {
             return Err(INA226Error::I2CReadError);
         };
+
         let Some(c1) = self
             .current_amps1()
             .await
@@ -60,8 +61,6 @@ where
         else {
             return Err(INA226Error::I2CReadError);
         };
-
-        // debug!("Current amps: {}", c0);
 
         let currents = crate::simplefoc::types::PhaseCurrents::Two {
             a: c0 as f32,

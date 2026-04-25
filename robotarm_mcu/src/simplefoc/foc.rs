@@ -247,7 +247,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
             // self.motor.voltage_sensor_align = 0.5;
             // self.motor.voltage_sensor_align = 1.0;
-            self.motor.voltage_sensor_align = 2.0;
+            // self.motor.voltage_sensor_align = 2.0;
+            self.motor.voltage_sensor_align = 4.0;
 
             // not sure why this is needed
             self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
