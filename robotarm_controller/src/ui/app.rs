@@ -31,10 +31,15 @@ pub struct App {
 
     pub update_interval: Duration,
     #[serde(skip)]
-    pub(super) last_update: Option<Instant>,
+    pub(super) last_update: Vec<Option<Instant>>,
     // pub motion_control:
+    // #[serde(skip)]
+    // pub current_foc_motor: u8,
+
+    // #[serde(skip)]
+    // pub status: FocStatus,
     #[serde(skip)]
-    pub status: FocStatus,
+    pub status: Vec<FocStatus>,
 }
 
 impl App {
@@ -71,10 +76,14 @@ impl App {
         out.serial_log_rx = Some(serial_log_rx);
         out.serial_cmd_tx = Some(serial_cmd_tx);
         out.ui_cmd_rx = Some(ui_cmd_rx);
-        out.last_update = Some(Instant::now());
+        out.last_update = vec![Some(Instant::now()); 2];
         out.update_interval = Duration::from_millis(500);
 
-        out.status.gear_ratio = 30.;
+        out.status.push(FocStatus::default());
+        out.status.push(FocStatus::default());
+
+        out.status[0].gear_ratio = 30.;
+        out.status[1].gear_ratio = 20.;
 
         out
     }
@@ -105,7 +114,14 @@ impl eframe::App for App {
         });
 
         egui::TopBottomPanel::bottom("Bottom").show(ctx, |ui| {
-            self.controls(ui);
+            // self.controls(ui, self.current_foc_motor);
+            ui.horizontal(|ui| {
+                self.controls(ui, 0);
+            });
+            ui.separator();
+            ui.horizontal(|ui| {
+                self.controls(ui, 1);
+            });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {

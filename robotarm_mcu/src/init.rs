@@ -1,5 +1,6 @@
 use defmt::{debug, error, info, trace, warn};
 
+use embassy_futures::yield_now;
 use embassy_time::{Instant, Ticker};
 use robotarm_protocol::{SerialCommand, types::MotionControlType};
 use static_cell::StaticCell;
@@ -25,11 +26,15 @@ pub async fn core0_task0(
         crate::hardware::mt_6701_ssi::MT6701<
             embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
         >,
-        INA226<
-            embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
-        >,
+        // INA226<
+        //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+        // >,
     >,
+    // mut output_encoder: crate::hardware::mt_6701::MT6701<
+    //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+    // >,
 ) {
+    // core0_task(foc, output_encoder).await;
     core0_task(foc).await;
 }
 
@@ -45,20 +50,24 @@ pub async fn core0_task1(
         // >,
         // INA240<embassy_rp::peripherals::DMA_CH0>,
     >,
-    mut output_encoder: crate::hardware::mt_6701::MT6701<
-        embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
-    >,
+    // mut output_encoder: crate::hardware::mt_6701::MT6701<
+    //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+    // >,
 ) {
+    // core0_task(foc, output_encoder).await;
     core0_task(foc).await;
 }
 
 // #[embassy_executor::task]
 pub async fn core0_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR, CURRENT>,
+    // mut output_encoder: crate::hardware::mt_6701::MT6701<
+    //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+    // >,
 ) {
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // foc.set_motion_control(MotionControlType::Torque);
     // foc.set_motion_control(MotionControlType::Velocity);
@@ -87,8 +96,8 @@ pub async fn core0_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_debug_freq(2);
     // foc.set_debug_freq(10);
-    // foc.set_debug_freq(100);
-    foc.set_debug_freq(500);
+    foc.set_debug_freq(100);
+    // foc.set_debug_freq(500);
     // foc.set_debug_freq(0);
 
     // foc.set_vel_pid_debug(0.);
@@ -168,22 +177,55 @@ pub async fn core0_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.torque_controller = crate::simplefoc::types::TorqueControlType::FOCCurrent;
 
+    // let output_encoder_downsample = 10;
+    // let mut output_encoder_counter = 0;
+
+    let output_encoder_update_rate_hz = 20;
+    let output_encoder_update_interval_us =
+        embassy_time::Duration::from_micros(1_000_000 / output_encoder_update_rate_hz);
+    let mut output_encoder_next_update =
+        (Instant::now() + output_encoder_update_interval_us).as_micros();
+
     // #[cfg(feature = "nope")]
     loop {
-        // embassy_futures::yield_now().await;
-
-        // ticker.next().await;
+        yield_now().await;
         foc.run_commands().await;
-        foc.loop_foc().await;
-        foc.update_foc().await;
+
+        let t_us = Instant::now().as_micros();
+        foc.loop_foc(t_us).await;
+        foc.update_foc(t_us).await;
+
+        #[cfg(feature = "nope")]
+        if t_us >= output_encoder_next_update {
+            output_encoder.update(t_us).await.unwrap();
+            let output_position = output_encoder.get_mechanical_angle();
+            let output_velocity = output_encoder.get_velocity();
+
+            debug!(
+                "Output encoder - Angle: {}, Velocity: {}",
+                output_position, output_velocity,
+            );
+
+            foc.send_debug_message(robotarm_protocol::SerialLogMessage::EncoderData {
+                id: foc.id,
+                timestamp: t_us,
+                position: output_position,
+                velocity: None,
+            })
+            .await;
+
+            output_encoder_next_update =
+                (Instant::now() + output_encoder_update_interval_us).as_micros();
+        }
 
         let t1 = Instant::now();
-        #[cfg(feature = "nope")]
+        // #[cfg(feature = "nope")]
         if t1 > max_time {
             let elapsed = t1 - t0;
             let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
             info!(
-                "Elapsed: {}s, Cycles: {}, Freq: {}Hz",
+                "ID: {}, Elapsed: {}s, Cycles: {}, Freq: {}Hz",
+                foc.id,
                 elapsed.as_millis() as f32 * 1e-3,
                 c,
                 freq

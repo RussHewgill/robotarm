@@ -116,3 +116,24 @@ pub enum SerialCommand {
         voltage_limit: f32,
     },
 }
+
+impl SerialCommand {
+    pub fn id(&self) -> u8 {
+        match self {
+            SerialCommand::RequestSettings { id } => *id,
+            SerialCommand::SetEnabled { id, .. } => *id,
+            SerialCommand::SetDebugRate { id, .. } => *id,
+            SerialCommand::SetModeTorque { id } => *id,
+            SerialCommand::SetModeVelocityOpenLoop { id } => *id,
+            SerialCommand::SetModeVelocity { id } => *id,
+            SerialCommand::SetModeAngle { id } => *id,
+            SerialCommand::SetVelocityPID { id, .. } => *id,
+            SerialCommand::SetAnglePID { id, .. } => *id,
+            SerialCommand::SetLPF { id, .. } => *id,
+            SerialCommand::SetFeedForward { id, .. } => *id,
+            SerialCommand::SetMotorTarget { id, .. } => *id,
+            SerialCommand::ZeroPosition { id } => *id,
+            SerialCommand::SetVoltageLimit { id, .. } => *id,
+        }
+    }
+}

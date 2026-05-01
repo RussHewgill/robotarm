@@ -496,7 +496,7 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let mut encoder = {
         let miso = p.PIN_12;
         // let mosi = p.PIN_15;
@@ -512,6 +512,34 @@ async fn main(spawner: Spawner) {
 
         let mut spi =
             embassy_rp::spi::Spi::new_rxonly(p.SPI1, sck, miso, p.DMA_CH2, p.DMA_CH3, config);
+
+        // Configure CS
+        let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
+
+        // let mut buf: [u8; 4] = [0; 4];
+
+        let mut encoder = crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
+
+        encoder
+    };
+
+    // #[cfg(feature = "nope")]
+    let mut encoder = {
+        let miso = p.PIN_20;
+        // let mosi = p.PIN_19;
+
+        let sck = p.PIN_18;
+        // let cs = p.PIN_17;
+        let cs = p.PIN_21;
+
+        let mut config = embassy_rp::spi::Config::default();
+        config.frequency = 4_000_000;
+        config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+        config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+        // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
+
+        let mut spi =
+            embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, config);
 
         // Configure CS
         let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
@@ -792,13 +820,14 @@ async fn main(spawner: Spawner) {
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     let encoder0 = {
-        let miso = p.PIN_16;
+        let miso = p.PIN_20;
         // let mosi = p.PIN_19;
 
         let sck = p.PIN_18;
-        let cs = p.PIN_17;
+        // let cs = p.PIN_17;
+        let cs = p.PIN_21;
 
         let mut config = embassy_rp::spi::Config::default();
         config.frequency = 4_000_000;
@@ -846,6 +875,7 @@ fn main() -> ! {
         encoder
     };
 
+    #[cfg(feature = "nope")]
     let output_encoder0 = {
         let sda = p.PIN_20;
         let scl = p.PIN_21;
@@ -860,6 +890,8 @@ fn main() -> ! {
 
         encoder
     };
+
+    let output_encoder0 = ();
 
     #[cfg(feature = "nope")]
     let current_sensor = {
@@ -895,8 +927,8 @@ fn main() -> ! {
 
     // let voltage_limit = 3.0;
     // let voltage_limit = 4.;
-    // let voltage_limit = 6.;
-    let voltage_limit = 10.;
+    let voltage_limit = 6.;
+    // let voltage_limit = 10.;
 
     // #[cfg(feature = "nope")]
     let (pwm_driver0, pwm_driver1) = {
@@ -1023,7 +1055,7 @@ fn main() -> ! {
 
     let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
         0,
-        encoder1,
+        encoder0,
         None::<()>,
         // Some(current_sensor),
         pwm_driver0,
@@ -1032,15 +1064,15 @@ fn main() -> ! {
         // None,
     );
 
-    // let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
-    //     0,
-    //     encoder1,
-    //     None::<()>,
-    //     pwm_driver1,
-    //     motor_config1,
-    //     Some(usb),
-    //     // None,
-    // );
+    let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
+        1,
+        encoder1,
+        None::<()>,
+        pwm_driver1,
+        motor_config1,
+        Some(usb),
+        // None,
+    );
 
     #[cfg(feature = "nope")]
     let foc = crate::simplefoc::foc_types::SimpleFOC::new(
@@ -1093,8 +1125,15 @@ fn main() -> ! {
     executor0.run(|spawner| {
         // spawner.spawn(crate::init::core0_task0(foc0)).unwrap();
         // spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
+
         spawner
-            .spawn(crate::init::core0_task1(foc0, output_encoder0))
+            // .spawn(crate::init::core0_task0(foc0, output_encoder0))
+            .spawn(crate::init::core0_task0(foc0))
+            .unwrap();
+
+        spawner
+            // .spawn(crate::init::core0_task1(foc0, output_encoder0))
+            .spawn(crate::init::core0_task1(foc1))
             .unwrap();
         // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
     });

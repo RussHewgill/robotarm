@@ -19,7 +19,8 @@ mod pid_settings {
         value: &mut F,
         // tx: &tokio::sync::mpsc::Sender<SerialCommand>,
         tx: &crossbeam_channel::Sender<SerialCommand>,
-        cmd_fn: impl Fn(F) -> SerialCommand,
+        id: u8,
+        cmd_fn: impl Fn(u8, F) -> SerialCommand,
     ) where
         F: egui::emath::Numeric + Copy,
     {
@@ -36,7 +37,7 @@ mod pid_settings {
                 .input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Tab)))
             || send_resp.clicked()
         {
-            let cmd = cmd_fn(*value);
+            let cmd = cmd_fn(id, *value);
             if let Err(e) = tx.try_send(cmd) {
                 error!("Failed to send command: {}", e);
             }
@@ -44,16 +45,16 @@ mod pid_settings {
 
         if zero_resp.clicked() {
             *value = F::from_f64(0.0);
-            let cmd = cmd_fn(*value);
+            let cmd = cmd_fn(id, *value);
             if let Err(e) = tx.try_send(cmd) {
                 error!("Failed to send command: {}", e);
             }
         }
     }
 
-    pub(super) fn set_vel_p(p: f32) -> SerialCommand {
+    pub(super) fn set_vel_p(id: u8, p: f32) -> SerialCommand {
         SerialCommand::SetVelocityPID {
-            id: 0,
+            id,
             p: Some(p),
             i: None,
             d: None,
@@ -62,9 +63,9 @@ mod pid_settings {
         }
     }
 
-    pub(super) fn set_vel_i(i: f32) -> SerialCommand {
+    pub(super) fn set_vel_i(id: u8, i: f32) -> SerialCommand {
         SerialCommand::SetVelocityPID {
-            id: 0,
+            id,
             p: None,
             i: Some(i),
             d: None,
@@ -73,9 +74,9 @@ mod pid_settings {
         }
     }
 
-    pub(super) fn set_vel_d(d: f32) -> SerialCommand {
+    pub(super) fn set_vel_d(id: u8, d: f32) -> SerialCommand {
         SerialCommand::SetVelocityPID {
-            id: 0,
+            id,
             p: None,
             i: None,
             d: Some(d),
@@ -84,17 +85,17 @@ mod pid_settings {
         }
     }
 
-    pub(super) fn set_vel_lpf(lpf: f32) -> SerialCommand {
+    pub(super) fn set_vel_lpf(id: u8, lpf: f32) -> SerialCommand {
         SerialCommand::SetLPF {
-            id: 0,
+            id,
             lpf_vel: Some(lpf),
             lpf_angle: None,
         }
     }
 
-    pub(super) fn set_vel_limit(limit: f64) -> SerialCommand {
+    pub(super) fn set_vel_limit(id: u8, limit: f64) -> SerialCommand {
         SerialCommand::SetVelocityPID {
-            id: 0,
+            id,
             p: None,
             i: None,
             d: None,
@@ -102,10 +103,20 @@ mod pid_settings {
             limit: Some(limit as f32),
         }
     }
+
+    pub(super) fn set_pos_limit(id: u8, limit: f32) -> SerialCommand {
+        SerialCommand::SetAnglePID {
+            id,
+            p: None,
+            i: None,
+            d: None,
+            ramp: None,
+            limit: Some(limit),
+        }
+    }
 }
 
 mod scrollable {
-
     pub fn make_scrollable(
         ui: &mut egui::Ui,
         resp: egui::Response,
@@ -164,69 +175,91 @@ impl App {
 }
 
 impl App {
-    pub fn controls(&mut self, ui: &mut egui::Ui) {
+    pub fn controls(&mut self, ui: &mut egui::Ui, id: u8) {
         // StripBuilder::new(ui)
         //     .size(Size::relative(0.3))
 
         ui.columns_const(|[col_0, col_1, col_2, col_3]| {
             col_0.vertical(|ui| {
-                self.col_0(ui);
+                self.col_0(ui, id);
             });
             col_1.vertical(|ui| {
-                self.col_1(ui);
+                self.col_1(ui, id);
             });
             col_2.vertical(|ui| {
-                self.col_2(ui);
+                self.col_2(ui, id);
             });
             col_3.vertical(|ui| {
-                self.col_3(ui);
+                self.col_3(ui, id);
             });
         });
     }
 
-    fn col_0(&mut self, ui: &mut egui::Ui) {
-        egui::Grid::new("Motor Data Grid").show(ui, |ui| {
+    fn col_0(&mut self, ui: &mut egui::Ui, id: u8) {
+        egui::Grid::new(format!("Motor Data Grid {id}")).show(ui, |ui| {
             ui.label(RichText::new("Current").monospace());
-            ui.label(RichText::new(format!("{:>+0.3} A", self.status.current)).monospace());
+            ui.label(
+                RichText::new(format!("{:>+0.3} A", self.status[id as usize].current)).monospace(),
+            );
             ui.end_row();
 
             ui.label(RichText::new("Voltage").monospace());
-            ui.label(RichText::new(format!("{:>+0.3} V", self.status.voltage.0)).monospace());
-            ui.label(RichText::new(format!("{:>+0.3} V", self.status.voltage.1)).monospace());
+            ui.label(
+                RichText::new(format!("{:>+0.3} V", self.status[id as usize].voltage.0))
+                    .monospace(),
+            );
+            ui.label(
+                RichText::new(format!("{:>+0.3} V", self.status[id as usize].voltage.1))
+                    .monospace(),
+            );
             ui.end_row();
 
             ui.label(RichText::new("Angle").monospace());
-            ui.label(RichText::new(format!("{:>+0.3} rad", self.status.angle)).monospace());
+            ui.label(
+                RichText::new(format!("{:>+0.3} rad", self.status[id as usize].angle)).monospace(),
+            );
             ui.end_row();
 
             ui.label(RichText::new("Position").monospace());
-            ui.label(RichText::new(format!("{:>+0.3} rad", self.status.pos,)).monospace());
+            ui.label(
+                RichText::new(format!("{:>+0.3} rad", self.status[id as usize].pos,)).monospace(),
+            );
             ui.label(
                 RichText::new(format!(
                     "{:>+0.3} rev",
-                    self.status.pos / (2.0 * std::f64::consts::PI)
+                    self.status[id as usize].pos / (2.0 * std::f64::consts::PI)
                 ))
                 .monospace(),
             );
             ui.end_row();
 
             ui.label(RichText::new("Velocity").monospace());
-            ui.label(RichText::new(format!("{:>+0.3} rad/s", self.status.vel)).monospace());
+            ui.label(
+                RichText::new(format!("{:>+0.3} rad/s", self.status[id as usize].vel)).monospace(),
+            );
             ui.label(
                 RichText::new(format!(
                     "{:>+0.3} rpm",
-                    self.status.vel * 60.0 / (2.0 * std::f64::consts::PI)
+                    self.status[id as usize].vel * 60.0 / (2.0 * std::f64::consts::PI)
                 ))
                 .monospace(),
             );
             ui.end_row();
 
-            ui.collapsing("Phase Currents", |ui| {
+            ui.collapsing(format!("Phase Currents {id}"), |ui| {
                 ui.label(
-                    RichText::new(format!("{:>+0.3} A", self.status.sensor_currents.0)).monospace(),
+                    RichText::new(format!(
+                        "{:>+0.3} A",
+                        self.status[id as usize].sensor_currents.0
+                    ))
+                    .monospace(),
                 );
                 ui.label(
-                    RichText::new(format!("{:>+0.3} A", self.status.sensor_currents.1)).monospace(),
+                    RichText::new(format!(
+                        "{:>+0.3} A",
+                        self.status[id as usize].sensor_currents.1
+                    ))
+                    .monospace(),
                 );
             });
             ui.end_row();
@@ -240,7 +273,7 @@ impl App {
 
             let torque_constant = 8.27 / kv; // Nm/A
 
-            let (a, b) = self.status.sensor_currents;
+            let (a, b) = self.status[id as usize].sensor_currents;
 
             let current_magnitude = (a.powi(2) + b.powi(2)).sqrt();
             let torque = torque_constant * current_magnitude; // Nm
@@ -256,8 +289,8 @@ impl App {
             let force = 0.0051 / 0.05; // N
 
             // find force at current angle
-            let angle =
-                ((self.status.pos + self.status.angle_offset) * self.status.gear_ratio) as f32;
+            let angle = ((self.status[id as usize].pos + self.status[id as usize].angle_offset)
+                * self.status[id as usize].gear_ratio) as f32;
             let force = force * angle.sin();
 
             ui.label(RichText::new("Force").monospace());
@@ -267,15 +300,16 @@ impl App {
 
             ui.label("Gear Ratio");
             ui.end_row();
-            let resp =
-                ui.add(egui::Slider::new(&mut self.status.gear_ratio, -20.0..=30.0).integer());
+            let resp = ui.add(
+                egui::Slider::new(&mut self.status[id as usize].gear_ratio, -20.0..=30.0).integer(),
+            );
 
             //
         });
     }
 
-    fn col_1(&mut self, ui: &mut egui::Ui) {
-        egui::Grid::new("Motor Controls Grid").show(ui, |ui| {
+    fn col_1(&mut self, ui: &mut egui::Ui, id: u8) {
+        egui::Grid::new(format!("Motor Controls Grid {id}")).show(ui, |ui| {
             if ui.button("Enable Motor").clicked() {
                 let cmd = SerialCommand::SetEnabled {
                     id: 0,
@@ -294,7 +328,7 @@ impl App {
 
             let but = egui::Button::new("Set Torque");
             let but = if matches!(
-                self.status.motion_control,
+                self.status[id as usize].motion_control,
                 Some(robotarm_protocol::MotionControlType::Torque)
             ) {
                 but.fill(egui::Color32::LIGHT_GREEN)
@@ -309,7 +343,7 @@ impl App {
 
             let but = egui::Button::new("Set Velocity Open Loop");
             let but = if matches!(
-                self.status.motion_control,
+                self.status[id as usize].motion_control,
                 Some(robotarm_protocol::MotionControlType::VelocityOpenLoop)
             ) {
                 but.fill(egui::Color32::LIGHT_GREEN)
@@ -324,7 +358,7 @@ impl App {
 
             let but = egui::Button::new("Set Velocity");
             let but = if matches!(
-                self.status.motion_control,
+                self.status[id as usize].motion_control,
                 Some(robotarm_protocol::MotionControlType::Velocity)
             ) {
                 but.fill(egui::Color32::LIGHT_GREEN)
@@ -338,7 +372,7 @@ impl App {
 
             let but = egui::Button::new("Set Angle");
             let but = if matches!(
-                self.status.motion_control,
+                self.status[id as usize].motion_control,
                 Some(robotarm_protocol::MotionControlType::Angle)
             ) {
                 but.fill(egui::Color32::LIGHT_GREEN)
@@ -358,29 +392,35 @@ impl App {
 
         ui.horizontal(|ui| {
             ui.label("Target Torque:");
+            let range =
+                -self.status[id as usize].vel_pid_limit..=self.status[id as usize].vel_pid_limit;
             let resp = ui.add(egui::Slider::new(
-                &mut self.status.target_voltage,
-                -self.status.vel_pid_limit..=self.status.vel_pid_limit,
+                &mut self.status[id as usize].target_voltage,
+                range,
             ));
 
             let mut send_target = None;
 
             if !matches!(
-                self.status.motion_control,
+                self.status[id as usize].motion_control,
                 Some(robotarm_protocol::MotionControlType::Torque)
             ) {
             } else if resp.changed() {
-                send_target = Some(self.status.target_voltage);
+                send_target = Some(self.status[id as usize].target_voltage);
             }
 
+            let (min, max) = (
+                -self.status[id as usize].vel_pid_limit,
+                self.status[id as usize].vel_pid_limit,
+            );
             if let Some(tgt) = make_scrollable(
                 ui,
                 resp,
                 0.5,
                 (0.1, 1.0),
-                &mut self.status.target_voltage,
-                -self.status.vel_pid_limit,
-                self.status.vel_pid_limit,
+                &mut self.status[id as usize].target_voltage,
+                min,
+                max,
             ) {
                 send_target = Some(tgt);
             }
@@ -403,7 +443,7 @@ impl App {
         ui.horizontal(|ui| {
             ui.label("Target Pos:");
             let resp = ui.add(egui::Slider::new(
-                &mut self.status.target_pos,
+                &mut self.status[id as usize].target_pos,
                 -100.0..=100.0,
             ));
             // if resp.sc
@@ -412,26 +452,33 @@ impl App {
             let mut inc = 0.5;
 
             if !matches!(
-                self.status.motion_control,
+                self.status[id as usize].motion_control,
                 Some(robotarm_protocol::MotionControlType::Angle)
             ) {
             } else if resp.changed() {
-                send_target = Some(self.status.target_pos);
+                send_target = Some(self.status[id as usize].target_pos);
             }
 
+            let (min, max) = (
+                -10. * self.status[id as usize].gear_ratio,
+                10. * self.status[id as usize].gear_ratio,
+            );
             if let Some(tgt) = self::scrollable::make_scrollable(
                 ui,
                 resp,
                 // 0.5,
                 // (0.1, 1.0),
-                3.14 / 4. * self.status.gear_ratio,
+                3.14 / 4. * self.status[id as usize].gear_ratio,
+                // 3.14 / 4.,
                 (
-                    3.14 / 8. * self.status.gear_ratio,
-                    3.14 / 2. * self.status.gear_ratio,
+                    3.14 / 8. * self.status[id as usize].gear_ratio,
+                    3.14 / 2. * self.status[id as usize].gear_ratio,
+                    // 3.14 / 8.,
+                    // 3.14 / 2.,
                 ),
-                &mut self.status.target_pos,
-                -10. * self.status.gear_ratio,
-                10. * self.status.gear_ratio,
+                &mut self.status[id as usize].target_pos,
+                min,
+                max,
             ) {
                 send_target = Some(tgt);
             }
@@ -442,7 +489,8 @@ impl App {
 
                     // target: ((self.status.target_pos + self.status.angle_offset)
                     //     * self.status.gear_ratio) as f32,
-                    target: (self.status.target_pos + self.status.angle_offset) as f32,
+                    target: (self.status[id as usize].target_pos
+                        + self.status[id as usize].angle_offset) as f32,
                 };
                 self.send_command(cmd);
             }
@@ -468,31 +516,37 @@ impl App {
         ui.horizontal(|ui| {
             ui.label("Target Vel:");
             // let resp = ui.add(egui::Slider::new(&mut self.target_vel, -20.0..=20.0));
+            let range =
+                -self.status[id as usize].vel_pid_limit..=self.status[id as usize].vel_pid_limit;
             let resp = ui.add(egui::Slider::new(
-                &mut self.status.target_vel,
-                -self.status.vel_pid_limit..=self.status.vel_pid_limit,
+                &mut self.status[id as usize].target_vel,
+                range,
             ));
             let mut send_target = None;
 
             if !(matches!(
-                self.status.motion_control,
+                self.status[id as usize].motion_control,
                 Some(robotarm_protocol::MotionControlType::Velocity)
             ) || matches!(
-                self.status.motion_control,
+                self.status[id as usize].motion_control,
                 Some(robotarm_protocol::MotionControlType::VelocityOpenLoop)
             )) {
             } else if resp.changed() {
-                send_target = Some(self.status.target_vel);
+                send_target = Some(self.status[id as usize].target_vel);
             }
 
+            let (min, max) = (
+                -self.status[id as usize].vel_pid_limit,
+                self.status[id as usize].vel_pid_limit,
+            );
             if let Some(tgt) = make_scrollable(
                 ui,
                 resp,
                 3.14 / 2.,
                 (3.14 / 4., 3.14),
-                &mut self.status.target_vel,
-                -self.status.vel_pid_limit,
-                self.status.vel_pid_limit,
+                &mut self.status[id as usize].target_vel,
+                min,
+                max,
             ) {
                 send_target = Some(tgt);
             }
@@ -516,23 +570,27 @@ impl App {
             ui.label("Feedforward:");
 
             let resp = ui.add(egui::Slider::new(
-                &mut self.status.feed_forward,
+                &mut self.status[id as usize].feed_forward,
                 -10.0..=10.0,
             ));
             let mut send_target = None;
 
             if resp.changed() {
-                send_target = Some(self.status.feed_forward);
+                send_target = Some(self.status[id as usize].feed_forward);
             }
 
+            let (min, max) = (
+                -self.status[id as usize].vel_pid_limit,
+                self.status[id as usize].vel_pid_limit,
+            );
             if let Some(tgt) = make_scrollable(
                 ui,
                 resp,
                 0.1,
                 (0.05, 0.25),
-                &mut self.status.feed_forward,
-                -self.status.vel_pid_limit,
-                self.status.vel_pid_limit,
+                &mut self.status[id as usize].feed_forward,
+                min,
+                max,
             ) {
                 send_target = Some(tgt);
             }
@@ -540,7 +598,7 @@ impl App {
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetFeedForward {
                     id: 0,
-                    ff: self.status.feed_forward as f32,
+                    ff: self.status[id as usize].feed_forward as f32,
                 };
                 self.send_command(cmd);
             }
@@ -552,23 +610,27 @@ impl App {
             ui.label("Arm torque (3.528 g * dm, 90 deg):");
 
             let resp = ui.add(egui::Slider::new(
-                &mut self.status.feed_forward,
+                &mut self.status[id as usize].feed_forward,
                 -10.0..=10.0,
             ));
             let mut send_target = None;
 
             if resp.changed() {
-                send_target = Some(self.status.feed_forward);
+                send_target = Some(self.status[id as usize].feed_forward);
             }
 
+            let (min, max) = (
+                -self.status[id as usize].vel_pid_limit,
+                self.status[id as usize].vel_pid_limit,
+            );
             if let Some(tgt) = make_scrollable(
                 ui,
                 resp,
                 0.1,
                 (0.05, 0.25),
-                &mut self.status.feed_forward,
-                -self.status.vel_pid_limit,
-                self.status.vel_pid_limit,
+                &mut self.status[id as usize].feed_forward,
+                min,
+                max,
             ) {
                 send_target = Some(tgt);
             }
@@ -576,7 +638,7 @@ impl App {
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetFeedForward {
                     id: 0,
-                    ff: self.status.feed_forward as f32,
+                    ff: self.status[id as usize].feed_forward as f32,
                 };
                 self.send_command(cmd);
             }
@@ -595,17 +657,17 @@ impl App {
 
             // draw line from center to edge based on angle
             // let angle = self.status.pos as f32 + self.status.angle_offset as f32;
-            let angle =
-                ((self.status.pos + self.status.angle_offset) * self.status.gear_ratio) as f32;
+            let angle = ((self.status[id as usize].pos + self.status[id as usize].angle_offset)
+                * self.status[id as usize].gear_ratio) as f32;
             let end_pos = egui::pos2(c.x + r * angle.sin(), c.y - r * angle.cos());
 
             painter.line_segment([c, end_pos], stroke);
 
-            let prev_offset = self.status.angle_offset;
+            let prev_offset = self.status[id as usize].angle_offset;
 
             ui.label("Angle Offset");
             let resp = ui.add(egui::Slider::new(
-                &mut self.status.angle_offset,
+                &mut self.status[id as usize].angle_offset,
                 -10.0..=10.0,
             ));
 
@@ -614,24 +676,26 @@ impl App {
                 resp,
                 3.14 / 2.,
                 (3.14 / 16., 3.14),
-                &mut self.status.angle_offset,
+                &mut self.status[id as usize].angle_offset,
                 -10.,
                 10.,
             ) {
-                self.status.target_pos = self.status.target_pos + (tgt - prev_offset);
+                self.status[id as usize].target_pos =
+                    self.status[id as usize].target_pos + (tgt - prev_offset);
             }
         });
 
         //
     }
 
-    fn col_2(&mut self, ui: &mut egui::Ui) {
-        egui::Grid::new("velocity_pid_grid").show(ui, |ui| {
+    fn col_2(&mut self, ui: &mut egui::Ui, id: u8) {
+        egui::Grid::new(format!("velocity_pid_grid {id}")).show(ui, |ui| {
             self::pid_settings::pid_control(
                 ui,
                 "Velocity KP",
-                &mut self.status.vel_pid_p,
+                &mut self.status[id as usize].vel_pid_p,
                 &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
                 self::pid_settings::set_vel_p,
             );
             ui.end_row();
@@ -639,8 +703,9 @@ impl App {
             self::pid_settings::pid_control(
                 ui,
                 "Velocity KI",
-                &mut self.status.vel_pid_i,
+                &mut self.status[id as usize].vel_pid_i,
                 &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
                 self::pid_settings::set_vel_i,
             );
             ui.end_row();
@@ -648,8 +713,9 @@ impl App {
             self::pid_settings::pid_control(
                 ui,
                 "Velocity KD",
-                &mut self.status.vel_pid_d,
+                &mut self.status[id as usize].vel_pid_d,
                 &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
                 self::pid_settings::set_vel_d,
             );
             ui.end_row();
@@ -657,32 +723,35 @@ impl App {
             self::pid_settings::pid_control(
                 ui,
                 "Velocity LPF",
-                &mut self.status.lpf_vel,
+                &mut self.status[id as usize].lpf_vel,
                 &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
                 self::pid_settings::set_vel_lpf,
             );
             ui.end_row();
 
             self::pid_settings::pid_control(
                 ui,
-                "Velocity Limit",
-                &mut self.status.vel_pid_limit,
+                "Velocity PID Limit",
+                &mut self.status[id as usize].vel_pid_limit,
                 &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
                 self::pid_settings::set_vel_limit,
             );
             ui.end_row();
         });
     }
 
-    fn col_3(&mut self, ui: &mut egui::Ui) {
-        egui::Grid::new("position_pid_grid").show(ui, |ui| {
+    fn col_3(&mut self, ui: &mut egui::Ui, id: u8) {
+        egui::Grid::new(format!("position_pid_grid {id}")).show(ui, |ui| {
             self::pid_settings::pid_control(
                 ui,
                 "Position KP",
-                &mut self.status.pos_pid_p,
+                &mut self.status[id as usize].pos_pid_p,
                 &self.serial_cmd_tx.as_ref().unwrap(),
-                |p| SerialCommand::SetAnglePID {
-                    id: 0,
+                id,
+                |id, p| SerialCommand::SetAnglePID {
+                    id,
                     p: Some(p),
                     i: None,
                     d: None,
@@ -695,10 +764,11 @@ impl App {
             self::pid_settings::pid_control(
                 ui,
                 "Position KI",
-                &mut self.status.pos_pid_i,
+                &mut self.status[id as usize].pos_pid_i,
                 &self.serial_cmd_tx.as_ref().unwrap(),
-                |i| SerialCommand::SetAnglePID {
-                    id: 0,
+                id,
+                |id, i| SerialCommand::SetAnglePID {
+                    id,
                     p: None,
                     i: Some(i),
                     d: None,
@@ -711,10 +781,11 @@ impl App {
             self::pid_settings::pid_control(
                 ui,
                 "Position KD",
-                &mut self.status.pos_pid_d,
+                &mut self.status[id as usize].pos_pid_d,
                 &self.serial_cmd_tx.as_ref().unwrap(),
-                |d| SerialCommand::SetAnglePID {
-                    id: 0,
+                id,
+                |id, d| SerialCommand::SetAnglePID {
+                    id,
                     p: None,
                     i: None,
                     d: Some(d),
@@ -727,13 +798,24 @@ impl App {
             self::pid_settings::pid_control(
                 ui,
                 "Position LPF",
-                &mut self.status.lpf_angle,
+                &mut self.status[id as usize].lpf_angle,
                 &self.serial_cmd_tx.as_ref().unwrap(),
-                |lpf| SerialCommand::SetLPF {
-                    id: 0,
+                id,
+                |id, lpf| SerialCommand::SetLPF {
+                    id,
                     lpf_vel: None,
                     lpf_angle: Some(lpf),
                 },
+            );
+            ui.end_row();
+
+            self::pid_settings::pid_control(
+                ui,
+                "Position PID Limit",
+                &mut self.status[id as usize].pos_pid_limit,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                self::pid_settings::set_pos_limit,
             );
             ui.end_row();
         });

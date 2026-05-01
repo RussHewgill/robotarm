@@ -42,20 +42,20 @@ impl App {
                         lpf_vel,
                     } => {
                         // debug!("Got motor PID settings {:#?}", msg);
-                        debug!("Got motor PID settings");
+                        debug!("Got motor PID settings from motor {}", id);
 
-                        self.status.vel_pid_p = vel_p;
-                        self.status.vel_pid_i = vel_i;
-                        self.status.vel_pid_d = vel_d;
-                        self.status.vel_pid_ramp = vel_ramp;
-                        self.status.vel_pid_limit = vel_limit as f64;
-                        self.status.pos_pid_p = angle_p;
-                        self.status.pos_pid_i = angle_i;
-                        self.status.pos_pid_d = angle_d;
-                        self.status.pos_pid_ramp = angle_ramp;
-                        self.status.pos_pid_limit = angle_limit;
-                        self.status.lpf_angle = lpf_angle;
-                        self.status.lpf_vel = lpf_vel;
+                        self.status[id as usize].vel_pid_p = vel_p;
+                        self.status[id as usize].vel_pid_i = vel_i;
+                        self.status[id as usize].vel_pid_d = vel_d;
+                        self.status[id as usize].vel_pid_ramp = vel_ramp;
+                        self.status[id as usize].vel_pid_limit = vel_limit as f64;
+                        self.status[id as usize].pos_pid_p = angle_p;
+                        self.status[id as usize].pos_pid_i = angle_i;
+                        self.status[id as usize].pos_pid_d = angle_d;
+                        self.status[id as usize].pos_pid_ramp = angle_ramp;
+                        self.status[id as usize].pos_pid_limit = angle_limit;
+                        self.status[id as usize].lpf_angle = lpf_angle;
+                        self.status[id as usize].lpf_vel = lpf_vel;
                     }
                     SerialLogMessage::EncoderData {
                         id,
@@ -82,41 +82,50 @@ impl App {
                         // debug!("Got motor data {:#?}", msg);
                         // debug!("Got motor data");
 
-                        if let Some(t0) = self.t0 {
-                            let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
-                            self.plot.add_point_angle(t, angle as f64);
-                            self.plot.add_point_vel(t, velocity as f64);
-                            self.plot.add_point_target_vel(t, target_velocity as f64);
-                            self.plot.add_point_target_pos(t, target_position as f64);
-                            self.plot.add_point_voltage(t, motor_voltage.0 as f64);
-                            // self.plot.add_point_current(t, motor_current as f64);
-                            if let Some((current_d, current_q)) = sensor_currents {
-                                self.plot
-                                    .add_point_current(t, current_d as f64, current_q as f64);
+                        // debug!("Got motor data from motor {}", id);
+
+                        /// only plot data from motor 0 for now
+                        if id == 0 {
+                            if let Some(t0) = self.t0 {
+                                let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
+                                self.plot.add_point_angle(t, angle as f64);
+                                self.plot.add_point_vel(t, velocity as f64);
+                                self.plot.add_point_target_vel(t, target_velocity as f64);
+                                self.plot.add_point_target_pos(t, target_position as f64);
+                                self.plot.add_point_voltage(t, motor_voltage.0 as f64);
+                                // self.plot.add_point_current(t, motor_current as f64);
+                                if let Some((current_d, current_q)) = sensor_currents {
+                                    self.plot.add_point_current(
+                                        t,
+                                        current_d as f64,
+                                        current_q as f64,
+                                    );
+                                }
+                                // self.plot.add_point_current(t, );
+                            } else {
+                                self.t0 = Some(timestamp);
                             }
-                            // self.plot.add_point_current(t, );
-                        } else {
-                            self.t0 = Some(timestamp);
                         }
 
-                        self.status.motion_control = Some(motion_control);
+                        self.status[id as usize].motion_control = Some(motion_control);
 
-                        if let Some(t) = self.last_update {
+                        if let Some(t) = self.last_update[id as usize] {
                             if t.elapsed() >= self.update_interval {
-                                self.last_update = Some(Instant::now());
+                                self.last_update[id as usize] = Some(Instant::now());
 
-                                self.status.target_pos =
-                                    target_position as f64 + self.status.angle_offset;
-                                self.status.target_vel = target_velocity as f64;
+                                let offset = self.status[id as usize].angle_offset;
+                                self.status[id as usize].target_pos =
+                                    target_position as f64 + offset;
+                                self.status[id as usize].target_vel = target_velocity as f64;
 
-                                self.status.pos = position as f64;
-                                self.status.angle = angle as f64;
-                                self.status.vel = velocity as f64;
+                                self.status[id as usize].pos = position as f64;
+                                self.status[id as usize].angle = angle as f64;
+                                self.status[id as usize].vel = velocity as f64;
 
-                                self.status.current = motor_current;
+                                self.status[id as usize].current = motor_current;
 
                                 if let Some((a, b)) = sensor_currents {
-                                    self.status.sensor_currents = (a, b);
+                                    self.status[id as usize].sensor_currents = (a, b);
                                 }
 
                                 // {
@@ -125,9 +134,9 @@ impl App {
                                 //     self.status.current = (motor_current * mult) + offset;
                                 // }
 
-                                self.status.voltage = motor_voltage;
+                                self.status[id as usize].voltage = motor_voltage;
 
-                                self.status.feed_forward = feed_forward as f64;
+                                self.status[id as usize].feed_forward = feed_forward as f64;
                             }
                         }
                     }

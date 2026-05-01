@@ -23,9 +23,7 @@ use crate::{
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     /// Iterative function looping FOC algorithm, setting Uq on the Motor
     /// The faster it can be run the better
-    pub async fn loop_foc(&mut self) {
-        let t_us = Instant::now().as_micros();
-
+    pub async fn loop_foc(&mut self, t_us: u64) {
         // let mut read_current = false;
 
         if self.angle_sensor_downsample > 1 {
@@ -128,9 +126,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         self.set_phase_voltage(self.motor.voltage.q, self.motor.voltage.d, electrical_angle);
     }
 
-    pub async fn update_foc(&mut self) {
-        let t_us = Instant::now().as_micros();
-
+    pub async fn update_foc(&mut self, t_us: u64) {
         if self.motion_downsample > 0 {
             if self.motion_downsample_counter >= self.motion_downsample {
                 self.motion_downsample_counter = 0;

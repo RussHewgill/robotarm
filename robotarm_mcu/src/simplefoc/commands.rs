@@ -40,6 +40,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     }
 
     fn run_command(&mut self, cmd: SerialCommand) {
+        if cmd.id() != self.id {
+            return;
+        }
+
         match cmd {
             SerialCommand::ZeroPosition { id } => {
                 debug!("Received ZeroPosition command: id: {}", id);
