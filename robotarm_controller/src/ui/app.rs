@@ -13,7 +13,10 @@ use crate::simplefoc::types::FocStatus;
 #[derive(Default, Deserialize, Serialize)]
 // #[serde(default)]
 pub struct App {
-    pub plot: super::plot::DataPlot,
+    // pub plot: super::plot::DataPlot,
+    pub plots: Vec<super::plot::DataPlot>,
+
+    pub current_plot: usize,
 
     #[serde(skip)]
     pub t0: Option<u64>,
@@ -85,6 +88,11 @@ impl App {
         out.status[0].gear_ratio = 30.;
         out.status[1].gear_ratio = 20.;
 
+        out.plots.clear();
+        for _ in 0..6 {
+            out.plots.push(super::plot::DataPlot::default());
+        }
+
         out
     }
 }
@@ -126,7 +134,7 @@ impl eframe::App for App {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // ui.heading("Hello World!");
-            self.plot.show_plot(ui);
+            self.plots[self.current_plot].show_plot(ui);
         });
     }
 }

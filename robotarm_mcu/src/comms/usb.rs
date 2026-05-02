@@ -7,6 +7,7 @@ use embassy_usb::{
     driver::Driver,
 };
 use postcard::accumulator::FeedResult;
+use robotarm_protocol::SerialCommand;
 use static_cell::StaticCell;
 
 pub type LogChannel = embassy_sync::channel::Channel<
@@ -23,12 +24,20 @@ pub type CmdChannel = embassy_sync::channel::Channel<
 >;
 
 pub static LOG_CHAN: LogChannel = LogChannel::new();
-pub static CMD_CHAN: CmdChannel = CmdChannel::new();
+pub static CMD_CHAN0: CmdChannel = CmdChannel::new();
+pub static CMD_CHAN1: CmdChannel = CmdChannel::new();
 
 #[derive(Clone)]
 pub struct UsbLogger {
     /// MCU recieves command from USB task
-    rx: embassy_sync::channel::Receiver<
+    rx0: embassy_sync::channel::Receiver<
+        'static,
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
+        robotarm_protocol::SerialCommand,
+        1,
+    >,
+    rx1: embassy_sync::channel::Receiver<
         'static,
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
@@ -47,13 +56,25 @@ pub struct UsbLogger {
 
 impl UsbLogger {
     pub fn new() -> Self {
-        let rx = CMD_CHAN.receiver();
+        // let mut queue = heapless::Vec::new();
+        // for _ in 0..4 {
+        //     queue.push(heapless::Deque::new()).unwrap();
+        // }
+        let rx0 = CMD_CHAN0.receiver();
+        let rx1 = CMD_CHAN1.receiver();
         let tx = LOG_CHAN.sender();
-        Self { rx, tx }
+        Self { rx0, rx1, tx }
     }
 
-    pub async fn recv(&mut self) -> Result<robotarm_protocol::SerialCommand, TryReceiveError> {
-        self.rx.try_receive()
+    pub async fn recv(
+        &mut self,
+        id: u8,
+    ) -> Result<robotarm_protocol::SerialCommand, TryReceiveError> {
+        match id {
+            0 => self.rx0.try_receive(),
+            1 => self.rx1.try_receive(),
+            _ => Err(TryReceiveError::Empty),
+        }
     }
 
     pub fn send_log_msg(&mut self, msg: robotarm_protocol::SerialLogMessage) {
@@ -128,10 +149,13 @@ impl UsbMonitor {
         let log_rx = LOG_CHAN.receiver();
         // let log_tx = LOG_CHAN.sender();
         // let cmd_rx = CMD_CHAN.receiver();
-        let cmd_tx = CMD_CHAN.sender();
+        let cmd_tx0 = CMD_CHAN0.sender();
+        let cmd_tx1 = CMD_CHAN1.sender();
 
         spawner.spawn(usb_task(usb)).unwrap();
-        spawner.spawn(usb_logger_task(out, cmd_tx, log_rx)).unwrap();
+        spawner
+            .spawn(usb_logger_task(out, cmd_tx0, cmd_tx1, log_rx))
+            .unwrap();
 
         // UsbLogger {
         //     rx: cmd_rx,
@@ -203,7 +227,14 @@ impl UsbMonitor {
 #[embassy_executor::task]
 async fn usb_logger_task(
     mut usb_monitor: UsbMonitor,
-    cmd_tx: embassy_sync::channel::Sender<
+    cmd_tx0: embassy_sync::channel::Sender<
+        'static,
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
+        robotarm_protocol::SerialCommand,
+        1,
+    >,
+    cmd_tx1: embassy_sync::channel::Sender<
         'static,
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
@@ -251,15 +282,38 @@ async fn usb_logger_task(
                 // debug!("Received {} bytes from USB", n);
                 let mut window = &buf[..n];
                 'cobs: while !window.is_empty() {
-                    window = match accum.feed(&buf[..n]) {
+                    window = match accum.feed::<SerialCommand>(&buf[..n]) {
                         FeedResult::Success { data, remaining } => {
                             // debug!("Received complete message from USB: {:?}", data);
+
+                            let mut retries = 0;
                             loop {
-                                match cmd_tx.try_send(data) {
+                                let tx = match data.id() {
+                                    0 => &cmd_tx0,
+                                    1 => &cmd_tx1,
+                                    _ => {
+                                        error!(
+                                            "Received command with invalid id: {}, dropping command",
+                                            data.id()
+                                        );
+                                        break;
+                                    }
+                                };
+
+                                match tx.try_send(data) {
                                     Ok(()) => break,
                                     Err(e) => {
-                                        // error!("Failed to send command to main task, retrying...");
-                                        embassy_futures::yield_now().await;
+                                        error!("Failed to send command to main task, retrying...");
+                                        if retries >= 5 {
+                                            error!(
+                                                "Failed to send command after {} retries, dropping command",
+                                                retries
+                                            );
+                                            break;
+                                        } else {
+                                            retries += 1;
+                                            embassy_futures::yield_now().await;
+                                        }
                                     }
                                 }
                             }

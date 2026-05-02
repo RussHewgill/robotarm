@@ -14,7 +14,10 @@ impl App {
                 match cmd {
                     crate::ui::UiCommand::ClearPlot => {
                         debug!("Clearing plot");
-                        self.plot.reset();
+                        for plot in self.plots.iter_mut() {
+                            plot.reset();
+                        }
+                        // self.plot.reset();
                         self.t0 = None;
                     }
                 }
@@ -25,6 +28,13 @@ impl App {
             while let Ok(msg) = rx.try_recv() {
                 // debug!("Got serial log message {:#?}", msg);
                 match msg {
+                    SerialLogMessage::DebugData {
+                        id,
+                        timestamp,
+                        zero_electrical_angle,
+                    } => {
+                        debug!("Got debug data from motor {}", id);
+                    }
                     // SerialLogMessage::Ping => {}
                     SerialLogMessage::MotorPID {
                         id,
@@ -85,26 +95,24 @@ impl App {
                         // debug!("Got motor data from motor {}", id);
 
                         /// only plot data from motor 0 for now
-                        if id == 0 {
-                            if let Some(t0) = self.t0 {
-                                let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
-                                self.plot.add_point_angle(t, angle as f64);
-                                self.plot.add_point_vel(t, velocity as f64);
-                                self.plot.add_point_target_vel(t, target_velocity as f64);
-                                self.plot.add_point_target_pos(t, target_position as f64);
-                                self.plot.add_point_voltage(t, motor_voltage.0 as f64);
-                                // self.plot.add_point_current(t, motor_current as f64);
-                                if let Some((current_d, current_q)) = sensor_currents {
-                                    self.plot.add_point_current(
-                                        t,
-                                        current_d as f64,
-                                        current_q as f64,
-                                    );
-                                }
-                                // self.plot.add_point_current(t, );
-                            } else {
-                                self.t0 = Some(timestamp);
+                        if let Some(t0) = self.t0 {
+                            let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
+                            self.plots[id as usize].add_point_angle(t, angle as f64);
+                            self.plots[id as usize].add_point_vel(t, velocity as f64);
+                            self.plots[id as usize].add_point_target_vel(t, target_velocity as f64);
+                            self.plots[id as usize].add_point_target_pos(t, target_position as f64);
+                            self.plots[id as usize].add_point_voltage(t, motor_voltage.0 as f64);
+                            // self.plot.add_point_current(t, motor_current as f64);
+                            if let Some((current_d, current_q)) = sensor_currents {
+                                self.plots[id as usize].add_point_current(
+                                    t,
+                                    current_d as f64,
+                                    current_q as f64,
+                                );
                             }
+                            // self.plot.add_point_current(t, );
+                        } else {
+                            self.t0 = Some(timestamp);
                         }
 
                         self.status[id as usize].motion_control = Some(motion_control);

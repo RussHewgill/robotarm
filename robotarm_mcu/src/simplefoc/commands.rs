@@ -9,13 +9,23 @@ use crate::{
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     // #[cfg(feature = "nope")]
     pub async fn run_commands(&mut self) {
-        let mut cmds = heapless::Vec::<SerialCommand, 4>::new();
+        let mut cmds = heapless::Vec::<SerialCommand, 8>::new();
         if let Some(logger) = &mut self.usb_logger {
-            while let Ok(cmd) = logger.recv().await {
+            while let Ok(cmd) = logger.recv(self.id).await {
+                debug!("Received command: {:#?}", cmd);
+
                 // let _ = cmds.push(cmd);
-                cmds.push(cmd).unwrap_or_else(|_| {
-                    error!("Command queue full, dropping command");
-                });
+                if cmd.id() == self.id {
+                    cmds.push(cmd).unwrap_or_else(|_| {
+                        error!("Command queue full, dropping command");
+                    });
+                } else {
+                    error!(
+                        "Received command for different id: {}, expected id: {}, dropping command",
+                        cmd.id(),
+                        self.id
+                    );
+                }
             }
         }
 
@@ -41,6 +51,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
     fn run_command(&mut self, cmd: SerialCommand) {
         if cmd.id() != self.id {
+            error!(
+                "Received command for different id: {}, expected id: {}, dropping command",
+                cmd.id(),
+                self.id
+            );
             return;
         }
 
@@ -103,24 +118,34 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 );
             }
             SerialCommand::RequestSettings { id } => {
-                if id == self.id {
-                    if let Some(logger) = &mut self.usb_logger {
-                        logger.send_log_msg(SerialLogMessage::MotorPID {
-                            id: self.id,
-                            vel_p: self.pid_velocity.get_p(),
-                            vel_i: self.pid_velocity.get_i(),
-                            vel_d: self.pid_velocity.get_d(),
-                            vel_ramp: self.pid_velocity.get_ramp(),
-                            vel_limit: self.pid_velocity.get_limit(),
-                            angle_p: self.pid_angle.get_p(),
-                            angle_i: self.pid_angle.get_i(),
-                            angle_d: self.pid_angle.get_d(),
-                            angle_ramp: self.pid_angle.get_ramp(),
-                            angle_limit: self.pid_angle.get_limit(),
-                            lpf_angle: self.lpf_angle.tf,
-                            lpf_vel: self.lpf_velocity.tf,
-                        });
-                    }
+                debug!("Received RequestSettings command: id: {}", id);
+                if let Some(logger) = &mut self.usb_logger {
+                    logger.send_log_msg(SerialLogMessage::MotorPID {
+                        id: self.id,
+                        vel_p: self.pid_velocity.get_p(),
+                        vel_i: self.pid_velocity.get_i(),
+                        vel_d: self.pid_velocity.get_d(),
+                        vel_ramp: self.pid_velocity.get_ramp(),
+                        vel_limit: self.pid_velocity.get_limit(),
+                        angle_p: self.pid_angle.get_p(),
+                        angle_i: self.pid_angle.get_i(),
+                        angle_d: self.pid_angle.get_d(),
+                        angle_ramp: self.pid_angle.get_ramp(),
+                        angle_limit: self.pid_angle.get_limit(),
+                        lpf_angle: self.lpf_angle.tf,
+                        lpf_vel: self.lpf_velocity.tf,
+                    });
+                }
+            }
+            SerialCommand::RequestDebugData { id } => {
+                debug!("Received RequestDebugData command: id: {}", id);
+
+                if let Some(logger) = &mut self.usb_logger {
+                    logger.send_log_msg(SerialLogMessage::DebugData {
+                        id,
+                        timestamp: embassy_time::Instant::now().as_micros(),
+                        zero_electrical_angle: self.zero_electric_angle,
+                    });
                 }
             }
             SerialCommand::SetEnabled { id, enabled } => {
@@ -217,6 +242,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 debug!(
                     "Received SetPID command: id: {}, p: {:?}, i: {:?}, d: {:?}, limit: {:?}",
                     id, p, i, d, limit
+                );
+            }
+            SerialCommand::SetZeroElectricalAngle { id, angle } => {
+                self.zero_electric_angle = angle;
+                debug!(
+                    "Received SetZeroElectricalAngle command: id: {}, zero_electric_angle: {}",
+                    id, angle
                 );
             }
         }

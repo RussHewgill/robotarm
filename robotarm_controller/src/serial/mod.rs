@@ -248,6 +248,10 @@ impl SerialHandler {
             &SerialCommand::RequestSettings { id: 0 },
         )?)?;
 
+        port.write(&postcard::to_stdvec_cobs(
+            &SerialCommand::RequestSettings { id: 1 },
+        )?)?;
+
         // let mut codec = SerialCodec::default();
 
         // let mut cobs_buf = postcard::accumulator::CobsAccumulator::<4096>::new();
@@ -280,6 +284,7 @@ impl SerialHandler {
 
             match self.serial_cmd_rx.try_recv() {
                 Ok(cmd) => {
+                    debug!("Sending command: {:?}", cmd);
                     let buf = postcard::to_stdvec_cobs(&cmd)?;
                     port.write(&buf).context("Failed to send command")?;
                 }

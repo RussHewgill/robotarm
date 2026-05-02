@@ -79,13 +79,30 @@ impl Default for DataPlot {
 
 impl App {
     pub fn plot_settings(&mut self, ui: &mut egui::Ui) {
+        for (i, plot) in self.plots.iter().enumerate() {
+            if ui
+                .selectable_label(self.current_plot == i, format!("Motor {}", i))
+                .clicked()
+            {
+                self.current_plot = i;
+            }
+        }
+
+        ui.add_space(10.);
+
         ui.label("Plot settings:");
-        ui.checkbox(&mut self.plot.draw_angle, "Angle");
-        ui.checkbox(&mut self.plot.draw_vel, "Velocity");
-        ui.checkbox(&mut self.plot.draw_target_pos, "Target position");
-        ui.checkbox(&mut self.plot.draw_target_vel, "Target velocity");
-        ui.checkbox(&mut self.plot.draw_voltage, "Voltage");
-        ui.checkbox(&mut self.plot.draw_current, "Current");
+        ui.checkbox(&mut self.plots[self.current_plot].draw_angle, "Angle");
+        ui.checkbox(&mut self.plots[self.current_plot].draw_vel, "Velocity");
+        ui.checkbox(
+            &mut self.plots[self.current_plot].draw_target_pos,
+            "Target position",
+        );
+        ui.checkbox(
+            &mut self.plots[self.current_plot].draw_target_vel,
+            "Target velocity",
+        );
+        ui.checkbox(&mut self.plots[self.current_plot].draw_voltage, "Voltage");
+        ui.checkbox(&mut self.plots[self.current_plot].draw_current, "Current");
 
         // ui.add(egui::Slider::new(&mut self.plot.scale_angle, 0.1..=10.).text("Angle scale"));
         // ui.add(egui::Slider::new(&mut self.plot.scale_vel, 0.01..=1.).text("Velocity scale"));

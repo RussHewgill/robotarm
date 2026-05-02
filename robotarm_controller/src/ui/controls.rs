@@ -195,6 +195,7 @@ impl App {
         });
     }
 
+    // motor data
     fn col_0(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("Motor Data Grid {id}")).show(ui, |ui| {
             ui.label(RichText::new("Current").monospace());
@@ -246,6 +247,7 @@ impl App {
             );
             ui.end_row();
 
+            #[cfg(feature = "nope")]
             ui.collapsing(format!("Phase Currents {id}"), |ui| {
                 ui.label(
                     RichText::new(format!(
@@ -308,20 +310,15 @@ impl App {
         });
     }
 
+    // motor controls
     fn col_1(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("Motor Controls Grid {id}")).show(ui, |ui| {
             if ui.button("Enable Motor").clicked() {
-                let cmd = SerialCommand::SetEnabled {
-                    id: 0,
-                    enabled: true,
-                };
+                let cmd = SerialCommand::SetEnabled { id, enabled: true };
                 self.send_command(cmd);
             }
             if ui.button("Disable Motor").clicked() {
-                let cmd = SerialCommand::SetEnabled {
-                    id: 0,
-                    enabled: false,
-                };
+                let cmd = SerialCommand::SetEnabled { id, enabled: false };
                 self.send_command(cmd);
             }
             ui.end_row();
@@ -336,7 +333,7 @@ impl App {
                 but
             };
             if ui.add(but).clicked() {
-                let cmd = SerialCommand::SetModeTorque { id: 0 };
+                let cmd = SerialCommand::SetModeTorque { id };
                 self.send_command(cmd);
             }
             ui.end_row();
@@ -351,7 +348,7 @@ impl App {
                 but
             };
             if ui.add(but).clicked() {
-                let cmd = SerialCommand::SetModeVelocityOpenLoop { id: 0 };
+                let cmd = SerialCommand::SetModeVelocityOpenLoop { id };
                 self.send_command(cmd);
             }
             ui.end_row();
@@ -366,7 +363,7 @@ impl App {
                 but
             };
             if ui.add(but).clicked() {
-                self.send_command(SerialCommand::SetModeVelocity { id: 0 });
+                self.send_command(SerialCommand::SetModeVelocity { id });
             }
             ui.end_row();
 
@@ -380,7 +377,7 @@ impl App {
                 but
             };
             if ui.add(but).clicked() {
-                self.send_command(SerialCommand::SetModeAngle { id: 0 });
+                self.send_command(SerialCommand::SetModeAngle { id });
             }
             ui.end_row();
         });
@@ -390,6 +387,7 @@ impl App {
         //     let resp = ui.add(egui::Slider::new(&mut self.gear_ratio, -0.5..=10.0));
         // });
 
+        // target torque
         ui.horizontal(|ui| {
             ui.label("Target Torque:");
             let range =
@@ -427,7 +425,7 @@ impl App {
 
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetMotorTarget {
-                    id: 0,
+                    id,
                     target: tgt as f32,
                 };
                 self.send_command(cmd);
@@ -435,11 +433,12 @@ impl App {
 
             // if ui.button("Reset Target").clicked() {
             //     self.status.target_voltage = 0.0;
-            //     let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
+            //     let cmd = SerialCommand::SetMotorTarget { id, target: 0.0 };
             //     self.send_command(cmd);
             // }
         });
 
+        // target pos
         ui.horizontal(|ui| {
             ui.label("Target Pos:");
             let resp = ui.add(egui::Slider::new(
@@ -468,11 +467,11 @@ impl App {
                 resp,
                 // 0.5,
                 // (0.1, 1.0),
-                3.14 / 4. * self.status[id as usize].gear_ratio,
+                3.14 / 8. * self.status[id as usize].gear_ratio,
                 // 3.14 / 4.,
                 (
-                    3.14 / 8. * self.status[id as usize].gear_ratio,
-                    3.14 / 2. * self.status[id as usize].gear_ratio,
+                    3.14 / 16. * self.status[id as usize].gear_ratio,
+                    3.14 / 4. * self.status[id as usize].gear_ratio,
                     // 3.14 / 8.,
                     // 3.14 / 2.,
                 ),
@@ -485,7 +484,7 @@ impl App {
 
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetMotorTarget {
-                    id: 0,
+                    id,
 
                     // target: ((self.status.target_pos + self.status.angle_offset)
                     //     * self.status.gear_ratio) as f32,
@@ -494,25 +493,9 @@ impl App {
                 };
                 self.send_command(cmd);
             }
-
-            // if ui.button("Reset Target").clicked() {
-            //     self.status.target_pos = 0.0;
-            //     let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
-            //     self.send_command(cmd);
-            // }
-
-            // if ui.button("Zero Position").clicked() {
-            //     let cmd = SerialCommand::SetSensorOffset {
-            //         id: 0,
-            //         offset: Some(self.status.pos as f32),
-            //     };
-            //     self.send_command(cmd);
-
-            //     let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
-            //     self.send_command(cmd);
-            // }
         });
 
+        // target vel
         ui.horizontal(|ui| {
             ui.label("Target Vel:");
             // let resp = ui.add(egui::Slider::new(&mut self.target_vel, -20.0..=20.0));
@@ -553,7 +536,7 @@ impl App {
 
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetMotorTarget {
-                    id: 0,
+                    id,
                     target: tgt as f32,
                 };
                 self.send_command(cmd);
@@ -561,11 +544,12 @@ impl App {
 
             // if ui.button("Reset Target").clicked() {
             //     self.status.target_vel = 0.0;
-            //     let cmd = SerialCommand::SetMotorTarget { id: 0, target: 0.0 };
+            //     let cmd = SerialCommand::SetMotorTarget { id, target: 0.0 };
             //     self.send_command(cmd);
             // }
         });
 
+        // feedforward
         ui.horizontal(|ui| {
             ui.label("Feedforward:");
 
@@ -597,13 +581,15 @@ impl App {
 
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetFeedForward {
-                    id: 0,
+                    id,
                     ff: self.status[id as usize].feed_forward as f32,
                 };
                 self.send_command(cmd);
             }
         });
 
+        // arm torque
+        #[cfg(feature = "nope")]
         ui.horizontal(|ui| {
             let ball_bearing_mass = 3.528; // g
 
@@ -637,13 +623,15 @@ impl App {
 
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetFeedForward {
-                    id: 0,
+                    id,
                     ff: self.status[id as usize].feed_forward as f32,
                 };
                 self.send_command(cmd);
             }
         });
 
+        // angle offset
+        #[cfg(feature = "nope")]
         ui.horizontal(|ui| {
             let size = Vec2::splat(16.0);
             let (response, painter) = ui.allocate_painter(size, Sense::hover());
@@ -688,6 +676,7 @@ impl App {
         //
     }
 
+    // velocity PID controls
     fn col_2(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("velocity_pid_grid {id}")).show(ui, |ui| {
             self::pid_settings::pid_control(
@@ -742,6 +731,7 @@ impl App {
         });
     }
 
+    // position PID controls
     fn col_3(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("position_pid_grid {id}")).show(ui, |ui| {
             self::pid_settings::pid_control(
@@ -826,7 +816,7 @@ impl App {
             if ui.add(egui::DragValue::new(&mut self.pos_pid_p)).changed() {
                 if let Some(tx) = &self.serial_cmd_tx {
                     let cmd = SerialCommand::SetAnglePID {
-                        id: 0,
+                        id,
                         p: Some(self.pos_pid_p),
                         i: None,
                         d: None,
@@ -844,7 +834,7 @@ impl App {
             if ui.add(egui::DragValue::new(&mut self.pos_pid_i)).changed() {
                 if let Some(tx) = &self.serial_cmd_tx {
                     let cmd = SerialCommand::SetAnglePID {
-                        id: 0,
+                        id,
                         p: None,
                         i: Some(self.pos_pid_i),
                         d: None,
@@ -862,7 +852,7 @@ impl App {
             if ui.add(egui::DragValue::new(&mut self.pos_pid_d)).changed() {
                 if let Some(tx) = &self.serial_cmd_tx {
                     let cmd = SerialCommand::SetAnglePID {
-                        id: 0,
+                        id,
                         p: None,
                         i: None,
                         d: Some(self.pos_pid_d),
@@ -883,8 +873,7 @@ impl App {
             {
                 if let Some(tx) = &self.serial_cmd_tx {
                     let cmd = SerialCommand::SetLPF {
-                        id: 0,
-                        lpf_vel: None,
+                        i_vel: None,
                         lpf_angle: Some(self.lpf_angle),
                     };
                     if let Err(e) = tx.try_send(cmd) {

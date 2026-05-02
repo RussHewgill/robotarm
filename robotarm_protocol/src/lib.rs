@@ -25,6 +25,11 @@ pub enum SerialLogMessage {
         motor_voltage: (f32, f32),
         feed_forward: f32,
     },
+    DebugData {
+        id: u8,
+        timestamp: u64,
+        zero_electrical_angle: f32,
+    },
     EncoderData {
         id: u8,
         timestamp: u64,
@@ -53,6 +58,9 @@ pub enum SerialLogMessage {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SerialCommand {
     RequestSettings {
+        id: u8,
+    },
+    RequestDebugData {
         id: u8,
     },
     SetEnabled {
@@ -115,12 +123,17 @@ pub enum SerialCommand {
         id: u8,
         voltage_limit: f32,
     },
+    SetZeroElectricalAngle {
+        id: u8,
+        angle: f32,
+    },
 }
 
 impl SerialCommand {
     pub fn id(&self) -> u8 {
         match self {
             SerialCommand::RequestSettings { id } => *id,
+            SerialCommand::RequestDebugData { id } => *id,
             SerialCommand::SetEnabled { id, .. } => *id,
             SerialCommand::SetDebugRate { id, .. } => *id,
             SerialCommand::SetModeTorque { id } => *id,
@@ -134,6 +147,7 @@ impl SerialCommand {
             SerialCommand::SetMotorTarget { id, .. } => *id,
             SerialCommand::ZeroPosition { id } => *id,
             SerialCommand::SetVoltageLimit { id, .. } => *id,
+            SerialCommand::SetZeroElectricalAngle { id, .. } => *id,
         }
     }
 }

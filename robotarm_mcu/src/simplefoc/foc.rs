@@ -167,6 +167,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // Timer::after_millis(1).await;
         self.enable();
 
+        // find encoder rotation direction
         if self.sensor_direction == SensorDirection::Unknown {
             let n = 100;
 
@@ -220,10 +221,12 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 );
             } else if mid_angle < end_angle {
                 self.sensor_direction = SensorDirection::CW;
-                info!("Sensor direction: Normal");
+                // info!("Sensor direction: Normal");
+                info!("Sensor direction: Clockwise");
             } else {
                 self.sensor_direction = SensorDirection::CCW;
-                info!("Sensor direction: Reversed");
+                // info!("Sensor direction: Reversed");
+                info!("Sensor direction: Counter-Clockwise");
             }
 
             // self.sensor_direction = SensorDirection::Inverted;
@@ -237,8 +240,6 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         }
 
         // zero electric angle not known
-        // warn!("Skipping sensor alignment for testing");
-        // #[cfg(feature = "nope")]
         if self.zero_electric_angle == NOT_SET {
             // align the electrical phases of the motor and sensor
             // set angle -90(270 = 3PI/2) degrees
@@ -271,7 +272,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             let electrical_angle = self.get_electrical_angle();
             self.zero_electric_angle = electrical_angle;
 
-            // info!("Zero electric angle set to {}", self.zero_electric_angle);
+            info!("Zero electric angle set to {}", self.zero_electric_angle);
             // info!("Shaft angle at alignment position: {}", _shaft_angle);
 
             Timer::after_millis(20).await;

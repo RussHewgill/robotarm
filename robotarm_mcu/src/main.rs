@@ -496,7 +496,7 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     let mut encoder = {
         let miso = p.PIN_12;
         // let mosi = p.PIN_15;
@@ -523,7 +523,7 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let mut encoder = {
         let miso = p.PIN_20;
         // let mosi = p.PIN_19;
@@ -820,8 +820,42 @@ async fn main(spawner: Spawner) {
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
+    // let voltage_limit = 3.0;
+    // let voltage_limit = 4.;
+    // let voltage_limit = 6.;
+    let voltage_limit = 8.;
+
+    let supply_voltage = 16.0;
+
     // #[cfg(feature = "nope")]
     let encoder0 = {
+        let miso = p.PIN_12;
+        // let mosi = p.PIN_15;
+
+        let sck = p.PIN_14;
+        let cs = p.PIN_13;
+
+        let mut config = embassy_rp::spi::Config::default();
+        config.frequency = 4_000_000;
+        config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+        config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+        // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
+
+        let mut spi =
+            embassy_rp::spi::Spi::new_rxonly(p.SPI1, sck, miso, p.DMA_CH2, p.DMA_CH3, config);
+
+        // Configure CS
+        let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
+
+        // let mut buf: [u8; 4] = [0; 4];
+
+        let mut encoder = crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
+
+        encoder
+    };
+
+    // #[cfg(feature = "nope")]
+    let encoder1 = {
         let miso = p.PIN_20;
         // let mosi = p.PIN_19;
 
@@ -837,33 +871,6 @@ fn main() -> ! {
 
         let mut spi =
             embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, config);
-
-        // Configure CS
-        let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
-
-        // let mut buf: [u8; 4] = [0; 4];
-
-        let mut encoder = crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
-
-        encoder
-    };
-
-    // #[cfg(feature = "nope")]
-    let encoder1 = {
-        let miso = p.PIN_12;
-        // let mosi = p.PIN_15;
-
-        let sck = p.PIN_14;
-        let cs = p.PIN_13;
-
-        let mut config = embassy_rp::spi::Config::default();
-        config.frequency = 4_000_000;
-        config.polarity = embassy_rp::spi::Polarity::IdleHigh;
-        config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
-        // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
-
-        let mut spi =
-            embassy_rp::spi::Spi::new_rxonly(p.SPI1, sck, miso, p.DMA_CH2, p.DMA_CH3, config);
 
         // Configure CS
         let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
@@ -925,11 +932,6 @@ fn main() -> ! {
         sensor
     };
 
-    // let voltage_limit = 3.0;
-    // let voltage_limit = 4.;
-    let voltage_limit = 6.;
-    // let voltage_limit = 10.;
-
     // #[cfg(feature = "nope")]
     let (pwm_driver0, pwm_driver1) = {
         let mut c = embassy_rp::pwm::Config::default();
@@ -964,7 +966,7 @@ fn main() -> ! {
             enable_pin0,
             c.clone(),
             voltage_limit,
-            12.,
+            supply_voltage,
         );
 
         let pwm3 = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, c.clone());
@@ -977,7 +979,7 @@ fn main() -> ! {
             enable_pin1,
             c,
             voltage_limit,
-            12.,
+            supply_voltage,
         );
 
         (driver0, driver1)
@@ -1131,10 +1133,11 @@ fn main() -> ! {
             .spawn(crate::init::core0_task0(foc0))
             .unwrap();
 
-        spawner
-            // .spawn(crate::init::core0_task1(foc0, output_encoder0))
-            .spawn(crate::init::core0_task1(foc1))
-            .unwrap();
+        // spawner
+        //     // .spawn(crate::init::core0_task1(foc0, output_encoder0))
+        //     .spawn(crate::init::core0_task1(foc1))
+        //     .unwrap();
+
         // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
     });
 }

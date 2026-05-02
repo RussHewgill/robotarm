@@ -24,7 +24,7 @@ pub async fn core0_task0(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
         crate::hardware::mt_6701_ssi::MT6701<
-            embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
+            embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
         >,
         // INA226<
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
@@ -35,7 +35,7 @@ pub async fn core0_task0(
     // >,
 ) {
     // core0_task(foc, output_encoder).await;
-    core0_task(foc).await;
+    foc_task(foc).await;
 }
 
 #[embassy_executor::task]
@@ -43,7 +43,7 @@ pub async fn core0_task1(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
         crate::hardware::mt_6701_ssi::MT6701<
-            embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
+            embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
         >,
         // INA226<
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
@@ -55,19 +55,25 @@ pub async fn core0_task1(
     // >,
 ) {
     // core0_task(foc, output_encoder).await;
-    core0_task(foc).await;
+    foc_task(foc).await;
 }
 
 // #[embassy_executor::task]
-pub async fn core0_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
+pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR, CURRENT>,
     // mut output_encoder: crate::hardware::mt_6701::MT6701<
     //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
     // >,
 ) {
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
+    // // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
+    // // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
+
+    match foc.id {
+        0 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
+        1 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
+        _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
+    };
 
     // foc.set_motion_control(MotionControlType::Torque);
     // foc.set_motion_control(MotionControlType::Velocity);
@@ -219,7 +225,7 @@ pub async fn core0_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         }
 
         let t1 = Instant::now();
-        // #[cfg(feature = "nope")]
+        #[cfg(feature = "nope")]
         if t1 > max_time {
             let elapsed = t1 - t0;
             let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
