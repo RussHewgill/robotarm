@@ -205,13 +205,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
                     let kv = rpm / self.motor.voltage.q;
 
-                    debug!(
-                        "KV Calculation: voltage: {}, velocity (rad/s): {}, velocity (RPM), KV: {}",
-                        self.motor.voltage.q,
-                        shaft_velocity,
-                        //
-                        kv
-                    )
+                    // debug!(
+                    //     "KV Calculation: voltage: {}, velocity (rad/s): {}, velocity (RPM), KV: {}",
+                    //     self.motor.voltage.q,
+                    //     shaft_velocity,
+                    //     //
+                    //     kv
+                    // )
                 }
             }
             MotionControlType::Velocity => {
@@ -374,6 +374,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 sensor_currents,
                 motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
                 feed_forward: self.feed_forward_torque,
+                pid_outputs: (
+                    self.pid_velocity.prev_output(),
+                    self.pid_angle.prev_output(),
+                ),
             })
             .await;
         }

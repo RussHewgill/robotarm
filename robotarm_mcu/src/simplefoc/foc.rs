@@ -239,21 +239,26 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             //
         }
 
+        // self.motor.voltage_sensor_align = 0.5;
+        // self.motor.voltage_sensor_align = 1.0;
+        // self.motor.voltage_sensor_align = 2.0;
+        self.motor.voltage_sensor_align = 4.0;
+
         // zero electric angle not known
+        // basic simpleFOC aligment
+        #[cfg(feature = "nope")]
         if self.zero_electric_angle == NOT_SET {
             // align the electrical phases of the motor and sensor
             // set angle -90(270 = 3PI/2) degrees
 
             info!("Aligning sensor, rotating motor to known angle...");
 
-            // self.motor.voltage_sensor_align = 0.5;
-            // self.motor.voltage_sensor_align = 1.0;
-            // self.motor.voltage_sensor_align = 2.0;
-            self.motor.voltage_sensor_align = 4.0;
+            Timer::after_millis(2000).await;
 
             // not sure why this is needed
             self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
-            Timer::after_millis(2).await;
+            // Timer::after_millis(2).await;
+            Timer::after_millis(50).await;
 
             self.set_phase_voltage(
                 self.motor.voltage_sensor_align,
@@ -263,7 +268,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
             // info!("Waiting for sensor to align...");
 
-            Timer::after_millis(700).await;
+            // Timer::after_millis(700).await;
+            Timer::after_millis(1000).await;
+
+            let _ = self.encoder.update(Instant::now().as_micros()).await;
 
             // info!("Sensor aligned, setting zero electric angle...");
 
@@ -282,6 +290,85 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             Timer::after_millis(200).await;
         }
 
+        // #[cfg(feature = "nope")]
+        if self.zero_electric_angle == NOT_SET {
+            info!("Aligning sensor, rotating motor to known angle...");
+
+            Timer::after_millis(1000).await;
+
+            // // not sure why this is needed
+            // self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
+            // // Timer::after_millis(2).await;
+            // Timer::after_millis(50).await;
+
+            // self.set_phase_voltage(
+            //     self.motor.voltage_sensor_align,
+            //     0.,
+            //     crate::simplefoc::types::_3PI_2,
+            // );
+
+            let align_angle = 3.0 * core::f32::consts::PI / 2.0; // SimpleFOC's default D-axis alignment angle
+
+            let mut left_angles = heapless::Vec::<f32, 4>::new();
+            let mut right_angles = heapless::Vec::<f32, 4>::new();
+
+            let delay = 300;
+
+            for _ in 0..2 {
+                // approach from left
+                let mut a = align_angle - 1.5;
+                while a <= align_angle {
+                    self.set_phase_voltage(self.motor.voltage_sensor_align, 0., a);
+                    a += 0.01;
+                    Timer::after_millis(3).await;
+                    let _ = self.encoder.update(Instant::now().as_micros()).await;
+                }
+                Timer::after_millis(delay).await;
+                let _ = self.encoder.update(Instant::now().as_micros()).await;
+                // let angle_left = self.encoder.get_mechanical_angle();
+
+                self.zero_electric_angle = 0.;
+                let angle_left = self.get_electrical_angle();
+                debug!("Angle left: {}", angle_left);
+                left_angles.push(angle_left).unwrap();
+
+                // approach from right
+                let mut a = align_angle + 1.5;
+                while a >= align_angle {
+                    self.set_phase_voltage(self.motor.voltage_sensor_align, 0., a);
+                    a -= 0.01;
+                    Timer::after_millis(3).await;
+                    let _ = self.encoder.update(Instant::now().as_micros()).await;
+                }
+                Timer::after_millis(delay).await;
+                let _ = self.encoder.update(Instant::now().as_micros()).await;
+                // let angle_right = self.encoder.get_mechanical_angle();
+
+                self.zero_electric_angle = 0.;
+                let angle_right = self.get_electrical_angle();
+                debug!("Angle right: {}", angle_right);
+
+                right_angles.push(angle_right).unwrap();
+            }
+
+            self.set_phase_voltage(0., 0., 0.);
+
+            let avg_left = left_angles.iter().copied().sum::<f32>() / left_angles.len() as f32;
+            let avg_right = right_angles.iter().copied().sum::<f32>() / right_angles.len() as f32;
+
+            debug!("Avg left angle: {}", avg_left);
+            debug!("Avg right angle: {}", avg_right);
+
+            let avg_angle = (avg_left + avg_right) / 2.0;
+            // let angle =
+            //     self.sensor_direction.multiplier() * avg_angle * self.motor.pole_pairs as f32;
+            // let angle = angle - align_angle;
+
+            // let angle = Self::normalize_angle(angle);
+
+            self.zero_electric_angle = avg_angle;
+            info!("Zero electric angle set to {}", self.zero_electric_angle);
+        }
         // self.disable();
     }
 

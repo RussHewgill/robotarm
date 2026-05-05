@@ -14,13 +14,13 @@ pub type LogChannel = embassy_sync::channel::Channel<
     embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
     // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
     robotarm_protocol::SerialLogMessage,
-    1,
+    2,
 >;
 pub type CmdChannel = embassy_sync::channel::Channel<
     embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
     // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
     robotarm_protocol::SerialCommand,
-    1,
+    2,
 >;
 
 pub static LOG_CHAN: LogChannel = LogChannel::new();
@@ -35,14 +35,14 @@ pub struct UsbLogger {
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
         robotarm_protocol::SerialCommand,
-        1,
+        2,
     >,
     rx1: embassy_sync::channel::Receiver<
         'static,
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
         robotarm_protocol::SerialCommand,
-        1,
+        2,
     >,
     /// MCU sends log to USB task
     tx: embassy_sync::channel::Sender<
@@ -50,7 +50,7 @@ pub struct UsbLogger {
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
         robotarm_protocol::SerialLogMessage,
-        1,
+        2,
     >,
 }
 
@@ -232,21 +232,21 @@ async fn usb_logger_task(
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
         robotarm_protocol::SerialCommand,
-        1,
+        2,
     >,
     cmd_tx1: embassy_sync::channel::Sender<
         'static,
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
         robotarm_protocol::SerialCommand,
-        1,
+        2,
     >,
     log_rx: embassy_sync::channel::Receiver<
         'static,
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
         robotarm_protocol::SerialLogMessage,
-        1,
+        2,
     >,
 ) -> ! {
     let mut buf: [u8; 4096];
@@ -277,12 +277,17 @@ async fn usb_logger_task(
             }
             embassy_futures::select::Either::Second(Err(e)) => {
                 error!("USB read error");
+                accum = postcard::accumulator::CobsAccumulator::<4096>::new();
+                debug!("Waiting for USB connection...");
+                usb_monitor.rx.wait_connection().await;
+                debug!("USB connected");
             }
             embassy_futures::select::Either::Second(Ok(n)) => {
                 // debug!("Received {} bytes from USB", n);
                 let mut window = &buf[..n];
                 'cobs: while !window.is_empty() {
-                    window = match accum.feed::<SerialCommand>(&buf[..n]) {
+                    // window = match accum.feed::<SerialCommand>(&buf[..n]) {
+                    window = match accum.feed::<SerialCommand>(window) {
                         FeedResult::Success { data, remaining } => {
                             // debug!("Received complete message from USB: {:?}", data);
 

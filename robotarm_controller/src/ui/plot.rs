@@ -46,6 +46,14 @@ pub struct DataPlot {
     #[serde(skip)]
     current_q: VecDeque<(f64, f64)>,
 
+    pub draw_pid_output_vel: bool,
+    #[serde(skip)]
+    pid_output_vel: VecDeque<(f64, f64)>,
+
+    pub draw_pid_output_pos: bool,
+    #[serde(skip)]
+    pid_output_pos: VecDeque<(f64, f64)>,
+
     // scale_angle: f64,
     scale_vel: f64,
 }
@@ -69,6 +77,10 @@ impl Default for DataPlot {
             draw_current: false,
             current_d: VecDeque::new(),
             current_q: VecDeque::new(),
+            draw_pid_output_vel: false,
+            pid_output_vel: VecDeque::new(),
+            draw_pid_output_pos: false,
+            pid_output_pos: VecDeque::new(),
 
             // scale_angle: std::f64::consts::PI * 2.,
             // scale_vel: 0.05,
@@ -103,6 +115,15 @@ impl App {
         );
         ui.checkbox(&mut self.plots[self.current_plot].draw_voltage, "Voltage");
         ui.checkbox(&mut self.plots[self.current_plot].draw_current, "Current");
+
+        ui.checkbox(
+            &mut self.plots[self.current_plot].draw_pid_output_vel,
+            "PID output vel",
+        );
+        ui.checkbox(
+            &mut self.plots[self.current_plot].draw_pid_output_pos,
+            "PID output pos",
+        );
 
         // ui.add(egui::Slider::new(&mut self.plot.scale_angle, 0.1..=10.).text("Angle scale"));
         // ui.add(egui::Slider::new(&mut self.plot.scale_vel, 0.01..=1.).text("Velocity scale"));
@@ -160,6 +181,16 @@ impl DataPlot {
         self.prev_time = t;
     }
 
+    pub fn add_point_pid_output_vel(&mut self, t: f64, output: f64) {
+        self.pid_output_vel.push_back((t, output));
+        self.prev_time = t;
+    }
+
+    pub fn add_point_pid_output_pos(&mut self, t: f64, output: f64) {
+        self.pid_output_pos.push_back((t, output));
+        self.prev_time = t;
+    }
+
     fn clear_old_points(&mut self, current_time: f64) {
         while let Some((t2, _)) = self.angle.front() {
             if *t2 < current_time - self.window_time {
@@ -212,6 +243,22 @@ impl DataPlot {
         while let Some((t2, _)) = self.current_q.front() {
             if *t2 < current_time - self.window_time {
                 self.current_q.pop_front();
+            } else {
+                break;
+            }
+        }
+
+        while let Some((t2, _)) = self.pid_output_vel.front() {
+            if *t2 < current_time - self.window_time {
+                self.pid_output_vel.pop_front();
+            } else {
+                break;
+            }
+        }
+
+        while let Some((t2, _)) = self.pid_output_pos.front() {
+            if *t2 < current_time - self.window_time {
+                self.pid_output_pos.pop_front();
             } else {
                 break;
             }

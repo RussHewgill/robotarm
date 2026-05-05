@@ -42,4 +42,6 @@ pub struct FocStatus {
 
     pub lpf_angle: f32,
     pub lpf_vel: f32,
+
+    pub zero_electrical_angle: f64,
 }

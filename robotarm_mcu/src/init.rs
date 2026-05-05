@@ -70,7 +70,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     match foc.id {
-        0 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
+        0 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
         1 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
         _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
     };

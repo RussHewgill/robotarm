@@ -5,6 +5,7 @@ pub struct PIDController {
     pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
     pid: self::prev::PIDController,
     ramp: f32,
+    prev_output: f32,
 }
 
 impl PIDController {
@@ -31,7 +32,12 @@ impl PIDController {
 
         let pid = self::prev::PIDController::new(p, i, d, ramp, limit);
 
-        Self { pid, pid2, ramp }
+        Self {
+            pid,
+            pid2,
+            ramp,
+            prev_output: 0.0,
+        }
     }
 
     #[cfg(feature = "nope")]
@@ -54,7 +60,12 @@ impl PIDController {
         let output = self
             .pid2
             .compute(input, setpoint, discrete_pid::time::Micros(t_us), None);
+        self.prev_output = output;
         output
+    }
+
+    pub fn prev_output(&self) -> f32 {
+        self.prev_output
     }
 
     #[cfg(feature = "nope")]

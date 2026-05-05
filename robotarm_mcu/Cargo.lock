@@ -524,7 +524,6 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc4462e48b19a4f401a11901bdd981aab80c6a826608016a0bdc73cbbab31954"
 dependencies = [
- "defmt",
  "embassy-futures",
  "embassy-net-driver-channel",
  "embassy-sync",

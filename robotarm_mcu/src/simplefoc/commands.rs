@@ -12,7 +12,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         let mut cmds = heapless::Vec::<SerialCommand, 8>::new();
         if let Some(logger) = &mut self.usb_logger {
             while let Ok(cmd) = logger.recv(self.id).await {
-                debug!("Received command: {:#?}", cmd);
+                // debug!("Received command: {:#?}", cmd);
 
                 // let _ = cmds.push(cmd);
                 if cmd.id() == self.id {

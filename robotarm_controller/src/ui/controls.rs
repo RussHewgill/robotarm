@@ -673,6 +673,57 @@ impl App {
             }
         });
 
+        // electrical angle
+        ui.horizontal(|ui| {
+            ui.label("Elec Angle:");
+
+            let inc = 0.01;
+            if ui.button("+").clicked() {
+                self.status[id as usize].zero_electrical_angle += inc;
+                let cmd = SerialCommand::SetZeroElectricalAngle {
+                    id,
+                    angle: self.status[id as usize].zero_electrical_angle as f32,
+                };
+                self.send_command(cmd);
+            }
+            if ui.button("-").clicked() {
+                self.status[id as usize].zero_electrical_angle -= inc;
+                let cmd = SerialCommand::SetZeroElectricalAngle {
+                    id,
+                    angle: self.status[id as usize].zero_electrical_angle as f32,
+                };
+                self.send_command(cmd);
+            }
+
+            // let resp = ui.add(egui::Slider::new(
+            //     &mut self.status[id as usize].feed_forward,
+            //     -..=10.0,
+            // ));
+            let resp = ui.add(
+                egui::DragValue::new(&mut self.status[id as usize].zero_electrical_angle)
+                    .suffix(" rad")
+                    .fixed_decimals(5),
+            );
+            let mut send_target = None;
+
+            if resp.changed() {
+                send_target = Some(self.status[id as usize].feed_forward);
+            }
+
+            if let Some(tgt) = send_target {
+                let cmd = SerialCommand::SetZeroElectricalAngle {
+                    id,
+                    angle: self.status[id as usize].zero_electrical_angle as f32,
+                };
+                self.send_command(cmd);
+            }
+
+            if ui.button("Get").clicked() {
+                let cmd = SerialCommand::RequestDebugData { id };
+                self.send_command(cmd);
+            }
+        });
+
         //
     }
 

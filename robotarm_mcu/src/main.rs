@@ -820,7 +820,7 @@ async fn main(spawner: Spawner) {
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
-    // let voltage_limit = 3.0;
+    // let voltage_limit = 2.0;
     // let voltage_limit = 4.;
     // let voltage_limit = 6.;
     let voltage_limit = 8.;

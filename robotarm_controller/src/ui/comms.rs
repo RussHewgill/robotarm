@@ -34,6 +34,8 @@ impl App {
                         zero_electrical_angle,
                     } => {
                         debug!("Got debug data from motor {}", id);
+                        self.status[id as usize].zero_electrical_angle =
+                            zero_electrical_angle as f64;
                     }
                     // SerialLogMessage::Ping => {}
                     SerialLogMessage::MotorPID {
@@ -88,6 +90,7 @@ impl App {
                         motor_voltage,
                         sensor_currents,
                         feed_forward,
+                        pid_outputs,
                     } => {
                         // debug!("Got motor data {:#?}", msg);
                         // debug!("Got motor data");
@@ -102,6 +105,10 @@ impl App {
                             self.plots[id as usize].add_point_target_vel(t, target_velocity as f64);
                             self.plots[id as usize].add_point_target_pos(t, target_position as f64);
                             self.plots[id as usize].add_point_voltage(t, motor_voltage.0 as f64);
+                            self.plots[id as usize]
+                                .add_point_pid_output_vel(t, pid_outputs.0 as f64);
+                            self.plots[id as usize]
+                                .add_point_pid_output_pos(t, pid_outputs.1 as f64);
                             // self.plot.add_point_current(t, motor_current as f64);
                             if let Some((current_d, current_q)) = sensor_currents {
                                 self.plots[id as usize].add_point_current(
