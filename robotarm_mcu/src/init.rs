@@ -30,12 +30,12 @@ pub async fn core0_task0(
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         // >,
     >,
-    // mut output_encoder: crate::hardware::mt_6701::MT6701<
-    //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
-    // >,
+    mut output_encoder: crate::hardware::mt_6701::MT6701<
+        embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+    >,
 ) {
-    // core0_task(foc, output_encoder).await;
-    foc_task(foc).await;
+    foc_task(foc, output_encoder).await;
+    // foc_task(foc).await;
 }
 
 #[embassy_executor::task]
@@ -50,42 +50,38 @@ pub async fn core0_task1(
         // >,
         // INA240<embassy_rp::peripherals::DMA_CH0>,
     >,
-    // mut output_encoder: crate::hardware::mt_6701::MT6701<
-    //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
-    // >,
+    mut output_encoder: crate::hardware::mt_6701::MT6701<
+        embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+    >,
 ) {
-    // core0_task(foc, output_encoder).await;
-    foc_task(foc).await;
+    foc_task(foc, output_encoder).await;
+    // foc_task(foc).await;
 }
 
 // #[embassy_executor::task]
 pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR, CURRENT>,
-    // mut output_encoder: crate::hardware::mt_6701::MT6701<
-    //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
-    // >,
+    mut output_encoder: crate::hardware::mt_6701::MT6701<
+        embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+    >,
 ) {
-    // // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
-    // // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
-    match foc.id {
-        0 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
-        1 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
-        _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
-    };
+    // match foc.id {
+    //     0 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
+    //     1 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
+    //     _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
+    // };
 
-    // foc.set_motion_control(MotionControlType::Torque);
+    foc.set_motion_control(MotionControlType::Torque);
     // foc.set_motion_control(MotionControlType::Velocity);
     // foc.set_motion_control(MotionControlType::Angle);
-    foc.set_motion_control(MotionControlType::VelocityOpenLoop);
+    // foc.set_motion_control(MotionControlType::VelocityOpenLoop);
 
-    info!("Starting init");
-    foc.init();
-    info!("Starting FOC init");
-    foc.init_foc().await;
-    // spawner.spawn(loop_foc(foc)).unwrap();
-    foc.enable();
+    // foc.set_torque_control(crate::simplefoc::types::TorqueControlType::Voltage);
+    foc.set_torque_control(crate::simplefoc::types::TorqueControlType::EstimatedCurrent);
 
     // spawner.spawn(test_foc(foc)).unwrap();
 
@@ -186,11 +182,22 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // let output_encoder_downsample = 10;
     // let mut output_encoder_counter = 0;
 
+    // foc.set_zero_electric_angle(2.46530);
+    // foc.set_zero_electric_angle(2.4);
+    foc.set_zero_electric_angle(5.73556);
+
     let output_encoder_update_rate_hz = 20;
     let output_encoder_update_interval_us =
         embassy_time::Duration::from_micros(1_000_000 / output_encoder_update_rate_hz);
     let mut output_encoder_next_update =
         (Instant::now() + output_encoder_update_interval_us).as_micros();
+
+    info!("Starting init");
+    foc.init();
+    info!("Starting FOC init");
+    foc.init_foc().await;
+    // spawner.spawn(loop_foc(foc)).unwrap();
+    foc.enable();
 
     // #[cfg(feature = "nope")]
     loop {

@@ -72,6 +72,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         self.motion_control = control_type;
     }
 
+    pub fn set_torque_control(&mut self, control_type: TorqueControlType) {
+        self.torque_controller = control_type;
+    }
+
     pub fn set_encoder_direction(&mut self, direction: SensorDirection) {
         self.sensor_direction = direction;
     }
@@ -242,7 +246,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // self.motor.voltage_sensor_align = 0.5;
         // self.motor.voltage_sensor_align = 1.0;
         // self.motor.voltage_sensor_align = 2.0;
-        self.motor.voltage_sensor_align = 4.0;
+        // self.motor.voltage_sensor_align = 4.0;
+        self.motor.voltage_sensor_align = 6.0;
 
         // zero electric angle not known
         // basic simpleFOC aligment
@@ -368,6 +373,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
             self.zero_electric_angle = avg_angle;
             info!("Zero electric angle set to {}", self.zero_electric_angle);
+        } else {
+            debug!(
+                "Zero electric angle already set to {}, skipping alignment",
+                self.zero_electric_angle
+            );
         }
         // self.disable();
     }
@@ -476,6 +486,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
 /// helpers
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
+    pub fn estimate_back_emf(&self, shaft_velocity: f32) -> f32 {
+        match self.motor.motor_kv {
+            Some(kv) => shaft_velocity / (kv * super::types::_SQRT3) / super::types::_RPM_TO_RADS,
+            None => 0.0,
+        }
+    }
+
     /// normalizing radian angle to [0,2PI]
     fn normalize_angle(angle: f32) -> f32 {
         let angle = angle % (2.0 * core::f32::consts::PI);

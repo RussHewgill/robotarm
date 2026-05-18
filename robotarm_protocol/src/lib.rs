@@ -54,6 +54,17 @@ pub enum SerialLogMessage {
     },
 }
 
+impl SerialLogMessage {
+    pub fn id(&self) -> u8 {
+        match self {
+            SerialLogMessage::MotorData { id, .. } => *id,
+            SerialLogMessage::DebugData { id, .. } => *id,
+            SerialLogMessage::EncoderData { id, .. } => *id,
+            SerialLogMessage::MotorPID { id, .. } => *id,
+        }
+    }
+}
+
 /// Data from Controller to MCU
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

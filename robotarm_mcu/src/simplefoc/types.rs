@@ -14,7 +14,7 @@ pub const _RPM_TO_RADS: f32 = 0.10471975512;
 
 pub const NOT_SET: f32 = -12345.0;
 
-#[derive(defmt::Format, Clone, Copy)]
+#[derive(defmt::Format, Clone, Copy, Default)]
 pub struct DQVoltages {
     pub d: f32,
     pub q: f32,
@@ -26,7 +26,7 @@ pub struct ABCurrents {
     pub beta: f32,
 }
 
-#[derive(defmt::Format, Clone, Copy)]
+#[derive(defmt::Format, Clone, Copy, Default)]
 pub struct DQCurrents {
     pub d: f32,
     pub q: f32,
@@ -70,6 +70,7 @@ impl SensorDirection {
 #[derive(defmt::Format, Clone, Copy, PartialEq)]
 pub enum TorqueControlType {
     Voltage,
+    EstimatedCurrent,
     DCCurrent,
     FOCCurrent,
 }

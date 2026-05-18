@@ -14,7 +14,9 @@ use crate::{
         bldc::BLDCMotor,
         lowpass::LowPassFilter,
         pid::PIDController,
-        types::{NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType},
+        types::{
+            DQCurrents, DQVoltages, NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType,
+        },
     },
 };
 
@@ -96,6 +98,8 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub torque_controller: TorqueControlType,
 
     pub feed_forward_torque: f32,
+    pub feed_forward_voltage: DQVoltages,
+    pub feed_forward_current: DQCurrents,
 
     // pub(super) pid_current_q: PIDController,
     // pub(super) pid_current_d: PIDController,
@@ -119,9 +123,10 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
 
     pub(super) lpf_current_q: LowPassFilter,
     pub(super) lpf_current_d: LowPassFilter,
-    pub(super) max_current: f32,
-
+    // pub(super) max_current: f32,
     pub(super) openloop_shaft_angle: f32,
+
+    pub(super) shaft_velocity: f32,
 }
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
@@ -222,6 +227,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             torque_controller: TorqueControlType::Voltage,
 
             feed_forward_torque: 0.0,
+            feed_forward_voltage: DQVoltages::default(),
+            feed_forward_current: DQCurrents::default(),
 
             phase_v: PhaseVoltages::default(),
 
@@ -261,9 +268,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 PID_CURR_RAMP,
                 PID_CURR_LIMIT,
             ),
-            max_current: 2.0,
-
+            // max_current: 2.0,
             openloop_shaft_angle: 0.,
+            shaft_velocity: 0.0,
         }
     }
 
@@ -294,5 +301,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     pub fn set_vel_pid_debug(&mut self, target_input: f32) {
         let tuner = crate::simplefoc::pid_tuning::PidTuner::new(&self.pid_velocity, target_input);
         self.pid_velocity_tuner = Some(tuner);
+    }
+
+    pub fn set_zero_electric_angle(&mut self, zero_electric_angle: f32) {
+        self.zero_electric_angle = zero_electric_angle;
     }
 }

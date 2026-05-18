@@ -11,6 +11,12 @@ codegen-units = 1
 # note: debug = true is okay - debuginfo isn't flashed to the device!
 debug = true
 
+[features]
+default = ["motor01"]
+motor01 = []
+motor23 = []
+motor45 = []
+
 [dependencies]
 
 robotarm_protocol = { path = "../robotarm_protocol", features = ["defmt"] }

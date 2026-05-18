@@ -86,6 +86,31 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         match self.torque_controller {
             TorqueControlType::Voltage => {
                 // nothing to do
+                // self.motor.voltage.q = self.
+            }
+            TorqueControlType::EstimatedCurrent => {
+                self.motor.target_current = self
+                    .motor
+                    .target_current
+                    .clamp(-self.motor.limit_current, self.motor.limit_current)
+                    + self.feed_forward_current.q;
+
+                let voltage_bemf = self.estimate_back_emf(self.shaft_velocity);
+
+                self.motor.current.q = self
+                    .lpf_current_q
+                    .filter_with_timestamp(self.motor.target_current, t_us);
+
+                self.motor.voltage.q = self.motor.current.q
+                    * self.motor.phase_resistance.unwrap_or(0.0)
+                    + voltage_bemf;
+
+                self.motor.voltage.q = self
+                    .motor
+                    .voltage
+                    .q
+                    .clamp(-self.motor.limit_voltage, self.motor.limit_voltage)
+                    + self.feed_forward_voltage.q;
             }
             TorqueControlType::DCCurrent => {
                 error!("TODO: implement DC current control");
@@ -146,17 +171,14 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         }
 
         let shaft_angle = self.get_shaft_angle();
-        let shaft_velocity = self.get_shaft_velocity(t_us);
+        self.shaft_velocity = self.get_shaft_velocity(t_us);
 
         if !self.enabled {
             return;
         }
 
         // calculate the back-emf voltage if KV_rating available U_bemf = vel*(1/KV)
-        let voltage_bemf = match self.motor.motor_kv {
-            Some(kv) => shaft_velocity / (kv * super::types::_SQRT3) / super::types::_RPM_TO_RADS,
-            None => 0.0,
-        };
+        let voltage_bemf = self.estimate_back_emf(self.shaft_velocity);
 
         if self.current_sensor.is_none() {
             // #[cfg(feature = "nope")]
@@ -189,7 +211,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                         Some(phase_inductance) => {
                             // voltage.d = _constrain( -target*shaft_velocity*pole_pairs*phase_inductance, -voltage_limit, voltage_limit);
                             self.motor.voltage.d = (-self.motor.target_current
-                                * shaft_velocity
+                                * self.shaft_velocity
                                 * (self.motor.pole_pairs as f32)
                                 * phase_inductance)
                                 .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
@@ -201,7 +223,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 }
 
                 if self.debug {
-                    let rpm = shaft_velocity * 30.0 / core::f32::consts::PI;
+                    let rpm = self.shaft_velocity * 30.0 / core::f32::consts::PI;
 
                     let kv = rpm / self.motor.voltage.q;
 
@@ -217,7 +239,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             MotionControlType::Velocity => {
                 if let Some(tuner) = &mut self.pid_velocity_tuner {
                     if !tuner.done() {
-                        self.motor.target_current = tuner.update(shaft_velocity, t_us);
+                        self.motor.target_current = tuner.update(self.shaft_velocity, t_us);
                     } else {
                         debug!("Done tuning velocity PID");
                         self.pid_velocity_tuner = None;
@@ -225,7 +247,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 } else {
                     self.motor.target_current = self.pid_velocity.update(
                         self.motor.target_shaft_velocity,
-                        shaft_velocity,
+                        self.shaft_velocity,
                         t_us,
                     );
                 }
@@ -278,7 +300,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 self.motor.target_current = self.feed_forward_torque
                     + self.pid_velocity.update(
                         self.motor.target_shaft_velocity,
-                        shaft_velocity,
+                        self.shaft_velocity,
                         t_us,
                     );
 
@@ -295,7 +317,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     match self.motor.phase_inductance {
                         Some(phase_inductance) => {
                             self.motor.voltage.d = (-self.motor.target_current
-                                * shaft_velocity
+                                * self.shaft_velocity
                                 * (self.motor.pole_pairs as f32)
                                 * phase_inductance)
                                 .clamp(-self.motor.limit_voltage, self.motor.limit_voltage);
@@ -367,7 +389,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 motion_control: self.motion_control,
                 position: shaft_angle,
                 angle: self.encoder.get_mechanical_angle(),
-                velocity: shaft_velocity,
+                velocity: self.shaft_velocity,
                 target_position: self.motor.target_shaft_angle,
                 target_velocity: self.motor.target_shaft_velocity,
                 motor_current: self.motor.current.q,

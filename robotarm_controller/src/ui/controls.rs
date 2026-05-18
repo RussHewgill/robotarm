@@ -303,7 +303,7 @@ impl App {
             ui.label("Gear Ratio");
             ui.end_row();
             let resp = ui.add(
-                egui::Slider::new(&mut self.status[id as usize].gear_ratio, -20.0..=30.0).integer(),
+                egui::Slider::new(&mut self.status[id as usize].gear_ratio, -20.0..=60.0).integer(),
             );
 
             //

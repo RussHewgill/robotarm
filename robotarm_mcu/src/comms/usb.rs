@@ -10,6 +10,8 @@ use postcard::accumulator::FeedResult;
 use robotarm_protocol::SerialCommand;
 use static_cell::StaticCell;
 
+use crate::{MOTOR_ID_A, MOTOR_ID_B};
+
 pub type LogChannel = embassy_sync::channel::Channel<
     embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
     // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
@@ -71,8 +73,8 @@ impl UsbLogger {
         id: u8,
     ) -> Result<robotarm_protocol::SerialCommand, TryReceiveError> {
         match id {
-            0 => self.rx0.try_receive(),
-            1 => self.rx1.try_receive(),
+            MOTOR_ID_A => self.rx0.try_receive(),
+            MOTOR_ID_B => self.rx1.try_receive(),
             _ => Err(TryReceiveError::Empty),
         }
     }
@@ -294,8 +296,8 @@ async fn usb_logger_task(
                             let mut retries = 0;
                             loop {
                                 let tx = match data.id() {
-                                    0 => &cmd_tx0,
-                                    1 => &cmd_tx1,
+                                    MOTOR_ID_A => &cmd_tx0,
+                                    MOTOR_ID_B => &cmd_tx1,
                                     _ => {
                                         error!(
                                             "Received command with invalid id: {}, dropping command",

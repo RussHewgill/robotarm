@@ -25,6 +25,21 @@ use crate::hardware::encoder_sensor::EncoderSensor;
 
 // use crate::simplefoc::SimpleFOC;
 
+#[cfg(feature = "motor01")]
+pub const MOTOR_ID_A: u8 = 0;
+#[cfg(feature = "motor01")]
+pub const MOTOR_ID_B: u8 = 1;
+
+#[cfg(feature = "motor23")]
+pub const MOTOR_ID_A: u8 = 2;
+#[cfg(feature = "motor23")]
+pub const MOTOR_ID_B: u8 = 3;
+
+#[cfg(feature = "motor45")]
+pub const MOTOR_ID_A: u8 = 4;
+#[cfg(feature = "motor45")]
+pub const MOTOR_ID_B: u8 = 5;
+
 // Program metadata for `picotool info`.
 // This isn't needed, but it's recomended to have these minimal entries.
 #[unsafe(link_section = ".bi_entries")]
@@ -496,7 +511,7 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let mut encoder = {
         let miso = p.PIN_12;
         // let mosi = p.PIN_15;
@@ -551,11 +566,30 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
+    // output encoder
+    // #[cfg(feature = "nope")]
+    let mut encoder = {
+        let sda = p.PIN_16;
+        let scl = p.PIN_17;
+
+        let mut i2c_config = embassy_rp::i2c::Config::default();
+        // i2c_config.frequency = 50_000; // 400 kHz
+        i2c_config.frequency = 400_000; // 400 kHz
+        // i2c_config.frequency = 1_000_000; // 1 MHz
+        let mut i2c = embassy_rp::i2c::I2c::new_async(p.I2C0, scl, sda, Irqs, i2c_config);
+        // let mut i2c = embassy_rp::i2c::I2c::new_blocking(p.I2C0, scl, sda, i2c_config);
+
+        let mut encoder = crate::hardware::mt_6701::MT6701::new(i2c);
+
+        encoder
+    };
+
     loop {
         // encoder.update(Instant::now().as_micros()).await.unwrap();
         // let angle = encoder.get_angle();
+        let angle = encoder.read_raw_angle().await.unwrap();
 
-        let angle = encoder.read_raw_angle_debug().await.unwrap();
+        // let angle = encoder.read_raw_angle_debug().await.unwrap();
 
         debug!("Angle: {}", angle);
 
@@ -823,9 +857,11 @@ fn main() -> ! {
     // let voltage_limit = 2.0;
     // let voltage_limit = 4.;
     // let voltage_limit = 6.;
-    let voltage_limit = 8.;
+    // let voltage_limit = 8.;
+    let voltage_limit = 12.;
 
     let supply_voltage = 16.0;
+    // let supply_voltage = 20.0;
 
     // #[cfg(feature = "nope")]
     let encoder0 = {
@@ -882,14 +918,14 @@ fn main() -> ! {
         encoder
     };
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     let output_encoder0 = {
-        let sda = p.PIN_20;
-        let scl = p.PIN_21;
+        let sda = p.PIN_16;
+        let scl = p.PIN_17;
 
         let mut i2c_config = embassy_rp::i2c::Config::default();
-        // i2c_config.frequency = 400_000; // 400 kHz
-        i2c_config.frequency = 1_000_000; // 1 MHz
+        i2c_config.frequency = 400_000; // 400 kHz
+        // i2c_config.frequency = 1_000_000; // 1 MHz
         let mut i2c = embassy_rp::i2c::I2c::new_async(p.I2C0, scl, sda, Irqs, i2c_config);
         // let mut i2c = embassy_rp::i2c::I2c::new_blocking(p.I2C0, scl, sda, i2c_config);
 
@@ -898,6 +934,7 @@ fn main() -> ! {
         encoder
     };
 
+    #[cfg(feature = "nope")]
     let output_encoder0 = ();
 
     #[cfg(feature = "nope")]
@@ -1019,11 +1056,23 @@ fn main() -> ! {
     );
 
     // GM4108
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let motor_config0 = crate::simplefoc::bldc::BLDCMotor::new(
         11,        // pole pairs
         Some(5.4), // phase resistance
         // Some(), // motor kv
+        None,
+        // Some(0.0026), // phase inductance
+        None,
+        None,
+    );
+
+    // GM5208-24
+    // #[cfg(feature = "nope")]
+    let motor_config0 = crate::simplefoc::bldc::BLDCMotor::new(
+        11,        // pole pairs
+        Some(10.), // phase resistance
+        // Some(20.), // motor kv
         None,
         // Some(0.0026), // phase inductance
         None,
@@ -1056,7 +1105,7 @@ fn main() -> ! {
     };
 
     let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
-        0,
+        MOTOR_ID_A,
         encoder0,
         None::<()>,
         // Some(current_sensor),
@@ -1067,7 +1116,7 @@ fn main() -> ! {
     );
 
     let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
-        1,
+        MOTOR_ID_B,
         encoder1,
         None::<()>,
         pwm_driver1,
@@ -1128,15 +1177,15 @@ fn main() -> ! {
         // spawner.spawn(crate::init::core0_task0(foc0)).unwrap();
         // spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
 
-        spawner
-            // .spawn(crate::init::core0_task0(foc0, output_encoder0))
-            .spawn(crate::init::core0_task0(foc0))
-            .unwrap();
-
         // spawner
-        //     // .spawn(crate::init::core0_task1(foc0, output_encoder0))
-        //     .spawn(crate::init::core0_task1(foc1))
+        //     // .spawn(crate::init::core0_task0(foc0, output_encoder0))
+        //     .spawn(crate::init::core0_task0(foc0))
         //     .unwrap();
+
+        spawner
+            .spawn(crate::init::core0_task1(foc1, output_encoder0))
+            // .spawn(crate::init::core0_task1(foc1))
+            .unwrap();
 
         // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
     });
