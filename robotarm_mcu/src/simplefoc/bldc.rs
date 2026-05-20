@@ -1,5 +1,6 @@
 use as5600::asynch::As5600;
 use embassy_rp::i2c::Async;
+use serde::{Deserialize, Serialize};
 
 use crate::simplefoc::{
     lowpass::LowPassFilter,
@@ -7,7 +8,7 @@ use crate::simplefoc::{
     types::{DQCurrents, DQVoltages, PhaseVoltages},
 };
 
-#[derive(defmt::Format, Clone)]
+#[derive(defmt::Format, Clone, Copy, Serialize, Deserialize)]
 pub struct BLDCMotor {
     pub pole_pairs: u8,
     pub phase_resistance: Option<f32>,
@@ -43,7 +44,7 @@ pub struct BLDCMotor {
 }
 
 impl BLDCMotor {
-    pub fn new(
+    pub const fn new(
         pole_pairs: u8,
         phase_resistance: Option<f32>,
         motor_kv: Option<f32>,

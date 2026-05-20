@@ -7,6 +7,7 @@
 #![allow(unexpected_cfgs)]
 
 mod comms;
+mod configs;
 mod hardware;
 mod init;
 mod simplefoc;
@@ -21,24 +22,27 @@ use embassy_executor::{Spawner, raw};
 use embassy_rp::{bind_interrupts, pwm::SetDutyCycle};
 use embassy_time::{Instant, Ticker, Timer};
 
+use crate::configs::*;
 use crate::hardware::encoder_sensor::EncoderSensor;
 
 // use crate::simplefoc::SimpleFOC;
 
-#[cfg(feature = "motor01")]
+#[cfg(feature = "picoA")]
 pub const MOTOR_ID_A: u8 = 0;
-#[cfg(feature = "motor01")]
+#[cfg(feature = "picoA")]
 pub const MOTOR_ID_B: u8 = 1;
 
-#[cfg(feature = "motor23")]
+#[cfg(feature = "picoB")]
 pub const MOTOR_ID_A: u8 = 2;
-#[cfg(feature = "motor23")]
+#[cfg(feature = "picoB")]
 pub const MOTOR_ID_B: u8 = 3;
 
-#[cfg(feature = "motor45")]
+#[cfg(feature = "picoC")]
 pub const MOTOR_ID_A: u8 = 4;
-#[cfg(feature = "motor45")]
+#[cfg(feature = "picoC")]
 pub const MOTOR_ID_B: u8 = 5;
+
+const CONFIG_DATA: &str = include_str!("../configs/motors.ron");
 
 // Program metadata for `picotool info`.
 // This isn't needed, but it's recomended to have these minimal entries.
@@ -1022,64 +1026,17 @@ fn main() -> ! {
         (driver0, driver1)
     };
 
-    #[cfg(feature = "nope")]
-    let motor_config0 = crate::simplefoc::bldc::BLDCMotor::new(
-        7,          // pole pairs
-        Some(9.2),  // phase resistance
-        Some(140.), // motor kv
-        None,
-        None,
-    );
+    #[cfg(feature = "picoA")]
+    let (motor_config0, motor_config1) = (MOTOR_CONFIG_4015, MOTOR_CONFIG_GM5208_24);
 
-    // 4015
-    #[cfg(feature = "nope")]
-    let motor_config0 = crate::simplefoc::bldc::BLDCMotor::new(
-        11,        // pole pairs
-        Some(4.8), // phase resistance
-        Some(61.), // motor kv
-        // Some(0.0026), // phase inductance
-        None,
-        None,
-    );
+    #[cfg(feature = "picoB")]
+    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM4108, MOTOR_CONFIG_GM3506);
 
-    // GM3506
-    #[cfg(feature = "nope")]
-    let motor_config0 = crate::simplefoc::bldc::BLDCMotor::new(
-        11, // pole pairs
-        // Some(5.6), // phase resistance
-        Some(2.8),  // phase resistance
-        Some(100.), // motor kv
-        // None,
-        // Some(0.0026), // phase inductance
-        None,
-        None,
-    );
+    #[cfg(feature = "picoC")]
+    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM3506, MOTOR_CONFIG_GM3506);
 
-    // GM4108
-    #[cfg(feature = "nope")]
-    let motor_config0 = crate::simplefoc::bldc::BLDCMotor::new(
-        11,        // pole pairs
-        Some(5.4), // phase resistance
-        // Some(), // motor kv
-        None,
-        // Some(0.0026), // phase inductance
-        None,
-        None,
-    );
-
-    // GM5208-24
-    // #[cfg(feature = "nope")]
-    let motor_config0 = crate::simplefoc::bldc::BLDCMotor::new(
-        11,        // pole pairs
-        Some(10.), // phase resistance
-        // Some(20.), // motor kv
-        None,
-        // Some(0.0026), // phase inductance
-        None,
-        None,
-    );
-
-    let motor_config1 = motor_config0.clone();
+    #[cfg(feature = "picoA")]
+    let (output_encoder0, output_encoder1) = (None, Some(output_encoder0));
 
     let usb = comms::usb::UsbLogger::new();
     let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);

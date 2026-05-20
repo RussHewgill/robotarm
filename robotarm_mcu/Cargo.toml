@@ -12,10 +12,10 @@ codegen-units = 1
 debug = true
 
 [features]
-default = ["motor01"]
-motor01 = []
-motor23 = []
-motor45 = []
+default = ["picoA"]
+picoA = []
+picoB = []
+picoC = []
 
 [dependencies]
 
@@ -71,6 +71,8 @@ micromath = { version = "2.1.0", features = ["vector", "quaternion"] }
 
 bitflags = "2.4"
 byteorder = { version = "1", default-features = false }
+
+# ron = { version = "0.12.1", default-features = false, features = [] }
 
 [patch.crates-io]
 as5600 = { git = "https://github.com/barafael/as5600-rs" }

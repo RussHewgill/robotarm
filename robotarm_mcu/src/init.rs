@@ -30,8 +30,10 @@ pub async fn core0_task0(
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         // >,
     >,
-    mut output_encoder: crate::hardware::mt_6701::MT6701<
-        embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+    mut output_encoder: Option<
+        crate::hardware::mt_6701::MT6701<
+            embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+        >,
     >,
 ) {
     foc_task(foc, output_encoder).await;
@@ -50,8 +52,10 @@ pub async fn core0_task1(
         // >,
         // INA240<embassy_rp::peripherals::DMA_CH0>,
     >,
-    mut output_encoder: crate::hardware::mt_6701::MT6701<
-        embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+    mut output_encoder: Option<
+        crate::hardware::mt_6701::MT6701<
+            embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+        >,
     >,
 ) {
     foc_task(foc, output_encoder).await;
@@ -61,8 +65,10 @@ pub async fn core0_task1(
 // #[embassy_executor::task]
 pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR, CURRENT>,
-    mut output_encoder: crate::hardware::mt_6701::MT6701<
-        embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+    mut output_encoder: Option<
+        crate::hardware::mt_6701::MT6701<
+            embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
+        >,
     >,
 ) {
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
@@ -186,7 +192,13 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_zero_electric_angle(2.4);
     foc.set_zero_electric_angle(5.73556);
 
-    let output_encoder_update_rate_hz = 20;
+    foc.output_sensor_offset = match foc.id {
+        0 => 0.0,
+        1 => -220.0 * (core::f32::consts::PI / 180.),
+        _ => 0.0,
+    };
+
+    let output_encoder_update_rate_hz = 10;
     let output_encoder_update_interval_us =
         embassy_time::Duration::from_micros(1_000_000 / output_encoder_update_rate_hz);
     let mut output_encoder_next_update =
@@ -208,27 +220,43 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         foc.loop_foc(t_us).await;
         foc.update_foc(t_us).await;
 
-        #[cfg(feature = "nope")]
-        if t_us >= output_encoder_next_update {
-            output_encoder.update(t_us).await.unwrap();
-            let output_position = output_encoder.get_mechanical_angle();
-            let output_velocity = output_encoder.get_velocity();
+        // #[cfg(feature = "nope")]
+        if let Some(output_encoder) = &mut output_encoder {
+            if t_us >= output_encoder_next_update {
+                output_encoder.update(t_us).await.unwrap();
+                let output_position = output_encoder.get_mechanical_angle();
+                // let output_velocity = output_encoder.get_velocity();
 
-            debug!(
-                "Output encoder - Angle: {}, Velocity: {}",
-                output_position, output_velocity,
-            );
+                // debug!(
+                //     "Output encoder - Angle: {}, Velocity: {}",
+                //     output_position, output_velocity,
+                // );
 
-            foc.send_debug_message(robotarm_protocol::SerialLogMessage::EncoderData {
-                id: foc.id,
-                timestamp: t_us,
-                position: output_position,
-                velocity: None,
-            })
-            .await;
+                let output_position = foc.lpf_output.filter_with_timestamp(output_position, t_us);
 
-            output_encoder_next_update =
-                (Instant::now() + output_encoder_update_interval_us).as_micros();
+                let output_position = if foc.output_sensor_direction
+                    == crate::simplefoc::types::SensorDirection::CW
+                {
+                    output_position
+                } else if foc.output_sensor_direction
+                    == crate::simplefoc::types::SensorDirection::CCW
+                {
+                    -output_position
+                } else {
+                    output_position
+                } + foc.output_sensor_offset;
+
+                foc.send_debug_message(robotarm_protocol::SerialLogMessage::EncoderData {
+                    id: foc.id,
+                    timestamp: t_us,
+                    position: output_position,
+                    velocity: None,
+                })
+                .await;
+
+                output_encoder_next_update =
+                    (Instant::now() + output_encoder_update_interval_us).as_micros();
+            }
         }
 
         let t1 = Instant::now();

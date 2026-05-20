@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 pub const _2_SQRT3: f32 = 1.15470053838;
 pub const _SQRT3: f32 = 1.73205080757;
 pub const _1_SQRT3: f32 = 0.57735026919;
@@ -14,7 +16,7 @@ pub const _RPM_TO_RADS: f32 = 0.10471975512;
 
 pub const NOT_SET: f32 = -12345.0;
 
-#[derive(defmt::Format, Clone, Copy, Default)]
+#[derive(defmt::Format, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct DQVoltages {
     pub d: f32,
     pub q: f32,
@@ -26,7 +28,7 @@ pub struct ABCurrents {
     pub beta: f32,
 }
 
-#[derive(defmt::Format, Clone, Copy, Default)]
+#[derive(defmt::Format, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct DQCurrents {
     pub d: f32,
     pub q: f32,

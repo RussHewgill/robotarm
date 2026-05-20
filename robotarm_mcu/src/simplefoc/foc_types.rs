@@ -94,6 +94,10 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub(super) sensor_offset: f32,
     pub(super) zero_electric_angle: f32,
 
+    pub output_sensor_direction: SensorDirection,
+    pub output_sensor_offset: f32,
+    pub lpf_output: LowPassFilter,
+
     pub(super) motion_control: MotionControlType,
     pub torque_controller: TorqueControlType,
 
@@ -222,6 +226,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             sensor_direction: SensorDirection::Unknown,
             sensor_offset: 0.0,
             zero_electric_angle: NOT_SET,
+
+            output_sensor_direction: SensorDirection::Unknown,
+            output_sensor_offset: 0.0,
+            lpf_output: LowPassFilter::new(0.1),
 
             motion_control: MotionControlType::Angle,
             torque_controller: TorqueControlType::Voltage,
