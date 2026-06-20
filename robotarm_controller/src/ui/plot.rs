@@ -45,6 +45,11 @@ pub struct DataPlot {
     current_d: VecDeque<(f64, f64)>,
     #[serde(skip)]
     current_q: VecDeque<(f64, f64)>,
+    #[serde(skip)]
+    current_d_lpf: Option<f64>,
+    #[serde(skip)]
+    current_q_lpf: Option<f64>,
+    current_lpf_alpha: f64,
 
     pub draw_pid_output_vel: bool,
     #[serde(skip)]
@@ -77,6 +82,9 @@ impl Default for DataPlot {
             draw_current: false,
             current_d: VecDeque::new(),
             current_q: VecDeque::new(),
+            current_d_lpf: None,
+            current_q_lpf: None,
+            current_lpf_alpha: 0.1,
             draw_pid_output_vel: false,
             pid_output_vel: VecDeque::new(),
             draw_pid_output_pos: false,
@@ -176,8 +184,22 @@ impl DataPlot {
     }
 
     pub fn add_point_current(&mut self, t: f64, current_d: f64, current_q: f64) {
-        self.current_d.push_back((t, current_d as f64));
-        self.current_q.push_back((t, current_q as f64));
+        let alpha = self.current_lpf_alpha.clamp(0.0, 1.0);
+
+        let filtered_d = match self.current_d_lpf {
+            Some(prev) => prev + alpha * (current_d - prev),
+            None => current_d,
+        };
+        let filtered_q = match self.current_q_lpf {
+            Some(prev) => prev + alpha * (current_q - prev),
+            None => current_q,
+        };
+
+        self.current_d_lpf = Some(filtered_d);
+        self.current_q_lpf = Some(filtered_q);
+
+        self.current_d.push_back((t, filtered_d));
+        self.current_q.push_back((t, filtered_q));
         self.prev_time = t;
     }
 
@@ -283,6 +305,8 @@ impl DataPlot {
         self.voltage.clear();
         self.current_d.clear();
         self.current_q.clear();
+        self.current_d_lpf = None;
+        self.current_q_lpf = None;
 
         self.prev_time = 0.;
 

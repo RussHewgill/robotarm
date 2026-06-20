@@ -142,6 +142,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     );
                     self.motor.voltage.d =
                         self.pid_current_d.update(0., self.motor.current.d, t_us);
+
+                    self.motor.voltage.q += self.feed_forward_current.q;
+                    self.motor.voltage.d += self.feed_forward_current.d;
                 } else {
                     error!("FOC current control requires a current sensor reading");
                 }

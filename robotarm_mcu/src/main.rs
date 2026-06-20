@@ -27,6 +27,11 @@ use crate::hardware::encoder_sensor::EncoderSensor;
 
 // use crate::simplefoc::SimpleFOC;
 
+#[cfg(feature = "testing")]
+pub const MOTOR_ID_A: u8 = 0;
+#[cfg(feature = "testing")]
+pub const MOTOR_ID_B: u8 = 1;
+
 #[cfg(feature = "picoA")]
 pub const MOTOR_ID_A: u8 = 0;
 #[cfg(feature = "picoA")]
@@ -861,8 +866,9 @@ fn main() -> ! {
     // let voltage_limit = 2.0;
     // let voltage_limit = 4.;
     // let voltage_limit = 6.;
-    // let voltage_limit = 8.;
-    let voltage_limit = 12.;
+    let voltage_limit = 8.;
+    // let voltage_limit = 12.;
+    // let voltage_limit = 18.;
 
     let supply_voltage = 16.0;
     // let supply_voltage = 20.0;
@@ -956,20 +962,20 @@ fn main() -> ! {
         crate::hardware::ina226::INA226::new(i2c, address0, address1)
     };
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     let current_sensor = {
         use embassy_rp::adc::{Adc, Channel, Config, InterruptHandler};
         use embassy_rp::gpio::Pull;
 
         let mut adc = Adc::new(p.ADC, Irqs, Config::default());
-        let mut dma = p.DMA_CH0;
+        let mut dma = p.DMA_CH4;
         let mut pin0 = Channel::new_pin(p.PIN_26, Pull::Up);
         let mut pin1 = Channel::new_pin(p.PIN_27, Pull::Up);
 
         // Peri<'_, impl dma::Channel>
         // adc.read_many(&mut pin, &mut buf, div, dma.reborrow()).await.unwrap();
 
-        let mut sensor = crate::hardware::ina240::INA240::new(pin0, pin1, adc, dma);
+        let mut sensor = crate::hardware::acs712::ACS712::new(pin0, pin1, adc, dma);
         sensor
     };
 
@@ -1035,8 +1041,12 @@ fn main() -> ! {
     #[cfg(feature = "picoC")]
     let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM3506, MOTOR_CONFIG_GM3506);
 
+    #[cfg(feature = "testing")]
+    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM4108, MOTOR_CONFIG_GM5208_24);
+
     #[cfg(feature = "picoA")]
-    let (output_encoder0, output_encoder1) = (None, Some(output_encoder0));
+    // let (output_encoder0, output_encoder1) = (None, Some(output_encoder0));
+    let output_encoder1 = Some(output_encoder0);
 
     let usb = comms::usb::UsbLogger::new();
     let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
@@ -1075,7 +1085,8 @@ fn main() -> ! {
     let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
         MOTOR_ID_B,
         encoder1,
-        None::<()>,
+        // None::<()>,
+        Some(current_sensor),
         pwm_driver1,
         motor_config1,
         Some(usb),
@@ -1136,12 +1147,12 @@ fn main() -> ! {
 
         // spawner
         //     // .spawn(crate::init::core0_task0(foc0, output_encoder0))
-        //     .spawn(crate::init::core0_task0(foc0))
+        //     .spawn(crate::init::core0_task0(foc0, None))
         //     .unwrap();
 
         spawner
-            .spawn(crate::init::core0_task1(foc1, output_encoder0))
-            // .spawn(crate::init::core0_task1(foc1))
+            // .spawn(crate::init::core0_task1(foc1, output_encoder1))
+            .spawn(crate::init::core0_task1(foc1, None))
             .unwrap();
 
         // spawner.spawn(crate::init::core0_task1(foc)).unwrap();

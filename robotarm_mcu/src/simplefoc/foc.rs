@@ -246,8 +246,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // self.motor.voltage_sensor_align = 0.5;
         // self.motor.voltage_sensor_align = 1.0;
         // self.motor.voltage_sensor_align = 2.0;
-        // self.motor.voltage_sensor_align = 4.0;
-        self.motor.voltage_sensor_align = 6.0;
+        self.motor.voltage_sensor_align = 4.0;
+        // self.motor.voltage_sensor_align = 6.0;
 
         // zero electric angle not known
         // basic simpleFOC aligment

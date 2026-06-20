@@ -12,7 +12,9 @@ codegen-units = 1
 debug = true
 
 [features]
-default = ["picoA"]
+# default = ["picoA"]
+default = ["testing"]
+testing = []
 picoA = []
 picoB = []
 picoC = []

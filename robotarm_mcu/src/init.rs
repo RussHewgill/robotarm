@@ -36,8 +36,9 @@ pub async fn core0_task0(
         >,
     >,
 ) {
-    foc_task(foc, output_encoder).await;
+    // foc_task(foc, output_encoder).await;
     // foc_task(foc).await;
+    unimplemented!()
 }
 
 #[embassy_executor::task]
@@ -51,6 +52,7 @@ pub async fn core0_task1(
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         // >,
         // INA240<embassy_rp::peripherals::DMA_CH0>,
+        crate::hardware::acs712::ACS712<embassy_rp::peripherals::DMA_CH4>,
     >,
     mut output_encoder: Option<
         crate::hardware::mt_6701::MT6701<
@@ -72,11 +74,11 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     >,
 ) {
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // match foc.id {
-    //     0 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
+    //     // 0 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
     //     1 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
     //     _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
     // };
@@ -190,7 +192,14 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_zero_electric_angle(2.46530);
     // foc.set_zero_electric_angle(2.4);
-    foc.set_zero_electric_angle(5.73556);
+    // foc.set_zero_electric_angle(5.73556);
+    // foc.set_zero_electric_angle(1.5938067);
+
+    // match foc.id {
+    //     0 => foc.set_zero_electric_angle(2.6876297),
+    //     1 => foc.set_zero_electric_angle(2.8906922),
+    //     _ => foc.set_zero_electric_angle(0.0),
+    // }
 
     foc.output_sensor_offset = match foc.id {
         0 => 0.0,

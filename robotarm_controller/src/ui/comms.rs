@@ -97,6 +97,8 @@ impl App {
 
                         // debug!("Got motor data from motor {}", id);
 
+                        // debug!("Sensor currents: {:?}", sensor_currents);
+
                         /// only plot data from motor 0 for now
                         if let Some(t0) = self.t0 {
                             let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;

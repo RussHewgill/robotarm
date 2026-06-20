@@ -1,3 +1,4 @@
+pub mod acs712;
 pub mod ads1256;
 pub mod as5600;
 pub mod current_sensor;

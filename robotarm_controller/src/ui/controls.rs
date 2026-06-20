@@ -282,6 +282,23 @@ impl App {
 
             // let quadrature_current = iq = -i_alpha *
 
+            ui.label(RichText::new("Sens Current").monospace());
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3} A",
+                    self.status[id as usize].sensor_currents.0
+                ))
+                .monospace(),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3} A",
+                    self.status[id as usize].sensor_currents.1
+                ))
+                .monospace(),
+            );
+            ui.end_row();
+
             ui.label(RichText::new("Torque").monospace());
             ui.label(RichText::new(format!("{:>+0.4} Ncm", torque * 100.)).monospace());
             ui.end_row();
