@@ -30,6 +30,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
+name = "as5048a-spi"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "252aaf2c68bd57d5d224078f0680c6fb72bc81c94d0258a2175925ac33a5141e"
+dependencies = [
+ "embedded-hal 1.0.0",
+]
+
+[[package]]
 name = "as5600"
 version = "0.8.0"
 source = "git+https://github.com/barafael/as5600-rs#e6fdb9771362306ffd5766c1895095d72f3aa531"
@@ -1158,6 +1167,7 @@ checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
 name = "robotarm_mcu"
 version = "0.1.0"
 dependencies = [
+ "as5048a-spi",
  "as5600",
  "bitflags 2.10.0",
  "byteorder",

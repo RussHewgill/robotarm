@@ -858,8 +858,70 @@ async fn main(spawner: Spawner) {
     //
 }
 
+/// AS5048A test
 // #[cfg(feature = "nope")]
-#[cortex_m_rt::entry]
+#[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    // green    miso    12  yellow
+    // yellow   mosi    15  brown
+    // blue     clk     14  red
+    // white    cs      13  orange
+
+    let miso = p.PIN_12;
+    let mosi = p.PIN_15;
+
+    let sck = p.PIN_14;
+    let cs = p.PIN_13;
+
+    let mut config = embassy_rp::spi::Config::default();
+    // config.frequency = 1_000_000;
+    config.frequency = 400_000;
+    config.polarity = embassy_rp::spi::Polarity::IdleLow;
+    config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+    // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
+
+    let mut spi =
+            // embassy_rp::spi::Spi::new_rxonly(p.SPI1, sck, miso, p.DMA_CH2, p.DMA_CH3, config);
+            embassy_rp::spi::Spi::new(p.SPI1, sck, mosi, miso, p.DMA_CH2, p.DMA_CH3, config);
+
+    debug!("SPI initialized");
+
+    let cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
+
+    // let mut encoder = crate::hardware::as5048a::As5048a::new(spi, cs);
+
+    // let spi = embassy_em
+
+    // let mut encoder = as5048a_spi::As5048a::new(spi);
+
+    loop {
+        // let angle = encoder.read_raw_angle().await.unwrap();
+
+        // let angle = encoder.angle().await.unwrap();
+
+        // // 0xF9F3
+        // match encoder.angle().await {
+        //     Ok(angle) => {
+        //         debug!("Angle: {}", angle);
+        //     }
+        //     Err(e) => {
+        //         error!("Failed to read angle: {:?}", e);
+        //     }
+        // }
+
+        // debug!("Angle: {}", angle);
+
+        // Timer::after(embassy_time::Duration::from_millis(100)).await;
+        Timer::after(embassy_time::Duration::from_millis(1000)).await;
+    }
+
+    //
+}
+
+#[cfg(feature = "nope")]
+// #[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 

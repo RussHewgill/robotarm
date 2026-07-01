@@ -49,6 +49,9 @@ defmt-rtt = "1.0"
 as5600 = { version = "0.8.0", features = ["defmt", "async"] }
 fixed = { version = "1.30.0", default-features = false, features = ["defmt"] }
 
+# as5048a-async = "0.1.0"
+as5048a-spi = "0.1.1"
+
 libm = "0.2.16"
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
