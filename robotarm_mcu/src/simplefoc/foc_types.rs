@@ -8,7 +8,7 @@ use crate::{
         as5600::AS5600,
         current_sensor::{self, CurrentSensor},
         encoder_sensor::EncoderSensor,
-        mt_6701_adc::MT6701,
+        // mt_6701_adc::MT6701,
     },
     simplefoc::{
         bldc::BLDCMotor,

@@ -62,16 +62,19 @@ pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
     embassy_rp::binary_info::rp_program_build_attribute!(),
 ];
 
+use embassy_rp::peripherals as rpp;
+
 bind_interrupts!(struct Irqs {
-    I2C0_IRQ => embassy_rp::i2c::InterruptHandler<embassy_rp::peripherals::I2C0>;
-    I2C1_IRQ => embassy_rp::i2c::InterruptHandler<embassy_rp::peripherals::I2C1>;
+    I2C0_IRQ => embassy_rp::i2c::InterruptHandler<rpp::I2C0>;
+    I2C1_IRQ => embassy_rp::i2c::InterruptHandler<rpp::I2C1>;
     // I2C1_IRQ => InterruptHandler<embassy_rp::peripherals::I2C1>;
     ADC_IRQ_FIFO => embassy_rp::adc::InterruptHandler;
     // DMA_IRQ_0 => InterruptHandler<embassy_rp::peripherals::DMA_CH0>;
-    USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<embassy_rp::peripherals::USB>;
-    // DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<embassy_rp::peripherals::DMA_CH0>, embassy_rp::dma::InterruptHandler<embassy_rp::peripherals::DMA_CH1>;
-    // UART0_IRQ => embassy_rp::uart::InterruptHandler<embassy_rp::peripherals::UART0>;
-    UART0_IRQ => embassy_rp::uart::BufferedInterruptHandler<embassy_rp::peripherals::UART0>;
+    USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<rpp::USB>;
+    DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH0>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH1>;
+    // DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH2>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH3>;
+    // UART0_IRQ => embassy_rp::uart::InterruptHandler<rpp::UART0>;
+    UART0_IRQ => embassy_rp::uart::BufferedInterruptHandler<rpp::UART0>;
 });
 
 /// rtt tests
@@ -488,8 +491,8 @@ async fn main(spawner: Spawner) {
 }
 
 /// encoder tests
-#[cfg(feature = "nope")]
-// #[embassy_executor::main]
+// #[cfg(feature = "nope")]
+#[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -547,7 +550,7 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     let mut encoder = {
         let miso = p.PIN_20;
         // let mosi = p.PIN_19;
@@ -563,7 +566,7 @@ async fn main(spawner: Spawner) {
         // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
 
         let mut spi =
-            embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, config);
+            embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, Irqs, config);
 
         // Configure CS
         let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
@@ -859,15 +862,15 @@ async fn main(spawner: Spawner) {
 }
 
 /// AS5048A test
-// #[cfg(feature = "nope")]
-#[embassy_executor::main]
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
     // green    miso    12  yellow
-    // yellow   mosi    15  brown
-    // blue     clk     14  red
     // white    cs      13  orange
+    // blue     clk     14  red
+    // yellow   mosi    15  brown
 
     let miso = p.PIN_12;
     let mosi = p.PIN_15;
@@ -875,46 +878,122 @@ async fn main(spawner: Spawner) {
     let sck = p.PIN_14;
     let cs = p.PIN_13;
 
+    let cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::High);
+
     let mut config = embassy_rp::spi::Config::default();
     // config.frequency = 1_000_000;
+    // config.frequency = 8_000_000;
     config.frequency = 400_000;
-    config.polarity = embassy_rp::spi::Polarity::IdleLow;
-    config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+    // config.frequency = 100_000;
+    // config.polarity = embassy_rp::spi::Polarity::IdleLow;
+    // config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
     // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
+
+    config.polarity = embassy_rp::spi::Polarity::IdleLow;
+    // config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+    config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
 
     let mut spi =
             // embassy_rp::spi::Spi::new_rxonly(p.SPI1, sck, miso, p.DMA_CH2, p.DMA_CH3, config);
-            embassy_rp::spi::Spi::new(p.SPI1, sck, mosi, miso, p.DMA_CH2, p.DMA_CH3, config);
+            embassy_rp::spi::Spi::new(p.SPI1, sck, mosi, miso, p.DMA_CH2, p.DMA_CH3, Irqs, config);
 
     debug!("SPI initialized");
 
-    let cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
+    // let mut spi =
+    //     embassy_sync::mutex::Mutex::<embassy_sync::blocking_mutex::raw::NoopRawMutex, _>::new(spi);
+    // let mut spi = embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice::new(&spi, cs);
+    // // let mut encoder = as5048a_spi::As5048a::new(spi);
 
-    // let mut encoder = crate::hardware::as5048a::As5048a::new(spi, cs);
+    // let mut encoder = crate::hardware::as5048a::As5048a::new(spi);
+    let mut encoder = crate::hardware::as5048a::As5048a::new(spi, cs);
 
-    // let spi = embassy_em
+    debug!("Waiting");
+    Timer::after(embassy_time::Duration::from_millis(1000)).await;
+    debug!("Done");
 
-    // let mut encoder = as5048a_spi::As5048a::new(spi);
+    // if let Err(e) = encoder.clear_error_flag().await {
+    //     error!("Failed to clear error flag: {:?}", e);
+    // } else {
+    //     debug!("Cleared error flag");
+    // }
 
+    // match encoder.angle().await {
+    //     Ok(angle) => {
+    //         debug!("Angle: {}", angle);
+    //     }
+    //     Err(e) => {
+    //         error!("Failed to read angle: {:?}", e);
+    //     }
+    // }
+
+    // for _ in 0..10 {
     loop {
         // let angle = encoder.read_raw_angle().await.unwrap();
 
+        #[cfg(feature = "nope")]
+        match encoder.read_diagnostics_async().await {
+            Ok(as5048a_spi::Diagnostics {
+                agc,
+                compensation_too_high,
+                compensation_too_low,
+                cordic_overflow,
+                offset_compensation_finished,
+            }) => {
+                debug!(
+                    "Diagnostics: agc: {}, compensation_too_high: {}, compensation_too_low: {}, cordic_overflow: {}, offset_comp_finished: {}",
+                    agc,
+                    compensation_too_high,
+                    compensation_too_low,
+                    cordic_overflow,
+                    offset_compensation_finished
+                );
+            }
+            Err(e) => {
+                // error!("Failed to read diagnostics: {:?}", e);
+                error!("Failed to read diagnostics");
+            }
+        }
+
+        #[cfg(feature = "nope")]
+        match encoder.diagnostics().await {
+            Ok(diag) => {
+                // debug!(
+                //     "comp_high: {}, comp_low: {}, cordic_overflow: {}, offset_compensation: {}",
+                //     diag.comp_high(),
+                //     diag.comp_low(),
+                //     diag.cordic_overflow(),
+                //     diag.offset_comp_finished(),
+                // );
+
+                // debug!("agc_value: {}", diag.agc_value());
+                // debug!("is_valid: {}", diag.is_valid());
+            }
+            Err(e) => {
+                error!("Failed to read diagnostics: {:?}", e);
+            }
+        }
+
+        // let _ = encoder.clear_error_flag().await;
+
         // let angle = encoder.angle().await.unwrap();
 
-        // // 0xF9F3
-        // match encoder.angle().await {
-        //     Ok(angle) => {
-        //         debug!("Angle: {}", angle);
-        //     }
-        //     Err(e) => {
-        //         error!("Failed to read angle: {:?}", e);
-        //     }
-        // }
+        // encoder.send_noop().await.unwrap();
+
+        // 0xF9F3
+        // #[cfg(feature = "nope")]
+        match encoder.angle().await {
+            Ok(angle) => {
+                debug!("Angle: {}", angle);
+            }
+            Err(e) => {
+                error!("Failed to read angle: {:?}", e);
+            }
+        }
 
         // debug!("Angle: {}", angle);
 
-        // Timer::after(embassy_time::Duration::from_millis(100)).await;
-        Timer::after(embassy_time::Duration::from_millis(1000)).await;
+        Timer::after(embassy_time::Duration::from_millis(5)).await;
+        // Timer::after(embassy_time::Duration::from_millis(500)).await;
     }
 
     //
@@ -950,7 +1029,7 @@ fn main() -> ! {
         // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
 
         let mut spi =
-            embassy_rp::spi::Spi::new_rxonly(p.SPI1, sck, miso, p.DMA_CH2, p.DMA_CH3, config);
+            embassy_rp::spi::Spi::new_rxonly(p.SPI1, sck, miso, p.DMA_CH2, p.DMA_CH3, Irqs, config);
 
         // Configure CS
         let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
@@ -978,7 +1057,7 @@ fn main() -> ! {
         // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
 
         let mut spi =
-            embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, config);
+            embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, Irqs, config);
 
         // Configure CS
         let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);

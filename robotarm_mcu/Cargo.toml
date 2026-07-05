@@ -23,14 +23,14 @@ picoC = []
 
 robotarm_protocol = { path = "../robotarm_protocol", features = ["defmt"] }
 
-embassy-executor = { version = "0.9", features = [
-  "arch-cortex-m",
+embassy-executor = { version = "0.10.0", features = [
+  "platform-cortex-m",
   "executor-thread",
   "defmt",
 ] }
 panic-probe = { version = "1.0", features = ["print-defmt"] }
 embassy-time = { version = "0.5.0" }
-embassy-rp = { version = "0.9.0", features = [
+embassy-rp = { version = "0.10.0", features = [
   "defmt",
   "time-driver",
   "critical-section-impl",
@@ -38,7 +38,10 @@ embassy-rp = { version = "0.9.0", features = [
   "binary-info",
 ] }
 # embassy-usb = { version = "0.5.1", features = ["defmt"] }
-embassy-usb = { version = "0.5.1", features = [] }
+embassy-usb = { version = "0.6.0", features = [] }
+embassy-embedded-hal = { version = "0.6.0", features = [] }
+embassy-sync = "0.8.0"
+embassy-futures = "0.1.2"
 
 cortex-m = { version = "0.7.6" }
 cortex-m-rt = "0.7.5"
@@ -50,7 +53,7 @@ as5600 = { version = "0.8.0", features = ["defmt", "async"] }
 fixed = { version = "1.30.0", default-features = false, features = ["defmt"] }
 
 # as5048a-async = "0.1.0"
-as5048a-spi = "0.1.1"
+# as5048a-spi = { version = "0.1.1", features = ["defmt", "async"] }
 
 libm = "0.2.16"
 embedded-hal = "1.0.0"
@@ -58,8 +61,6 @@ embedded-hal-async = "1.0.0"
 static_cell = "2.1.1"
 # embassy-usb-logger = "0.5.1"
 log = "0.4"
-embassy-sync = "0.7.2"
-embassy-futures = "0.1.2"
 
 postcard = { version = "1.1.3", default-features = false }
 serde = { version = "1.0.228", default-features = false }

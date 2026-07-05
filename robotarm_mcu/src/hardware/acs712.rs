@@ -9,7 +9,8 @@ use crate::hardware::current_sensor::CurrentSensor;
 // const BLOCK_SIZE: usize = 64;
 const BLOCK_SIZE: usize = 128;
 
-pub struct ACS712<CHANNEL: embassy_rp::dma::Channel + 'static> {
+// pub struct ACS712<CHANNEL: embassy_rp::dma::Channel + 'static>
+pub struct ACS712 {
     bus_voltage: f32,
 
     buffer: [u16; BLOCK_SIZE],
@@ -19,19 +20,19 @@ pub struct ACS712<CHANNEL: embassy_rp::dma::Channel + 'static> {
     pins: [Channel<'static>; 2],
 
     adc: Adc<'static, embassy_rp::adc::Async>,
-    dma: Peri<'static, CHANNEL>,
+    dma: Peri<'static, embassy_rp::dma::Channel<'static>>,
 
     prev_phase_currents: Option<crate::simplefoc::types::PhaseCurrents>,
     prev_foc_currents: Option<crate::simplefoc::types::DQCurrents>,
 }
 
-impl<CHANNEL: embassy_rp::dma::Channel + 'static> ACS712<CHANNEL> {
+impl ACS712 {
     pub fn new(
         pin0: Channel<'static>,
         pin1: Channel<'static>,
         // pin_1: Channel<'static>,
         adc: Adc<'static, embassy_rp::adc::Async>,
-        dma: Peri<'static, CHANNEL>,
+        dma: Peri<'static, embassy_rp::dma::Channel>,
     ) -> Self {
         Self {
             bus_voltage: 0.0,

@@ -9,8 +9,10 @@ use crate::{
     Irqs,
     comms::usb::UsbLogger,
     hardware::{
-        current_sensor::CurrentSensor, encoder_sensor::EncoderSensor, ina226::INA226,
-        ina240::INA240,
+        current_sensor::CurrentSensor,
+        encoder_sensor::EncoderSensor,
+        ina226::INA226,
+        // ina240::INA240,
     },
 };
 
@@ -52,7 +54,7 @@ pub async fn core0_task1(
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         // >,
         // INA240<embassy_rp::peripherals::DMA_CH0>,
-        crate::hardware::acs712::ACS712<embassy_rp::peripherals::DMA_CH4>,
+        // crate::hardware::acs712::ACS712<embassy_rp::peripherals::DMA_CH4>,
     >,
     mut output_encoder: Option<
         crate::hardware::mt_6701::MT6701<
