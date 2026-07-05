@@ -20,19 +20,22 @@ pub struct ACS712 {
     pins: [Channel<'static>; 2],
 
     adc: Adc<'static, embassy_rp::adc::Async>,
-    dma: Peri<'static, embassy_rp::dma::Channel<'static>>,
+    // dma: Peri<'static, embassy_rp::dma::Channel<'static>>,
+    dma: embassy_rp::dma::Channel<'static>,
 
     prev_phase_currents: Option<crate::simplefoc::types::PhaseCurrents>,
     prev_foc_currents: Option<crate::simplefoc::types::DQCurrents>,
 }
 
+// #[cfg(feature = "nope")]
 impl ACS712 {
     pub fn new(
         pin0: Channel<'static>,
         pin1: Channel<'static>,
         // pin_1: Channel<'static>,
         adc: Adc<'static, embassy_rp::adc::Async>,
-        dma: Peri<'static, embassy_rp::dma::Channel>,
+        // dma: Peri<'static, embassy_rp::dma::Channel>,
+        dma: embassy_rp::dma::Channel<'static>,
     ) -> Self {
         Self {
             bus_voltage: 0.0,
@@ -61,7 +64,8 @@ impl ACS712 {
         // let div = 95; // 500kHz sample rate (48Mhz / 500kHz - 1)
 
         self.adc
-            .read_many_multichannel(&mut self.pins, &mut self.buffer, div, self.dma.reborrow())
+            // .read_many_multichannel(&mut self.pins, &mut self.buffer, div, self.dma.reborrow())
+            .read_many_multichannel(&mut self.pins, &mut self.buffer, div, &mut self.dma)
             .await
             .unwrap();
 
@@ -88,7 +92,7 @@ impl ACS712 {
     }
 }
 
-impl<CHANNEL: embassy_rp::dma::Channel + 'static> CurrentSensor for ACS712<CHANNEL> {
+impl CurrentSensor for ACS712 {
     type Error = ();
 
     async fn driver_align(

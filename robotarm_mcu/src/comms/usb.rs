@@ -156,6 +156,8 @@ impl UsbMonitor {
 
         spawner.spawn(usb_task(usb).unwrap());
         spawner.spawn(usb_logger_task(out, cmd_tx0, cmd_tx1, log_rx).unwrap());
+        // spawner.spawn(usb_task(usb)).unwrap();
+        // spawner.spawn(usb_logger_task(out, cmd_tx0, cmd_tx1, log_rx)).unwrap();
 
         // UsbLogger {
         //     rx: cmd_rx,

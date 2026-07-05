@@ -64,6 +64,7 @@ pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
 
 use embassy_rp::peripherals as rpp;
 
+#[cfg(feature = "nope")]
 bind_interrupts!(struct Irqs {
     I2C0_IRQ => embassy_rp::i2c::InterruptHandler<rpp::I2C0>;
     I2C1_IRQ => embassy_rp::i2c::InterruptHandler<rpp::I2C1>;
@@ -72,9 +73,16 @@ bind_interrupts!(struct Irqs {
     // DMA_IRQ_0 => InterruptHandler<embassy_rp::peripherals::DMA_CH0>;
     USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<rpp::USB>;
     DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH0>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH1>;
-    // DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH2>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH3>;
+    // DMA_IRQ_1 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH2>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH3>;
+    // DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH4>;
     // UART0_IRQ => embassy_rp::uart::InterruptHandler<rpp::UART0>;
     UART0_IRQ => embassy_rp::uart::BufferedInterruptHandler<rpp::UART0>;
+});
+
+bind_interrupts!(struct Irqs {
+    ADC_IRQ_FIFO => embassy_rp::adc::InterruptHandler;
+    DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH0>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH1>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH4>;
+    // DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH4>;
 });
 
 /// rtt tests
@@ -491,8 +499,8 @@ async fn main(spawner: Spawner) {
 }
 
 /// encoder tests
-// #[cfg(feature = "nope")]
-#[embassy_executor::main]
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -579,7 +587,7 @@ async fn main(spawner: Spawner) {
     };
 
     // output encoder
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let mut encoder = {
         let sda = p.PIN_16;
         let scl = p.PIN_17;
@@ -597,9 +605,9 @@ async fn main(spawner: Spawner) {
     };
 
     loop {
-        // encoder.update(Instant::now().as_micros()).await.unwrap();
-        // let angle = encoder.get_angle();
-        let angle = encoder.read_raw_angle().await.unwrap();
+        encoder.update(Instant::now().as_micros()).await.unwrap();
+        let angle = encoder.get_angle();
+        // let angle = encoder.read_raw_angle().await.unwrap();
 
         // let angle = encoder.read_raw_angle_debug().await.unwrap();
 
@@ -999,6 +1007,35 @@ async fn main(spawner: Spawner) {
     //
 }
 
+/// ACS712 test
+// #[cfg(feature = "nope")]
+#[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    use embassy_rp::adc::{Adc, Channel, Config, InterruptHandler};
+    use embassy_rp::gpio::Pull;
+
+    let mut adc = Adc::new(p.ADC, Irqs, Config::default());
+    // let mut dma = p.DMA_CH4;
+    let mut dma = embassy_rp::dma::Channel::new(p.DMA_CH4, Irqs);
+    let mut pin0 = Channel::new_pin(p.PIN_26, Pull::Up);
+    let mut pin1 = Channel::new_pin(p.PIN_27, Pull::Up);
+
+    // Peri<'_, impl dma::Channel>
+    // adc.read_many(&mut pin, &mut buf, div, dma.reborrow()).await.unwrap();
+    // adc.read_many(&mut pin0, &mut buf, div, &mut dma)
+    //     .await
+    //     .unwrap();
+
+    let mut sensor = crate::hardware::acs712::ACS712::new(pin0, pin1, adc, dma);
+
+    loop {
+        Timer::after_millis(1000).await;
+    }
+}
+
+/// MARK: Main
 #[cfg(feature = "nope")]
 // #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -1293,14 +1330,12 @@ fn main() -> ! {
 
         spawner
             // .spawn(crate::init::core0_task1(foc1, output_encoder1))
-            .spawn(crate::init::core0_task1(foc1, None))
-            .unwrap();
+            .spawn(crate::init::core0_task1(foc1, None).unwrap());
 
         // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
     });
 }
 
-/// MARK: Main
 // #[embassy_executor::main]
 #[cfg(feature = "nope")]
 async fn main(spawner: Spawner) {

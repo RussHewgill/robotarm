@@ -1,4 +1,4 @@
-// pub mod acs712;
+pub mod acs712;
 pub mod ads1256;
 pub mod as5048a;
 pub mod as5600;
