@@ -143,6 +143,16 @@ impl App {
 
                                 if let Some((a, b)) = sensor_currents {
                                     self.status[id as usize].sensor_currents = (a, b);
+
+                                    self.status[id as usize].sensor_currents_avg.0.push_back(a);
+                                    self.status[id as usize].sensor_currents_avg.1.push_back(b);
+
+                                    if self.status[id as usize].sensor_currents_avg.0.len() > 4 {
+                                        self.status[id as usize].sensor_currents_avg.0.pop_front();
+                                    }
+                                    if self.status[id as usize].sensor_currents_avg.1.len() > 4 {
+                                        self.status[id as usize].sensor_currents_avg.1.pop_front();
+                                    }
                                 }
 
                                 // {

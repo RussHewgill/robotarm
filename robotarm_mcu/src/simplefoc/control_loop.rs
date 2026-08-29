@@ -151,6 +151,19 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
         }
 
+        if let Some(thermals) = &mut self.motor.thermal_limits {
+            if let Some(current_sensor) = &mut self.current_sensor {
+                if let Some(current) = current_sensor.prev_foc_currents() {
+                    if let Some(fraction) = thermals.update(current.q, t_us) {
+                        self.motor.voltage.q *= fraction;
+                        self.motor.voltage.d *= fraction;
+                    }
+                }
+            } else {
+                error!("Thermal control with no current sensor");
+            }
+        }
+
         self.set_phase_voltage(self.motor.voltage.q, self.motor.voltage.d, electrical_angle);
     }
 

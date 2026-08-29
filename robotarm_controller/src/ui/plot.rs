@@ -8,7 +8,10 @@ use eframe::egui::{self, Response};
 
 // use egui_plot::{Legend, Line, Plot, PlotPoint, PlotPoints};
 use egui_plotter::EguiBackend;
-use plotters::{prelude::*, style::full_palette::ORANGE};
+use plotters::{
+    prelude::*,
+    style::full_palette::{GREEN_50, ORANGE},
+};
 
 use crate::ui::{self, app::App};
 
@@ -66,7 +69,7 @@ pub struct DataPlot {
 impl Default for DataPlot {
     fn default() -> Self {
         Self {
-            window_time: 10.,
+            window_time: 20.,
             prev_time: 0.,
             draw_angle: true,
             angle: VecDeque::new(),
@@ -99,6 +102,11 @@ impl Default for DataPlot {
 
 impl App {
     pub fn plot_settings(&mut self, ui: &mut egui::Ui) {
+        ui.add(
+            egui::Slider::new(&mut self.plots[self.current_plot].window_time, 1.0..=60.0)
+                .text("Window time (s)"),
+        );
+
         for (i, plot) in self.plots.iter().enumerate() {
             if ui
                 .selectable_label(self.current_plot == i, format!("Motor {}", i))
@@ -439,6 +447,19 @@ impl DataPlot {
                 .unwrap()
                 .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &YELLOW))
                 .label("Current Iq");
+        }
+
+        if self.draw_pid_output_vel {
+            chart
+                .draw_secondary_series(LineSeries::new(
+                    self.pid_output_vel
+                        .iter()
+                        .map(|(t, output)| (*t, *output * self.scale_vel * 10.0)),
+                    &CYAN,
+                ))
+                .unwrap()
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &CYAN))
+                .label("PID Output Vel (x10)");
         }
 
         // chart

@@ -9,6 +9,7 @@ pub mod pid_tuning;
 pub mod pid_tuning_vel;
 pub mod pwm_driver;
 pub mod shaft_position;
+pub mod thermals;
 pub mod types;
 pub mod utils;
 

@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use robotarm_protocol::types::MotionControlType;
 use tracing::{debug, error, info, trace, warn};
@@ -20,6 +22,7 @@ pub struct FocStatus {
     pub voltage: (f32, f32),
 
     pub sensor_currents: (f32, f32),
+    pub sensor_currents_avg: (VecDeque<f32>, VecDeque<f32>),
     pub current_iq: f32,
 
     pub pos: f64,

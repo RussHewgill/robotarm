@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::simplefoc::{
     lowpass::LowPassFilter,
     pid::PIDController,
+    thermals::BLDCThermalLimits,
     types::{DQCurrents, DQVoltages, PhaseVoltages},
 };
 
@@ -16,6 +17,8 @@ pub struct BLDCMotor {
     pub phase_inductance: Option<f32>,
 
     pub torque_constant: Option<f32>,
+
+    pub thermal_limits: Option<BLDCThermalLimits>,
 
     // pub(super) target: f32,
     // pub(super) feed_forward_velocity: f32,
@@ -58,6 +61,8 @@ impl BLDCMotor {
             phase_inductance,
 
             torque_constant,
+
+            thermal_limits: None,
 
             // target: 0.0,
             // feed_forward_velocity: 0.0,

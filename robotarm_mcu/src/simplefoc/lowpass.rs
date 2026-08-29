@@ -55,3 +55,27 @@ impl LowPassFilter {
         y
     }
 }
+
+pub struct LowPassFixed {
+    pub alpha: f32,
+    pub y_prev: Option<f32>,
+}
+
+impl LowPassFixed {
+    pub fn new(alpha: f32) -> Self {
+        Self {
+            alpha,
+            y_prev: None,
+        }
+    }
+
+    pub fn filter(&mut self, x: f32) -> f32 {
+        let y = match self.y_prev {
+            // Some(y_prev) => self.alpha * y_prev + (1.0 - self.alpha) * x,
+            Some(y_prev) => y_prev + self.alpha * (x - y_prev),
+            None => x,
+        };
+        self.y_prev = Some(y);
+        y
+    }
+}

@@ -299,6 +299,34 @@ impl App {
             );
             ui.end_row();
 
+            ui.label(RichText::new("Sens Current Avg").monospace());
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3} A",
+                    self.status[id as usize]
+                        .sensor_currents_avg
+                        .0
+                        .iter()
+                        .sum::<f32>()
+                        / self.status[id as usize].sensor_currents_avg.0.len() as f32
+                ))
+                .monospace(),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3} A",
+                    self.status[id as usize]
+                        .sensor_currents_avg
+                        .1
+                        .iter()
+                        .sum::<f32>()
+                        / self.status[id as usize].sensor_currents_avg.1.len() as f32
+                ))
+                .monospace(),
+            );
+
+            ui.end_row();
+
             ui.label(RichText::new("Torque").monospace());
             ui.label(RichText::new(format!("{:>+0.4} Ncm", torque * 100.)).monospace());
             ui.end_row();
@@ -431,8 +459,8 @@ impl App {
             if let Some(tgt) = make_scrollable(
                 ui,
                 resp,
-                0.5,
-                (0.1, 1.0),
+                0.2,
+                (0.01, 1.0),
                 &mut self.status[id as usize].target_voltage,
                 min,
                 max,
@@ -542,8 +570,10 @@ impl App {
             if let Some(tgt) = make_scrollable(
                 ui,
                 resp,
-                3.14 / 2.,
-                (3.14 / 4., 3.14),
+                5.,
+                (2., 10.),
+                // 3.14 / 2.,
+                // (3.14 / 4., 3.14),
                 &mut self.status[id as usize].target_vel,
                 min,
                 max,

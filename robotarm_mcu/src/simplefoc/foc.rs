@@ -1,6 +1,7 @@
 use defmt::{debug, error, info, trace, warn};
+use embassy_time::{Duration, Instant, Timer};
+
 use embassy_rp::gpio::Output;
-use embassy_time::{Instant, Timer};
 use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlType};
 
 use crate::{
@@ -171,6 +172,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // Timer::after_millis(1).await;
         self.enable();
 
+        // self.motor.voltage_sensor_align = 0.5;
+        // self.motor.voltage_sensor_align = 1.0;
+        // self.motor.voltage_sensor_align = 2.0;
+        self.motor.voltage_sensor_align = 4.0;
+        // self.motor.voltage_sensor_align = 6.0;
+        // self.motor.voltage_sensor_align = 8.0;
+
         // find encoder rotation direction
         if self.sensor_direction == SensorDirection::Unknown {
             let n = 100;
@@ -243,12 +251,6 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             //
         }
 
-        // self.motor.voltage_sensor_align = 0.5;
-        // self.motor.voltage_sensor_align = 1.0;
-        // self.motor.voltage_sensor_align = 2.0;
-        self.motor.voltage_sensor_align = 4.0;
-        // self.motor.voltage_sensor_align = 6.0;
-
         // zero electric angle not known
         // basic simpleFOC aligment
         #[cfg(feature = "nope")]
@@ -317,7 +319,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             let mut left_angles = heapless::Vec::<f32, 4>::new();
             let mut right_angles = heapless::Vec::<f32, 4>::new();
 
-            let delay = 300;
+            let delay = 500;
 
             for _ in 0..2 {
                 // approach from left
@@ -380,6 +382,66 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             );
         }
         // self.disable();
+    }
+
+    pub async fn find_angle_limits(&mut self) -> (f32, f32) {
+        // start turning slowly in one direction until the encoder stops moving, then record the angle
+
+        let mut encoder_pos_prev = self.encoder.get_angle();
+
+        self.set_motion_control(MotionControlType::Velocity);
+
+        let vel = 2.0; // rad/s
+
+        let angle_update_rate = 20;
+        let angle_update_period = Duration::from_micros(1_000_000 / angle_update_rate);
+        let mut angle_next_update = (Instant::now() + angle_update_period).as_micros();
+
+        let max_time_secs = 1;
+        let n0 = max_time_secs * angle_update_rate;
+
+        let d_angle_expected = vel / angle_update_rate as f32;
+
+        self.enable();
+
+        for i in 0..2 {
+            if i == 0 {
+                self.set_target_velocity(-vel);
+            } else {
+                self.set_target_velocity(vel);
+            }
+
+            let mut n = n0;
+            loop {
+                embassy_futures::yield_now().await;
+                self.run_commands().await;
+
+                let t_us = Instant::now().as_micros();
+                self.loop_foc(t_us).await;
+                self.update_foc(t_us).await;
+
+                if t_us >= angle_next_update {
+                    let encoder_pos = self.encoder.get_angle();
+
+                    let d_angle = (encoder_pos - encoder_pos_prev).abs();
+
+                    debug!("d_angle_expected: {}", d_angle_expected);
+                    debug!("d_angle: {}", d_angle);
+
+                    encoder_pos_prev = encoder_pos;
+
+                    n -= 1;
+                    angle_next_update = (Instant::now() + angle_update_period).as_micros();
+                }
+
+                if n <= 0 {
+                    break;
+                }
+            }
+        }
+
+        // unimplemented!()
+        (0.0, 0.0)
     }
 
     async fn align_current_sensor(&mut self) {

@@ -54,4 +54,15 @@ mod motor_configs {
         None,
         None,
     );
+
+    pub const MOTOR_CONFIG_GL60: BLDCMotor = BLDCMotor::new(
+        14, // pole pairs
+        // Some(5.5), // phase resistance, datasheet
+        Some(5.8), // phase resistance, measured?
+        Some(25.), // motor kv, datasheet
+        // None,
+        // Some(), // phase inductance, 2720 uH, datasheet
+        None,
+        None,
+    );
 }

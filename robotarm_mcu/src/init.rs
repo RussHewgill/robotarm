@@ -54,7 +54,7 @@ pub async fn core0_task1(
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         // >,
         // INA240<embassy_rp::peripherals::DMA_CH0>,
-        // crate::hardware::acs712::ACS712<embassy_rp::peripherals::DMA_CH4>,
+        crate::hardware::acs712::ACS712,
     >,
     mut output_encoder: Option<
         crate::hardware::mt_6701::MT6701<
@@ -76,8 +76,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     >,
 ) {
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // match foc.id {
     //     // 0 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
@@ -108,8 +108,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_debug_freq(2);
     // foc.set_debug_freq(10);
-    foc.set_debug_freq(100);
-    // foc.set_debug_freq(500);
+    // foc.set_debug_freq(100);
+    foc.set_debug_freq(500);
     // foc.set_debug_freq(0);
 
     // foc.set_vel_pid_debug(0.);
@@ -182,7 +182,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.angle_sensor_downsample = 5;
     // foc.angle_sensor_downsample = 8;
 
-    foc.current_sensor_downsample = 10;
+    // foc.current_sensor_downsample = 10;
+    foc.current_sensor_downsample = 2;
 
     // foc.angle_sensor_downsample = 1;
     // foc.current_sensor_downsample = 1;
@@ -192,10 +193,10 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // let output_encoder_downsample = 10;
     // let mut output_encoder_counter = 0;
 
-    // foc.set_zero_electric_angle(2.46530);
-    // foc.set_zero_electric_angle(2.4);
-    // foc.set_zero_electric_angle(5.73556);
-    // foc.set_zero_electric_angle(1.5938067);
+    // foc.set_zero_electric_angle(0.);
+
+    // foc.set_zero_electric_angle(4.95);
+    // foc.set_zero_electric_angle(5.05);
 
     // match foc.id {
     //     0 => foc.set_zero_electric_angle(2.6876297),
@@ -203,11 +204,11 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     //     _ => foc.set_zero_electric_angle(0.0),
     // }
 
-    foc.output_sensor_offset = match foc.id {
-        0 => 0.0,
-        1 => -220.0 * (core::f32::consts::PI / 180.),
-        _ => 0.0,
-    };
+    // foc.output_sensor_offset = match foc.id {
+    //     0 => 0.0,
+    //     1 => -220.0 * (core::f32::consts::PI / 180.),
+    //     _ => 0.0,
+    // };
 
     let output_encoder_update_rate_hz = 10;
     let output_encoder_update_interval_us =
@@ -221,6 +222,10 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     foc.init_foc().await;
     // spawner.spawn(loop_foc(foc)).unwrap();
     foc.enable();
+
+    // debug!("Finding angle limits");
+    // foc.find_angle_limits().await;
+    // debug!("Done");
 
     // #[cfg(feature = "nope")]
     loop {

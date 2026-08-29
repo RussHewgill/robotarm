@@ -64,7 +64,6 @@ pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
 
 use embassy_rp::peripherals as rpp;
 
-#[cfg(feature = "nope")]
 bind_interrupts!(struct Irqs {
     I2C0_IRQ => embassy_rp::i2c::InterruptHandler<rpp::I2C0>;
     I2C1_IRQ => embassy_rp::i2c::InterruptHandler<rpp::I2C1>;
@@ -72,17 +71,16 @@ bind_interrupts!(struct Irqs {
     ADC_IRQ_FIFO => embassy_rp::adc::InterruptHandler;
     // DMA_IRQ_0 => InterruptHandler<embassy_rp::peripherals::DMA_CH0>;
     USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<rpp::USB>;
-    DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH0>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH1>;
+    DMA_IRQ_0 =>
+        embassy_rp::dma::InterruptHandler<rpp::DMA_CH0>,
+        embassy_rp::dma::InterruptHandler<rpp::DMA_CH1>,
+        embassy_rp::dma::InterruptHandler<rpp::DMA_CH2>,
+        embassy_rp::dma::InterruptHandler<rpp::DMA_CH3>,
+        embassy_rp::dma::InterruptHandler<rpp::DMA_CH4>;
     // DMA_IRQ_1 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH2>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH3>;
     // DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH4>;
     // UART0_IRQ => embassy_rp::uart::InterruptHandler<rpp::UART0>;
     UART0_IRQ => embassy_rp::uart::BufferedInterruptHandler<rpp::UART0>;
-});
-
-bind_interrupts!(struct Irqs {
-    ADC_IRQ_FIFO => embassy_rp::adc::InterruptHandler;
-    DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH0>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH1>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH4>;
-    // DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH4>;
 });
 
 /// rtt tests
@@ -1008,8 +1006,8 @@ async fn main(spawner: Spawner) {
 }
 
 /// ACS712 test
-// #[cfg(feature = "nope")]
-#[embassy_executor::main]
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -1021,6 +1019,10 @@ async fn main(spawner: Spawner) {
     let mut dma = embassy_rp::dma::Channel::new(p.DMA_CH4, Irqs);
     let mut pin0 = Channel::new_pin(p.PIN_26, Pull::Up);
     let mut pin1 = Channel::new_pin(p.PIN_27, Pull::Up);
+    // let mut pin0 = Channel::new_pin(p.PIN_26, Pull::None);
+    // let mut pin1 = Channel::new_pin(p.PIN_27, Pull::None);
+
+    let mut ts = Channel::new_temp_sensor(p.ADC_TEMP_SENSOR);
 
     // Peri<'_, impl dma::Channel>
     // adc.read_many(&mut pin, &mut buf, div, dma.reborrow()).await.unwrap();
@@ -1030,24 +1032,179 @@ async fn main(spawner: Spawner) {
 
     let mut sensor = crate::hardware::acs712::ACS712::new(pin0, pin1, adc, dma);
 
+    sensor.calibrate().await;
+
+    use crate::hardware::current_sensor::CurrentSensor;
+
+    let mut t0 = Instant::now();
+    let mut c = 0;
+    let interval = embassy_time::Duration::from_millis(1000);
+    let mut max_time = t0 + interval;
+
+    #[cfg(feature = "nope")]
+    {
+        const N: usize = 32;
+
+        let mut sum0 = 0f32;
+        let mut sum1 = 0f32;
+
+        debug!("div = 4799, 10 kHz");
+        debug!("");
+        sensor.div = 4799;
+        for i in 0..N {
+            // let (n0, n1) = sensor.test_noise().await;
+            let (n0, n1) = sensor.test_noise_interleaved().await;
+            sum0 += n0;
+            sum1 += n1;
+            Timer::after_millis(10).await;
+        }
+
+        let avg0 = sum0 / N as f32;
+        let avg1 = sum1 / N as f32;
+
+        debug!("avg0 = {}", avg0);
+        debug!("avg1 = {}", avg1);
+
+        Timer::after_millis(10).await;
+
+        let mut sum0 = 0f32;
+        let mut sum1 = 0f32;
+
+        debug!("");
+        debug!("div = 479, 100 kHz");
+        debug!("");
+        sensor.div = 479;
+        for i in 0..N {
+            // let (n0, n1) = sensor.test_noise().await;
+            let (n0, n1) = sensor.test_noise_interleaved().await;
+            sum0 += n0;
+            sum1 += n1;
+            Timer::after_millis(10).await;
+        }
+
+        let avg0 = sum0 / N as f32;
+        let avg1 = sum1 / N as f32;
+
+        debug!("avg0 = {}", avg0);
+        debug!("avg1 = {}", avg1);
+
+        debug!("");
+        // debug!("div = 95, 500 kHz");
+        debug!("div = 191, 250 kHz");
+        debug!("");
+        // sensor.div = 95;
+        // sensor.div = 191;
+        // sensor.div = 238; // 200 kHz
+        sensor.div = 435;
+        for i in 0..N {
+            // let (n0, n1) = sensor.test_noise().await;
+            let (n0, n1) = sensor.test_noise_interleaved().await;
+            sum0 += n0;
+            sum1 += n1;
+            Timer::after_millis(10).await;
+        }
+
+        let avg0 = sum0 / N as f32;
+        let avg1 = sum1 / N as f32;
+
+        debug!("avg0 = {}", avg0);
+        debug!("avg1 = {}", avg1);
+    }
+
     loop {
+        let currents = sensor.get_phase_currents().await.unwrap();
+
+        debug!("Phase currents: {:?}", currents);
+
+        let ab_currents = sensor.get_ab_currents(currents).await;
+
+        debug!("AB currents: {:?}", ab_currents);
+
+        let electrical_angle = 0.0;
+        let dq_currents = sensor.get_dq_currents(ab_currents, electrical_angle).await;
+
+        debug!("DQ currents: {:?}", dq_currents);
+
+        Timer::after_millis(1000).await;
+    }
+
+    #[cfg(feature = "nope")]
+    loop {
+        let current = sensor.read_current().await;
+        // debug!("Current: {} A, {} A", current.0, current.1);
+
+        let t1 = Instant::now();
+
+        if t1 > max_time {
+            let elapsed = t1 - t0;
+            let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
+            info!(
+                "Elapsed: {}s, Cycles: {}, Freq: {}Hz",
+                elapsed.as_millis() as f32 * 1e-3,
+                c,
+                freq
+            );
+            t0 = t1;
+            c = 0;
+            max_time = t1 + interval;
+        } else {
+            c += 1;
+        }
+
+        // Timer::after_millis(1000).await;
+    }
+
+    #[cfg(feature = "nope")]
+    loop {
+        // let v = sensor.read_voltage().await;
+        // debug!("Voltage: {} mV", v);
+
+        adc.read_many(&mut pin0, &mut buf, div, &mut dma)
+            .await
+            .unwrap();
+
+        // for i in 0..BLOCK_SIZE {
+        //     debug!("ADC[{}]: {}", i, buf[i]);
+        // }
+
+        let sum0 = buf.iter().map(|&x| x as u32).sum::<u32>();
+        let avg0 = sum0 as f32 / (BLOCK_SIZE as f32);
+
+        // let temp = 27.0 - (raw_temp * 3.3 / 4096.0 - 0.706) / 0.001721;
+
+        let sensitivity = 185.; // mV/A
+
+        let vref = 3.2;
+        // let offset = vref / 2. - 55.;
+        let offset = 0.;
+
+        let voltage = avg0 * 3.3 / 4096.0;
+        debug!("Voltage: {} V", voltage);
+        let current0 = (voltage - offset) / sensitivity;
+        debug!("Current: {} A", current0);
+
+        // let temp = adc.read(&mut ts).await.unwrap() as f32;
+        // debug!("Raw temp: {}", temp);
+        // info!("Temp: {} degrees", convert_to_celsius(temp));
+
         Timer::after_millis(1000).await;
     }
 }
 
 /// MARK: Main
-#[cfg(feature = "nope")]
-// #[cortex_m_rt::entry]
+// #[cfg(feature = "nope")]
+#[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
     // let voltage_limit = 2.0;
     // let voltage_limit = 4.;
-    // let voltage_limit = 6.;
-    let voltage_limit = 8.;
-    // let voltage_limit = 12.;
+    // let voltage_limit = 8.;
+    // let voltage_limit = 10.;
+    let voltage_limit = 12.;
     // let voltage_limit = 18.;
 
+    // let supply_voltage = 12.0;
     let supply_voltage = 16.0;
     // let supply_voltage = 20.0;
 
@@ -1073,19 +1230,17 @@ fn main() -> ! {
 
         // let mut buf: [u8; 4] = [0; 4];
 
-        let mut encoder = crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
+        let mut encoder: hardware::mt_6701_ssi::MT6701<embassy_rp::spi::Spi<'static, _, _>> =
+            crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
 
         encoder
     };
 
     // #[cfg(feature = "nope")]
     let encoder1 = {
-        let miso = p.PIN_20;
-        // let mosi = p.PIN_19;
-
-        let sck = p.PIN_18;
-        // let cs = p.PIN_17;
-        let cs = p.PIN_21;
+        let cs = p.PIN_21; // Z, yellow, orange
+        let miso = p.PIN_20; // SDA, brown, brown
+        let sck = p.PIN_18; // SCL, blue, red
 
         let mut config = embassy_rp::spi::Config::default();
         config.frequency = 4_000_000;
@@ -1102,6 +1257,9 @@ fn main() -> ! {
         // let mut buf: [u8; 4] = [0; 4];
 
         let mut encoder = crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
+
+        // let mut encoder: hardware::mt_6701_ssi::MT6701<embassy_rp::spi::Spi<'static, _, _>> =
+        //     crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
 
         encoder
     };
@@ -1146,16 +1304,27 @@ fn main() -> ! {
         use embassy_rp::gpio::Pull;
 
         let mut adc = Adc::new(p.ADC, Irqs, Config::default());
-        let mut dma = p.DMA_CH4;
-        let mut pin0 = Channel::new_pin(p.PIN_26, Pull::Up);
-        let mut pin1 = Channel::new_pin(p.PIN_27, Pull::Up);
+        let mut dma = embassy_rp::dma::Channel::new(p.DMA_CH4, Irqs);
+        // let mut pin0 = Channel::new_pin(p.PIN_26, Pull::Up);
+        // let mut pin1 = Channel::new_pin(p.PIN_27, Pull::Up);
+        let mut pin0 = Channel::new_pin(p.PIN_26, Pull::None);
+        let mut pin1 = Channel::new_pin(p.PIN_27, Pull::None);
 
         // Peri<'_, impl dma::Channel>
         // adc.read_many(&mut pin, &mut buf, div, dma.reborrow()).await.unwrap();
 
         let mut sensor = crate::hardware::acs712::ACS712::new(pin0, pin1, adc, dma);
+
         sensor
     };
+
+    // simpleFOCShield
+    // PWM pins:
+    // pico     shield
+    // 7        10       white
+    // 8        6      black
+    // 9        5       brown
+    // en: 10   8       red
 
     // #[cfg(feature = "nope")]
     let (pwm_driver0, pwm_driver1) = {
@@ -1185,33 +1354,36 @@ fn main() -> ! {
         let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
 
         let enable_pin0 = embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low);
-        let driver0 = crate::simplefoc::pwm_driver::PWMDriver::new(
-            pwm0,
-            pwm12,
-            enable_pin0,
-            c.clone(),
-            voltage_limit,
-            supply_voltage,
-        );
+        let driver0: simplefoc::pwm_driver::PWMDriver<'static> =
+            crate::simplefoc::pwm_driver::PWMDriver::new(
+                pwm0,
+                pwm12,
+                enable_pin0,
+                c.clone(),
+                voltage_limit,
+                supply_voltage,
+            );
 
         let pwm3 = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, c.clone());
         let pwm45 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE4, p.PIN_8, p.PIN_9, c.clone());
 
         let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
-        let driver1 = crate::simplefoc::pwm_driver::PWMDriver::new(
-            pwm3,
-            pwm45,
-            enable_pin1,
-            c,
-            voltage_limit,
-            supply_voltage,
-        );
+        let driver1: simplefoc::pwm_driver::PWMDriver<'static> =
+            crate::simplefoc::pwm_driver::PWMDriver::new(
+                pwm3,
+                pwm45,
+                enable_pin1,
+                c,
+                voltage_limit,
+                supply_voltage,
+            );
 
         (driver0, driver1)
     };
 
     #[cfg(feature = "picoA")]
-    let (motor_config0, motor_config1) = (MOTOR_CONFIG_4015, MOTOR_CONFIG_GM5208_24);
+    // let (motor_config0, motor_config1) = (MOTOR_CONFIG_4015, MOTOR_CONFIG_GM5208_24);
+    let (motor_config0, motor_config1) = (unimplemented!(), unimplemented!());
 
     #[cfg(feature = "picoB")]
     let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM4108, MOTOR_CONFIG_GM3506);
@@ -1220,7 +1392,9 @@ fn main() -> ! {
     let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM3506, MOTOR_CONFIG_GM3506);
 
     #[cfg(feature = "testing")]
-    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM4108, MOTOR_CONFIG_GM5208_24);
+    // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM4108, MOTOR_CONFIG_GM5208_24);
+    // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM5208_24, MOTOR_CONFIG_GM5208_24);
+    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GL60, MOTOR_CONFIG_GL60);
 
     #[cfg(feature = "picoA")]
     // let (output_encoder0, output_encoder1) = (None, Some(output_encoder0));
@@ -1334,92 +1508,6 @@ fn main() -> ! {
 
         // spawner.spawn(crate::init::core0_task1(foc)).unwrap();
     });
-}
-
-// #[embassy_executor::main]
-#[cfg(feature = "nope")]
-async fn main(spawner: Spawner) {
-    let p = embassy_rp::init(Default::default());
-
-    let sda = p.PIN_14; // purple
-    let scl = p.PIN_15; // blue
-
-    // info!("set up i2c ");
-    let mut i2c_config = embassy_rp::i2c::Config::default();
-    // i2c_config.frequency = 400_000; // 400 kHz
-    i2c_config.frequency = 1_000_000; // 1 MHz
-    let i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
-
-    // info!("set up encoder");
-    // let encoder = crate::hardware::as5600::AS5600::new(i2c).await;
-    let encoder = crate::hardware::mt_6701::MT6701::new(i2c).await;
-
-    let mut c = embassy_rp::pwm::Config::default();
-    let desired_freq_hz = 24_000;
-    let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
-
-    c.top = 3124;
-    c.divider = 1.into();
-    c.phase_correct = true;
-
-    // let voltage_limit = 2.0;
-    let voltage_limit = 3.;
-
-    let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
-    let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
-
-    // info!("set up PWM driver");
-    let pwm_driver =
-        crate::simplefoc::pwm_driver::PWMDriver::new(pwm0, pwm12, c, voltage_limit, 12.);
-
-    let enable_pin = embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low);
-
-    let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
-        7, // pole pairs
-        // 11.2, // phase resistance (TODO: measure this)
-        Some(5.35), // phase resistance (TODO: measure this)
-        Some(260.), // motor kv
-        None,
-    );
-
-    // let motor_config = crate::simplefoc::bldc::BLDCMotor::new(
-    //     7,    // pole pairs
-    //     None, // phase resistance (TODO: measure this)
-    //     None, // motor kv
-    //     None,
-    // );
-
-    let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
-
-    let usb = crate::comms::usb::UsbMonitor::init(&spawner, driver);
-
-    // info!("set up FOC");
-    let mut foc = crate::simplefoc::foc_types::SimpleFOC::new(
-        encoder,
-        pwm_driver,
-        enable_pin,
-        motor_config,
-        Some(usb),
-        // None,
-    );
-
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
-
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Torque);
-    foc.set_motion_control(crate::simplefoc::types::MotionControlType::Velocity);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::Angle);
-    // foc.set_motion_control(crate::simplefoc::types::MotionControlType::VelocityOpenLoop);
-
-    info!("Starting init");
-    foc.init();
-    info!("Starting FOC init");
-    foc.init_foc().await;
-    spawner.spawn(loop_foc(foc)).unwrap();
-
-    // spawner.spawn(test_foc(foc)).unwrap();
-
-    // foc.disable();
 }
 
 // #[embassy_executor::task]

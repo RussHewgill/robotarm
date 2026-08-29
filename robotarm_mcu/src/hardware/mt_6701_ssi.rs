@@ -54,15 +54,6 @@ impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
     }
 }
 
-// impl<'d, T> Spi<'d, T, Async>
-// pub fn new_rxonly(
-//     inner: Peri<'d, T>,
-//     clk: Peri<'d, impl ClkPin<T> + 'd>,
-//     miso: Peri<'d, impl MisoPin<T> + 'd>,
-//     tx_dma: Peri<'d, impl Channel>,
-//     rx_dma: Peri<'d, impl Channel>,
-//     config: Config
-
 impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
     pub fn new(mut spi: SPI, cs: Output<'static>) -> Self {
         Self {
@@ -71,7 +62,8 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
 
             buf: [0; 4],
 
-            min_elapsed_time: 0.0001, // 100 microseconds
+            // min_elapsed_time: 0.0001, // 100 microseconds
+            min_elapsed_time: 0.00005, // 50 microseconds
 
             velocity: 0.0,
             angle_prev: 0.0,
