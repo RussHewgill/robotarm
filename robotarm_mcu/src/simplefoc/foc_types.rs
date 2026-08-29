@@ -156,8 +156,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // const CURR_LPF_TF: f32 = 0.005;
 
-        const PID_VELOCITY_KP: f32 = 0.1;
-        const PID_VELOCITY_KI: f32 = 0.0;
+        const PID_VELOCITY_KP: f32 = 0.05;
+        const PID_VELOCITY_KI: f32 = 0.1;
         const PID_VELOCITY_KD: f32 = 0.0005;
 
         // const PID_VELOCITY_KP: f32 = 3.4;
@@ -182,8 +182,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // const VEL_LPF_TF: f32 = 0.;
         // const VEL_LPF_TF: f32 = 0.01;
-        const VEL_LPF_TF: f32 = 0.05;
-        // const VEL_LPF_TF: f32 = 0.2;
+        // const VEL_LPF_TF: f32 = 0.05;
+        const VEL_LPF_TF: f32 = 0.1;
 
         // const ANGLE_LPF_TF: f32 = 0.;
         const ANGLE_LPF_TF: f32 = 0.005;

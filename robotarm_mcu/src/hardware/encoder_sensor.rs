@@ -12,6 +12,10 @@ pub trait EncoderSensor {
     fn get_velocity(&mut self) -> f32;
 
     fn reset_position(&mut self);
+
+    async fn read_raw_debug(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }
 
 // impl EncoderSensor for () {

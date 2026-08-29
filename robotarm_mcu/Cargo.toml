@@ -77,6 +77,7 @@ micromath = { version = "2.1.0", features = ["vector", "quaternion"] }
 
 bitflags = "2.4"
 byteorder = { version = "1", default-features = false }
+bitvec = { version = "1.1.1", default-features = false }
 
 # ron = { version = "0.12.1", default-features = false, features = [] }
 

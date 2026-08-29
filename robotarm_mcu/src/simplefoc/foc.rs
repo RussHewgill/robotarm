@@ -516,7 +516,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
     /// shaft velocity in rad/s
     pub(super) fn get_shaft_velocity(&mut self, t_us: u64) -> f32 {
-        self.sensor_direction.multiplier() * self.lpf_velocity.filter(self.encoder.get_velocity())
+        self.sensor_direction.multiplier()
+            * self
+                .lpf_velocity
+                .filter_with_timestamp(self.encoder.get_velocity(), t_us)
     }
 
     /// shaft angle in rad

@@ -227,6 +227,31 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.find_angle_limits().await;
     // debug!("Done");
 
+    let mut n = 0;
+    #[cfg(feature = "nope")]
+    loop {
+        // yield_now().await;
+        // foc.run_commands().await;
+
+        // let t_us = Instant::now().as_micros();
+        // foc.loop_foc(t_us).await;
+        // foc.update_foc(t_us).await;
+
+        // #[cfg(feature = "nope")]
+        if n <= 0 {
+            let angle = foc.encoder.read_raw_debug().await.unwrap();
+            // let ts_us = Instant::now().as_micros();
+            // foc.encoder.update(ts_us).await.unwrap();
+
+            // let angle = foc.encoder.get_angle();
+            // debug!("Angle: {}", angle);
+
+            n = 10_000_000;
+        } else {
+            n -= 1;
+        }
+    }
+
     // #[cfg(feature = "nope")]
     loop {
         yield_now().await;
