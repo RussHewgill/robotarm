@@ -155,6 +155,9 @@ impl App {
                                     }
                                 }
 
+                                self.status[id as usize].vel_pid_output = pid_outputs.0;
+                                self.status[id as usize].pos_pid_output = pid_outputs.1;
+
                                 // {
                                 //     let mult =
                                 //     let offset =

@@ -454,7 +454,8 @@ impl DataPlot {
                 .draw_secondary_series(LineSeries::new(
                     self.pid_output_vel
                         .iter()
-                        .map(|(t, output)| (*t, *output * self.scale_vel * 10.0)),
+                        // .map(|(t, output)| (*t, *output * self.scale_vel * 10.0)),
+                        .map(|(t, output)| (*t, *output * self.scale_vel * 1.0)),
                     &CYAN,
                 ))
                 .unwrap()

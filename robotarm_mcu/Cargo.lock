@@ -24,6 +24,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "air-filters"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a11ed6a0f4b953b7941b1d7917b254b5d68d90008bc811c906027326e46f285"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -366,10 +375,11 @@ dependencies = [
 
 [[package]]
 name = "discrete_pid"
-version = "0.1.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d6406befa7a91e856133d660b608d13e8eb23d2a9df7b90c9a87339dd8b5558"
+checksum = "b6af1c9808b069c9a452afb66742d7ad33e5ff0770a133bc1118f936b3ba6c2d"
 dependencies = [
+ "air-filters",
  "num-traits",
 ]
 
@@ -1343,6 +1353,7 @@ dependencies = [
  "robotarm_protocol",
  "ryu",
  "serde",
+ "standard-pid",
  "static_cell",
 ]
 
@@ -1544,6 +1555,15 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "standard-pid"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8830cde96ed0f08ec3626f97357ddcd248c714c3073a6c9c192cd336dc474e0f"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "static_cell"

@@ -345,8 +345,16 @@ impl App {
 
             ui.end_row();
 
-            ui.label("Gear Ratio");
+            ui.label(RichText::new("Vel PID Output").monospace());
+            ui.label(
+                // RichText::new(format!("{:>+0.5}", self.status[id as usize].vel_pid_output))
+                RichText::new(format!("{}", self.status[id as usize].vel_pid_output)).monospace(),
+            );
+
             ui.end_row();
+
+            ui.label("Gear Ratio");
+            // ui.end_row();
             let resp = ui.add(
                 egui::Slider::new(&mut self.status[id as usize].gear_ratio, -20.0..=60.0).integer(),
             );

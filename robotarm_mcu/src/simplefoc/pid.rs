@@ -2,10 +2,14 @@ use defmt::debug;
 use embassy_time::Instant;
 
 pub struct PIDController {
-    pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
+    // pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
+    pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f64>,
     pid: self::prev::PIDController,
+    // pid3: (pidgeon::ControllerConfig, pidgeon::PidState),
+    pid4: standard_pid::StandardPID<f64>,
     ramp: f32,
     prev_output: f32,
+    prev_t_us: u64,
 }
 
 impl PIDController {
@@ -16,27 +20,60 @@ impl PIDController {
         // );
 
         let config = discrete_pid::pid::PidConfigBuilder::default()
-            .kp(p)
-            .ki(i)
-            .kd(d)
-            .output_limits(-limit, limit)
+            .kp(p as f64)
+            .ki(i as f64)
+            .kd(d as f64)
+            .output_limits(-limit as f64, limit as f64)
             .sample_time(core::time::Duration::from_micros(100))
+            .filter_tc(0.000001)
+            .use_derivative_on_measurement(false)
             .build()
             .expect("Invalid PID config");
         let mut pid2 = discrete_pid::pid::PidController::new_uninit(config);
         pid2.activate();
-        let _ = pid2.config_mut().set_filter_tc(0.000001);
+        // let _ = pid2.config_mut().set_filter_tc(0.000001);
         // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
         // let _ = pid2.config_mut().set_use_derivative_on_measurement(true);
-        let _ = pid2.config_mut().set_use_derivative_on_measurement(false);
+        // let _ = pid2.config_mut().set_use_derivative_on_measurement(false);
 
         let pid = self::prev::PIDController::new(p, i, d, ramp, limit);
+
+        // use pidgeon::{ControllerConfig, PidState, pid_compute};
+        // let config = ControllerConfig::builder()
+        //     .with_kp(p as f64)
+        //     // .with_ki(i as f64)
+        //     .with_kd(d as f64)
+        //     // .with_kp(0.05)
+        //     .with_ki(0.0)
+        //     // .with_kd(0.0005)
+        //     .with_setpoint(0.0)
+        //     .with_output_limits(-limit as f64, limit as f64)
+        //     // .with_anti_windup_mode(pidgeon::AntiWindupMode::BackCalculation { tracking_time: 0.05 })
+        //     .with_anti_windup_mode(pidgeon::AntiWindupMode::Conditional)
+        //     .with_derivative_mode(pidgeon::DerivativeMode::OnMeasurement)
+        //     .with_derivative_filter_coeff(10.0)
+        //     .with_deadband(0.0)
+        //     .build()
+        //     .unwrap();
+        // let pid3 = PidState::default();
+
+        let pid4 = standard_pid::StandardPID::new(
+            p as f64,
+            i as f64,
+            d as f64,
+            0.0,
+            -limit as f64,
+            limit as f64,
+        );
 
         Self {
             pid,
             pid2,
+            // pid3: (config, pid3),
+            pid4,
             ramp,
             prev_output: 0.0,
+            prev_t_us: 0,
         }
     }
 
@@ -57,11 +94,43 @@ impl PIDController {
 
     // #[cfg(feature = "nope")]
     pub fn update(&mut self, setpoint: f32, input: f32, t_us: u64) -> f32 {
-        let output = self
-            .pid2
-            .compute(input, setpoint, discrete_pid::time::Micros(t_us), None);
-        self.prev_output = output;
-        output
+        // let output = self.pid2.compute(
+        //     input as f64,
+        //     setpoint as f64,
+        //     discrete_pid::time::Micros(t_us),
+        //     None,
+        // );
+
+        // let config = pidgeon::ControllerConfigBuilder::new()
+        //     .with_kp(self.pid3.0.kp())
+        //     .with_ki(self.pid3.0.ki())
+        //     .with_kd(self.pid3.0.kd())
+        //     .with_setpoint(setpoint as f64)
+        //     .with_output_limits(self.pid3.0.min_output(), self.pid3.0.max_output())
+        //     .with_anti_windup_mode(self.pid3.0.anti_windup_mode())
+        //     .with_deadband(self.pid3.0.deadband())
+        //     .with_derivative_mode(self.pid3.0.derivative_mode())
+        //     .with_derivative_filter_coeff(self.pid3.0.derivative_filter_coeff())
+        //     .build()
+        //     .unwrap();
+        // self.pid3.0 = config;
+        // let (output, _state) =
+        //     pidgeon::pid_compute(&self.pid3.0, &self.pid3.1, input as f64, t_us as f64 * 1e-6)
+        //         .unwrap();
+        // self.pid3.1 = _state;
+
+        if self.prev_t_us == 0 {
+            self.prev_t_us = t_us;
+            return 0.0;
+        }
+
+        self.pid4.set_sp(setpoint as f64);
+        let dt = (t_us - self.prev_t_us) as f64 * 1e-6;
+        let output = self.pid4.update(input as f64, dt);
+        // debug!("output: {}", output);
+
+        self.prev_output = output as f32;
+        output as f32
     }
 
     pub fn prev_output(&self) -> f32 {
@@ -119,13 +188,16 @@ impl PIDController {
 // #[cfg(feature = "nope")]
 impl PIDController {
     pub fn get_p(&self) -> f32 {
-        self.pid2.config().kp()
+        self.pid2.config().kp() as f32
+        // self.pid3.0.kp() as f32
     }
     pub fn get_i(&self) -> f32 {
-        self.pid2.config().ki()
+        self.pid2.config().ki() as f32
+        // self.pid3.0.ki() as f32
     }
     pub fn get_d(&self) -> f32 {
-        self.pid2.config().kd()
+        self.pid2.config().kd() as f32
+        // self.pid3.0.kd() as f32
     }
     pub fn get_ramp(&self) -> f32 {
         self.ramp
@@ -136,31 +208,119 @@ impl PIDController {
             self.pid2.config().output_max(),
         );
         if a == -b {
-            b
+            b as f32
         } else {
             // asymmetric limits not supported
             0.0
         }
     }
     pub fn set_p(&mut self, p: f32) {
-        let _ = self.pid2.config_mut().set_kp(p);
+        // let _ = self.pid2.config_mut().set_kp(p);
+        let mut conf = *self.pid2.config();
+        conf.set_kp(p as f64).expect("Invalid PID config");
+        self.pid2.set_config(conf);
         self.pid.p = p;
+        // let config = pidgeon::ControllerConfigBuilder::new()
+        //     .with_kp(p as f64)
+        //     .with_ki(self.pid3.0.ki())
+        //     .with_kd(self.pid3.0.kd())
+        //     .with_setpoint(self.pid3.0.setpoint())
+        //     .with_output_limits(self.pid3.0.min_output(), self.pid3.0.max_output())
+        //     .with_anti_windup_mode(self.pid3.0.anti_windup_mode())
+        //     .with_deadband(self.pid3.0.deadband())
+        //     .with_derivative_mode(self.pid3.0.derivative_mode())
+        //     .with_derivative_filter_coeff(self.pid3.0.derivative_filter_coeff())
+        //     .build()
+        //     .unwrap();
+        // self.pid3.0 = config;
+        self.pid4.set_kp(p as f64);
     }
     pub fn set_i(&mut self, i: f32) {
-        let _ = self.pid2.config_mut().set_ki(i);
+        let mut conf = *self.pid2.config();
+        conf.set_ki(i as f64).expect("Invalid PID config");
+        self.pid2.set_config(conf);
         self.pid.i = i;
+        // let config = pidgeon::ControllerConfigBuilder::new()
+        //     .with_kp(self.pid3.0.kp())
+        //     .with_ki(i as f64)
+        //     .with_kd(self.pid3.0.kd())
+        //     .with_setpoint(self.pid3.0.setpoint())
+        //     .with_output_limits(self.pid3.0.min_output(), self.pid3.0.max_output())
+        //     .with_anti_windup_mode(self.pid3.0.anti_windup_mode())
+        //     .with_deadband(self.pid3.0.deadband())
+        //     .with_derivative_mode(self.pid3.0.derivative_mode())
+        //     .with_derivative_filter_coeff(self.pid3.0.derivative_filter_coeff())
+        //     .build()
+        //     .unwrap();
+        // self.pid3.0 = config;
+        // self.pid4.set_ki(i as f64);
+        // self.pid4 = standard_pid::StandardPID::new(
+        //     // self.pid4.get_kp(),
+        //     self.pid.p as f64,
+        //     i as f64,
+        //     self.pid.d as f64,
+        //     0.0,
+        //     -self.pid.limit as f64,
+        //     self.pid.limit as f64,
+        // );
+        self.pid4.set_ti_s(i as f64);
+        self.pid4.reset_integral_term();
     }
     pub fn set_d(&mut self, d: f32) {
-        let _ = self.pid2.config_mut().set_kd(d);
+        let mut conf = *self.pid2.config();
+        conf.set_kd(d as f64).expect("Invalid PID config");
+        self.pid2.set_config(conf);
         self.pid.d = d;
+        // let config = pidgeon::ControllerConfigBuilder::new()
+        //     .with_kp(self.pid3.0.kp())
+        //     .with_ki(self.pid3.0.ki())
+        //     .with_kd(d as f64)
+        //     .with_setpoint(self.pid3.0.setpoint())
+        //     .with_output_limits(self.pid3.0.min_output(), self.pid3.0.max_output())
+        //     .with_anti_windup_mode(self.pid3.0.anti_windup_mode())
+        //     .with_deadband(self.pid3.0.deadband())
+        //     .with_derivative_mode(self.pid3.0.derivative_mode())
+        //     .with_derivative_filter_coeff(self.pid3.0.derivative_filter_coeff())
+        //     .build()
+        //     .unwrap();
+        // self.pid3.0 = config;
+        // self.pid4.set_kd(d as f64);
+        // self.pid4 = standard_pid::StandardPID::new(
+        //     self.pid.p as f64,
+        //     // self.pid4.get_kp(),
+        //     self.pid.i as f64,
+        //     d as f64,
+        //     0.0,
+        //     -self.pid.limit as f64,
+        //     self.pid.limit as f64,
+        // );
+        self.pid4.set_td_s(d as f64);
     }
     pub fn set_ramp(&mut self, ramp: f32) {
         self.ramp = ramp;
     }
     pub fn set_limit(&mut self, limit: f32) {
         debug!("Setting PID limit to {}", limit);
-        let _ = self.pid2.config_mut().set_output_limits(-limit, limit);
-        self.pid.limit = limit;
+        // let _ = self.pid2.config_mut().set_output_limits(-limit, limit);
+        let mut conf = *self.pid2.config();
+        conf.set_output_limits(-limit as f64, limit as f64)
+            .expect("Invalid PID config");
+        // self.pid2.set_config(conf);
+        // self.pid.limit = limit;
+        // let config = pidgeon::ControllerConfigBuilder::new()
+        //     .with_kp(self.pid3.0.kp())
+        //     .with_ki(self.pid3.0.ki())
+        //     .with_kd(self.pid3.0.kd())
+        //     .with_setpoint(self.pid3.0.setpoint())
+        //     .with_output_limits(-limit as f64, limit as f64)
+        //     .with_anti_windup_mode(self.pid3.0.anti_windup_mode())
+        //     .with_deadband(self.pid3.0.deadband())
+        //     .with_derivative_mode(self.pid3.0.derivative_mode())
+        //     .with_derivative_filter_coeff(self.pid3.0.derivative_filter_coeff())
+        //     .build()
+        //     .unwrap();
+        // self.pid3.0 = config;
+        // self.pid4.
     }
 }
 

@@ -195,7 +195,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_zero_electric_angle(0.);
 
-    // foc.set_zero_electric_angle(4.95);
+    // foc.set_zero_electric_angle(3.01082);
     // foc.set_zero_electric_angle(5.05);
 
     // match foc.id {
@@ -261,7 +261,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         foc.loop_foc(t_us).await;
         foc.update_foc(t_us).await;
 
-        // #[cfg(feature = "nope")]
+        #[cfg(feature = "nope")]
         if let Some(output_encoder) = &mut output_encoder {
             if t_us >= output_encoder_next_update {
                 output_encoder.update(t_us).await.unwrap();
@@ -301,7 +301,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         }
 
         let t1 = Instant::now();
-        #[cfg(feature = "nope")]
+        // #[cfg(feature = "nope")]
         if t1 > max_time {
             let elapsed = t1 - t0;
             let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
