@@ -1,5 +1,5 @@
 use defmt::{debug, error};
-use embassy_futures::join::join;
+use embassy_futures::{join::join, yield_now};
 use embassy_sync::{channel::TryReceiveError, pipe::Pipe};
 use embassy_usb::{
     Builder, Config, UsbDevice,
@@ -116,14 +116,14 @@ impl UsbMonitor {
         let mut builder = {
             static CONFIG_DESCRIPTOR: StaticCell<[u8; 256]> = StaticCell::new();
             static BOS_DESCRIPTOR: StaticCell<[u8; 256]> = StaticCell::new();
-            static CONTROL_BUF: StaticCell<[u8; 64]> = StaticCell::new();
+            static CONTROL_BUF: StaticCell<[u8; 128]> = StaticCell::new();
             let builder = embassy_usb::Builder::new(
                 driver,
                 config,
                 CONFIG_DESCRIPTOR.init([0; 256]),
                 BOS_DESCRIPTOR.init([0; 256]),
                 &mut [], // no msos descriptors
-                CONTROL_BUF.init([0; 64]),
+                CONTROL_BUF.init([0; 128]),
             );
             builder
         };
@@ -212,7 +212,11 @@ impl UsbMonitor {
             if encoded.len() <= 64 {
                 let _ = self.tx.write_packet(encoded).await;
             } else {
+                // for i in encoded.chunks(64) {
+                //     let _ = self.tx.write_packet(i).await;
+                // }
                 error!("Encoded message too long for USB packet");
+                // let mut _ = self.tx.write_packet(&encoded[..64]).await;
             }
             // let _ = self.class.write_packet(encoded).await;
         } else {
@@ -255,7 +259,9 @@ async fn usb_logger_task(
     let mut accum = postcard::accumulator::CobsAccumulator::<4096>::new();
     // let mut prev_msg = None;
 
+    // #[cfg(feature = "nope")]
     loop {
+        // yield_now().await;
         buf = [0; 4096];
         match embassy_futures::select::select(
             log_rx.receive(),
@@ -348,5 +354,6 @@ async fn usb_logger_task(
 async fn usb_task(
     mut usb: UsbDevice<'static, embassy_rp::usb::Driver<'static, embassy_rp::peripherals::USB>>,
 ) -> ! {
+    debug!("Starting USB task");
     usb.run().await
 }

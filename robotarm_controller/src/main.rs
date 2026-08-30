@@ -233,6 +233,53 @@ async fn main() -> tokio_serial::Result<()> {
     // Ok(())
 }
 
+// #[tokio::main]
+#[cfg(feature = "nope")]
+async fn main() -> tokio_serial::Result<()> {
+    use nusb::transfer::{Bulk, In, Out};
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+
+    logging::init_logs();
+
+    debug!("Starting");
+
+    let (serial_log_tx, serial_log_rx) = crossbeam_channel::unbounded();
+    let (serial_cmd_tx, serial_cmd_rx) = crossbeam_channel::unbounded();
+    let (ui_cmd_tx, ui_cmd_rx) = crossbeam_channel::unbounded();
+
+    let mut usb =
+        crate::serial::usb_raw::UsbRawHandler::init(serial_log_tx, serial_cmd_rx, ui_cmd_tx)
+            .await
+            .unwrap();
+
+    debug!("Running");
+    usb.run().await.unwrap();
+    // usb.run().unwrap();
+    debug!("Done");
+
+    // let data: [u8; 80] = [1; 80];
+
+    // writer.write_all(b"test").await.unwrap();
+    // // writer.write_all(&data).await.unwrap();
+    // writer.flush().await.unwrap();
+
+    // let mut buf = [0; 1000];
+    // let n = reader.read(&mut buf).await.unwrap();
+
+    // debug!("Read {} bytes: {:?}", n, &buf[..n]);
+    // debug!(
+    //     "Read {} bytes: {:?}",
+    //     n,
+    //     std::str::from_utf8(&buf[..n]).unwrap()
+    // );
+
+    // let mut writer = interface.endpoint::<Bulk, Out>(0x01)?.writer(4096);
+    // writer.write_all(&[0x00, 0xff])?;
+    // writer.flush()?;
+
+    Ok(())
+}
+
 #[cfg(feature = "nope")]
 fn main() -> eframe::Result<()> {
     logging::init_logs();
@@ -376,14 +423,30 @@ fn main() -> eframe::Result<()> {
         // let port = "COM11";
         // let rate = 115200;
 
-        let mut serial_handler =
-            serial::SerialHandler::new(port, serial_log_tx, serial_cmd_rx, ui_cmd_tx, rate);
+        // let mut serial_handler =
+        //     serial::SerialHandler::new(port, serial_log_tx, serial_cmd_rx, ui_cmd_tx, rate);
+        // loop {
+        //     if let Err(e) = serial_handler.run() {
+        //         error!("Error in serial handler: {}", e);
+        //     }
+        // }
 
-        loop {
-            if let Err(e) = serial_handler.run() {
-                // error!("Error in serial handler: {}", e);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut usb = crate::serial::usb_raw::UsbRawHandler::init(
+                serial_log_tx,
+                serial_cmd_rx,
+                ui_cmd_tx,
+            )
+            .await
+            .unwrap();
+
+            loop {
+                if let Err(e) = usb.run().await {
+                    error!("Error in usb handler: {}", e);
+                }
             }
-        }
+        });
     });
 
     eframe::run_native(

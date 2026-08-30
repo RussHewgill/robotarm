@@ -75,6 +75,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         >,
     >,
 ) {
+    debug!("Starting FOC task for ID: {}", foc.id);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
     foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
@@ -85,8 +86,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     //     _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
     // };
 
-    foc.set_motion_control(MotionControlType::Torque);
-    // foc.set_motion_control(MotionControlType::Velocity);
+    // foc.set_motion_control(MotionControlType::Torque);
+    foc.set_motion_control(MotionControlType::Velocity);
     // foc.set_motion_control(MotionControlType::Angle);
     // foc.set_motion_control(MotionControlType::VelocityOpenLoop);
 
@@ -252,14 +253,22 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         }
     }
 
+    let mut commands_n = 0;
+
     // #[cfg(feature = "nope")]
     loop {
         yield_now().await;
-        foc.run_commands().await;
+        if commands_n <= 0 {
+            foc.run_commands().await;
+            commands_n = 10000;
+        } else {
+            commands_n -= 1;
+        }
+        // foc.run_commands().await;
 
         let t_us = Instant::now().as_micros();
         foc.loop_foc(t_us).await;
-        // foc.update_foc(t_us).await;
+        foc.update_foc(t_us).await;
 
         #[cfg(feature = "nope")]
         if let Some(output_encoder) = &mut output_encoder {
@@ -352,7 +361,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     //
 }
 
-#[embassy_executor::task]
-pub async fn core1_task(driver: embassy_rp::usb::Driver<'static, embassy_rp::peripherals::USB>) {
-    // crate::comms::usb::UsbMonitor::init(&spawner, driver);
-}
+// #[embassy_executor::task]
+// pub async fn core1_task(driver: embassy_rp::usb::Driver<'static, embassy_rp::peripherals::USB>) {
+//     // crate::comms::usb::UsbMonitor::init(&spawner, driver);
+// }

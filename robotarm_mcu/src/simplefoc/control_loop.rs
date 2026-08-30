@@ -41,6 +41,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         let electrical_angle = self.get_electrical_angle();
 
+        // if let Some(tx) = &mut self.current_sensor_elec_angle_tx {
+        //     let _ = tx.try_send(electrical_angle);
+        // }
+
         // #[cfg(feature = "nope")]
         if let Some(current_sensor) = &mut self.current_sensor {
             let mut read_current = false;

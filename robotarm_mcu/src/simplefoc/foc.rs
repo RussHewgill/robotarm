@@ -36,9 +36,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
     pub async fn send_debug_message(&mut self, message: robotarm_protocol::SerialLogMessage) {
         // self.usb_logger.send_log_msg(message);
-        if let Some(logger) = &mut self.usb_logger {
-            logger.send_log_msg(message);
-        }
+        // if let Some(logger) = &mut self.usb_logger {
+        //     logger.send_log_msg(message);
+        // }
+        self.usb_logger.send_log_msg(message);
     }
 }
 

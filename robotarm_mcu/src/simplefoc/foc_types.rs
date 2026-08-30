@@ -12,6 +12,7 @@ use crate::{
     },
     simplefoc::{
         bldc::BLDCMotor,
+        // current_read_task::{CurrentReadRx, ElecAngleReadTx},
         lowpass::LowPassFilter,
         pid::PIDController,
         types::{
@@ -57,13 +58,16 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub encoder: ENCODER,
 
     pub current_sensor: Option<CURRENT>,
+    // pub current_sensor_channel_rx: Option<CurrentReadRx>,
+    // pub current_sensor_elec_angle_tx: Option<ElecAngleReadTx>,
 
     // encoder:
     //     MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     pub(super) pwm_driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
 
     // pub(super) enable_pin: Output<'a>,
-    pub usb_logger: Option<UsbLogger>,
+    // pub usb_logger: Option<UsbLogger>,
+    pub usb_logger: UsbLogger,
 
     pub(super) debug: bool,
     pub(super) prev_debug_us: u64,
@@ -141,12 +145,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // encoder: MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
         encoder: ENCODER,
         current_sensor: Option<CURRENT>,
-
+        // current_sensor_channel_rx: Option<CurrentReadRx>,
+        // current_sensor_elec_angle_tx: Option<ElecAngleReadTx>,
         driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
 
         motor: BLDCMotor,
 
-        usb_logger: Option<UsbLogger>,
+        usb_logger: UsbLogger,
     ) -> Self {
         // const PID_CURRENT_KP: f32 = 3.;
         // const PID_CURRENT_KI: f32 = 300.;
@@ -203,6 +208,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
             encoder,
             current_sensor,
+            // current_sensor_channel_rx,
+            // current_sensor_elec_angle_tx,
             pwm_driver: driver,
             motor,
 

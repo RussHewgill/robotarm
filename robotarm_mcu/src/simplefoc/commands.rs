@@ -7,7 +7,18 @@ use crate::{
 };
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
-    // #[cfg(feature = "nope")]
+    pub async fn run_commands(&mut self) {
+        // if let Some(logger) = &mut self.usb_logger {
+        //     if let Ok(cmd) = logger.recv(self.id).await {
+        //         self.run_command(cmd);
+        //     }
+        // }
+        if let Ok(cmd) = self.usb_logger.recv(self.id).await {
+            self.run_command(cmd);
+        }
+    }
+
+    #[cfg(feature = "nope")]
     pub async fn run_commands(&mut self) {
         let mut cmds = heapless::Vec::<SerialCommand, 8>::new();
         if let Some(logger) = &mut self.usb_logger {
@@ -119,34 +130,54 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
             SerialCommand::RequestSettings { id } => {
                 debug!("Received RequestSettings command: id: {}", id);
-                if let Some(logger) = &mut self.usb_logger {
-                    logger.send_log_msg(SerialLogMessage::MotorPID {
-                        id: self.id,
-                        vel_p: self.pid_velocity.get_p(),
-                        vel_i: self.pid_velocity.get_i(),
-                        vel_d: self.pid_velocity.get_d(),
-                        vel_ramp: self.pid_velocity.get_ramp(),
-                        vel_limit: self.pid_velocity.get_limit(),
-                        angle_p: self.pid_angle.get_p(),
-                        angle_i: self.pid_angle.get_i(),
-                        angle_d: self.pid_angle.get_d(),
-                        angle_ramp: self.pid_angle.get_ramp(),
-                        angle_limit: self.pid_angle.get_limit(),
-                        lpf_angle: self.lpf_angle.tf,
-                        lpf_vel: self.lpf_velocity.tf,
-                    });
-                }
+                // if let Some(logger) = &mut self.usb_logger {
+                //     logger.send_log_msg(SerialLogMessage::MotorPID {
+                //         id: self.id,
+                //         vel_p: self.pid_velocity.get_p(),
+                //         vel_i: self.pid_velocity.get_i(),
+                //         vel_d: self.pid_velocity.get_d(),
+                //         vel_ramp: self.pid_velocity.get_ramp(),
+                //         vel_limit: self.pid_velocity.get_limit(),
+                //         angle_p: self.pid_angle.get_p(),
+                //         angle_i: self.pid_angle.get_i(),
+                //         angle_d: self.pid_angle.get_d(),
+                //         angle_ramp: self.pid_angle.get_ramp(),
+                //         angle_limit: self.pid_angle.get_limit(),
+                //         lpf_angle: self.lpf_angle.tf,
+                //         lpf_vel: self.lpf_velocity.tf,
+                //     });
+                // }
+                self.usb_logger.send_log_msg(SerialLogMessage::MotorPID {
+                    id: self.id,
+                    vel_p: self.pid_velocity.get_p(),
+                    vel_i: self.pid_velocity.get_i(),
+                    vel_d: self.pid_velocity.get_d(),
+                    vel_ramp: self.pid_velocity.get_ramp(),
+                    vel_limit: self.pid_velocity.get_limit(),
+                    angle_p: self.pid_angle.get_p(),
+                    angle_i: self.pid_angle.get_i(),
+                    angle_d: self.pid_angle.get_d(),
+                    angle_ramp: self.pid_angle.get_ramp(),
+                    angle_limit: self.pid_angle.get_limit(),
+                    lpf_angle: self.lpf_angle.tf,
+                    lpf_vel: self.lpf_velocity.tf,
+                });
             }
             SerialCommand::RequestDebugData { id } => {
                 debug!("Received RequestDebugData command: id: {}", id);
 
-                if let Some(logger) = &mut self.usb_logger {
-                    logger.send_log_msg(SerialLogMessage::DebugData {
-                        id,
-                        timestamp: embassy_time::Instant::now().as_micros(),
-                        zero_electrical_angle: self.zero_electric_angle,
-                    });
-                }
+                // if let Some(logger) = &mut self.usb_logger {
+                //     logger.send_log_msg(SerialLogMessage::DebugData {
+                //         id,
+                //         timestamp: embassy_time::Instant::now().as_micros(),
+                //         zero_electrical_angle: self.zero_electric_angle,
+                //     });
+                // }
+                self.usb_logger.send_log_msg(SerialLogMessage::DebugData {
+                    id,
+                    timestamp: embassy_time::Instant::now().as_micros(),
+                    zero_electrical_angle: self.zero_electric_angle,
+                });
             }
             SerialCommand::SetEnabled { id, enabled } => {
                 if enabled {

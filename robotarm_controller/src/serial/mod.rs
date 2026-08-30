@@ -1,5 +1,7 @@
 // pub mod codec;
 
+pub mod usb_raw;
+
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use tracing::{debug, error, info, trace, warn};
 
