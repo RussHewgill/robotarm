@@ -54,7 +54,7 @@ pub async fn core0_task1(
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         // >,
         // INA240<embassy_rp::peripherals::DMA_CH0>,
-        crate::hardware::acs712::ACS712,
+        // crate::hardware::acs712::ACS712,
     >,
     mut output_encoder: Option<
         crate::hardware::mt_6701::MT6701<
@@ -195,7 +195,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_zero_electric_angle(0.);
 
-    // foc.set_zero_electric_angle(3.01082);
+    foc.set_zero_electric_angle(3.08);
     // foc.set_zero_electric_angle(5.05);
 
     // match foc.id {
@@ -259,7 +259,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
         let t_us = Instant::now().as_micros();
         foc.loop_foc(t_us).await;
-        foc.update_foc(t_us).await;
+        // foc.update_foc(t_us).await;
 
         #[cfg(feature = "nope")]
         if let Some(output_encoder) = &mut output_encoder {
@@ -314,7 +314,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
             );
             t0 = t1;
             c = 0;
-            max_time = t1 + embassy_time::Duration::from_millis((time_limit * 5000.) as u64);
+            max_time = t1 + embassy_time::Duration::from_millis((time_limit * 2000.) as u64);
         } else {
             c += 1;
         }

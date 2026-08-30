@@ -1437,8 +1437,8 @@ fn main() -> ! {
     let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
         MOTOR_ID_B,
         encoder1,
-        // None::<()>,
-        Some(current_sensor),
+        None::<()>,
+        // Some(current_sensor),
         pwm_driver1,
         motor_config1,
         Some(usb),
@@ -1464,7 +1464,11 @@ fn main() -> ! {
         unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
         move || {
             let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
-            executor1.run(|spawner| crate::comms::usb::UsbMonitor::init(&spawner, driver));
+            executor1.run(|spawner| {
+                crate::comms::usb::UsbMonitor::init(&spawner, driver);
+
+                //
+            });
         },
     );
 

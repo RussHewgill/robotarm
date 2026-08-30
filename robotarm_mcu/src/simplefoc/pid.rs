@@ -1,14 +1,18 @@
 use defmt::debug;
 use embassy_time::Instant;
 
+use crate::simplefoc::pid_standard;
+
 pub struct PIDController {
     // pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
     pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f64>,
     pid: self::prev::PIDController,
     // pid3: (pidgeon::ControllerConfig, pidgeon::PidState),
-    pid4: standard_pid::StandardPID<f64>,
+    pid4: pid_standard::StandardPID<f64>,
+    // pid4: pid_standard::StandardPID<f32>,
     ramp: f32,
     prev_output: f32,
+    prev_internals: (f32, f32, f32, f32),
     prev_t_us: u64,
 }
 
@@ -57,7 +61,7 @@ impl PIDController {
         //     .unwrap();
         // let pid3 = PidState::default();
 
-        let pid4 = standard_pid::StandardPID::new(
+        let pid4 = pid_standard::StandardPID::new(
             p as f64,
             i as f64,
             d as f64,
@@ -66,6 +70,15 @@ impl PIDController {
             limit as f64,
         );
 
+        // let pid4 = pid_standard::StandardPID::new(
+        //     p as f32,
+        //     i as f32,
+        //     d as f32,
+        //     0.0,
+        //     -limit as f32,
+        //     limit as f32,
+        // );
+
         Self {
             pid,
             pid2,
@@ -73,6 +86,7 @@ impl PIDController {
             pid4,
             ramp,
             prev_output: 0.0,
+            prev_internals: (0.0, 0.0, 0.0, 0.0),
             prev_t_us: 0,
         }
     }
@@ -126,8 +140,20 @@ impl PIDController {
 
         self.pid4.set_sp(setpoint as f64);
         let dt = (t_us - self.prev_t_us) as f64 * 1e-6;
-        let output = self.pid4.update(input as f64, dt);
+        let (output, internals) = self.pid4.update(input as f64, dt);
+
+        // self.pid4.set_sp(setpoint as f32);
+        // let dt = (t_us - self.prev_t_us) as f32 * 1e-6;
+        // let (output, internals) = self.pid4.update(input as f32, dt);
+
         // debug!("output: {}", output);
+
+        self.prev_internals = (
+            internals.0 as f32,
+            internals.1 as f32,
+            internals.2 as f32,
+            internals.3 as f32,
+        );
 
         self.prev_output = output as f32;
         output as f32
@@ -321,6 +347,11 @@ impl PIDController {
         //     .unwrap();
         // self.pid3.0 = config;
         // self.pid4.
+        unimplemented!()
+    }
+
+    pub fn prev_internals(&self) -> (f32, f32, f32, f32) {
+        self.prev_internals
     }
 }
 

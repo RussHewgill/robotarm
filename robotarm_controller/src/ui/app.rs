@@ -123,10 +123,10 @@ impl eframe::App for App {
 
         egui::TopBottomPanel::bottom("Bottom").show(ctx, |ui| {
             // self.controls(ui, self.current_foc_motor);
-            ui.horizontal(|ui| {
-                self.controls(ui, 0);
-            });
-            ui.separator();
+            // ui.horizontal(|ui| {
+            //     self.controls(ui, 0);
+            // });
+            // ui.separator();
             ui.horizontal(|ui| {
                 self.controls(ui, 1);
             });

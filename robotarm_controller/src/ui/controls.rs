@@ -345,13 +345,12 @@ impl App {
 
             ui.end_row();
 
-            ui.label(RichText::new("Vel PID Output").monospace());
-            ui.label(
-                // RichText::new(format!("{:>+0.5}", self.status[id as usize].vel_pid_output))
-                RichText::new(format!("{}", self.status[id as usize].vel_pid_output)).monospace(),
-            );
-
-            ui.end_row();
+            // ui.label(RichText::new("Vel PID Output").monospace());
+            // ui.label(
+            //     // RichText::new(format!("{:>+0.5}", self.status[id as usize].vel_pid_output))
+            //     RichText::new(format!("{}", self.status[id as usize].vel_pid_output)).monospace(),
+            // );
+            // ui.end_row();
 
             ui.label("Gear Ratio");
             // ui.end_row();

@@ -41,6 +41,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         let electrical_angle = self.get_electrical_angle();
 
+        // #[cfg(feature = "nope")]
         if let Some(current_sensor) = &mut self.current_sensor {
             let mut read_current = false;
             if self.current_sensor_downsample > 1 {
@@ -416,8 +417,16 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     self.pid_velocity.prev_output(),
                     self.pid_angle.prev_output(),
                 ),
+                // pid_internals_vel: self.pid_velocity.prev_internals(),
             })
             .await;
+
+            // self.send_debug_message(SerialLogMessage::PIDDebugData {
+            //     id: self.id,
+            //     timestamp: t_us,
+            //     pid_internals_vel: self.pid_velocity.prev_internals(),
+            // })
+            // .await;
         }
 
         self.debug = false;

@@ -26,6 +26,12 @@ pub enum SerialLogMessage {
         feed_forward: f32,
         pid_outputs: (f32, f32),
     },
+    PIDDebugData {
+        id: u8,
+        timestamp: u64,
+        // (error, p_term, i_term, d_term)
+        pid_internals_vel: (f32, f32, f32, f32),
+    },
     DebugData {
         id: u8,
         timestamp: u64,
@@ -61,6 +67,7 @@ impl SerialLogMessage {
             SerialLogMessage::DebugData { id, .. } => *id,
             SerialLogMessage::EncoderData { id, .. } => *id,
             SerialLogMessage::MotorPID { id, .. } => *id,
+            SerialLogMessage::PIDDebugData { id, .. } => *id,
         }
     }
 }

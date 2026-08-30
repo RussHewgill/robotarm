@@ -77,6 +77,22 @@ impl App {
                     } => {
                         debug!("TODO: Got encoder data {:#?}", id);
                     }
+                    SerialLogMessage::PIDDebugData {
+                        id,
+                        timestamp,
+                        pid_internals_vel,
+                    } => {
+                        if let Some(t0) = self.t0 {
+                            let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
+                            self.plots[id as usize].add_points_pid_vel_internals(
+                                t,
+                                pid_internals_vel.0 as f64,
+                                pid_internals_vel.1 as f64,
+                                pid_internals_vel.2 as f64,
+                                pid_internals_vel.3 as f64,
+                            );
+                        }
+                    }
                     SerialLogMessage::MotorData {
                         id,
                         timestamp,
