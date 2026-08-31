@@ -38,6 +38,11 @@ pub enum SerialLogMessage {
         timestamp: u64,
         zero_electrical_angle: f32,
     },
+    FocLoopRate {
+        id: u8,
+        timestamp: u64,
+        loop_rate_hz: f32,
+    },
     EncoderData {
         id: u8,
         timestamp: u64,
@@ -68,6 +73,7 @@ impl SerialLogMessage {
             SerialLogMessage::DebugData { id, .. } => *id,
             SerialLogMessage::EncoderData { id, .. } => *id,
             SerialLogMessage::MotorPID { id, .. } => *id,
+            SerialLogMessage::FocLoopRate { id, .. } => *id,
             // SerialLogMessage::PIDDebugData { id, .. } => *id,
         }
     }

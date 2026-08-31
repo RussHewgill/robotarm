@@ -93,6 +93,16 @@ impl App {
                     //         );
                     //     }
                     // }
+                    SerialLogMessage::FocLoopRate {
+                        id,
+                        timestamp,
+                        loop_rate_hz,
+                    } => {
+                        debug!(
+                            "Got FOC loop rate data from motor {}: {} Hz",
+                            id, loop_rate_hz
+                        );
+                    }
                     SerialLogMessage::MotorData {
                         id,
                         timestamp,
