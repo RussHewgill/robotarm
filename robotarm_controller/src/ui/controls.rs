@@ -17,8 +17,8 @@ mod pid_settings {
         ui: &mut egui::Ui,
         label: &str,
         value: &mut F,
-        // tx: &tokio::sync::mpsc::Sender<SerialCommand>,
-        tx: &crossbeam_channel::Sender<SerialCommand>,
+        tx: &tokio::sync::mpsc::Sender<SerialCommand>,
+        // tx: &crossbeam_channel::Sender<SerialCommand>,
         id: u8,
         cmd_fn: impl Fn(u8, F) -> SerialCommand,
     ) where

@@ -79,10 +79,7 @@ impl UsbLogger {
         Self { rx0, rx1, tx }
     }
 
-    pub async fn recv(
-        &mut self,
-        id: u8,
-    ) -> Result<robotarm_protocol::SerialCommand, TryReceiveError> {
+    pub fn recv(&mut self, id: u8) -> Result<robotarm_protocol::SerialCommand, TryReceiveError> {
         match id {
             MOTOR_ID_A => self.rx0.try_receive(),
             MOTOR_ID_B => self.rx1.try_receive(),
@@ -230,6 +227,8 @@ async fn usb_logger_task(
         5,
     >,
 ) -> ! {
+    debug!("Starting USB logger task");
+
     let mut buf: [u8; 4096];
     let mut accum = postcard::accumulator::CobsAccumulator::<4096>::new();
 
@@ -317,7 +316,7 @@ async fn usb_logger_task(
                 debug!("USB connected");
             }
             embassy_futures::select::Either::Second(Ok(n)) => {
-                debug!("Received {} bytes from USB", n);
+                // debug!("Received {} bytes from USB", n);
                 let mut window = &buf[..n];
                 'cobs: while !window.is_empty() {
                     // window = match accum.feed::<SerialCommand>(&buf[..n]) {

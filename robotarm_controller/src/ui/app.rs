@@ -28,7 +28,8 @@ pub struct App {
     #[serde(skip)]
     pub serial_log_rx: Option<crossbeam_channel::Receiver<SerialLogMessage>>,
     #[serde(skip)]
-    pub serial_cmd_tx: Option<crossbeam_channel::Sender<SerialCommand>>,
+    // pub serial_cmd_tx: Option<crossbeam_channel::Sender<SerialCommand>>,
+    pub serial_cmd_tx: Option<tokio::sync::mpsc::Sender<SerialCommand>>,
     #[serde(skip)]
     pub ui_cmd_rx: Option<crossbeam_channel::Receiver<crate::ui::UiCommand>>,
 
@@ -51,7 +52,8 @@ impl App {
         // serial_log_rx: tokio::sync::mpsc::Receiver<SerialLogMessage>,
         // serial_cmd_tx: tokio::sync::mpsc::Sender<SerialCommand>,
         serial_log_rx: crossbeam_channel::Receiver<SerialLogMessage>,
-        serial_cmd_tx: crossbeam_channel::Sender<SerialCommand>,
+        // serial_cmd_tx: crossbeam_channel::Sender<SerialCommand>,
+        serial_cmd_tx: tokio::sync::mpsc::Sender<SerialCommand>,
         ui_cmd_rx: crossbeam_channel::Receiver<crate::ui::UiCommand>,
     ) -> Self {
         let mut out = if let Some(storage) = cc.storage {

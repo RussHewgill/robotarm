@@ -17,31 +17,27 @@ pub struct UsbRawHandler {
     writer: EndpointWrite<Bulk>,
     reader: EndpointRead<Bulk>,
 
-    serial_log_tx: crossbeam_channel::Sender<SerialLogMessage>,
-    serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
-    ui_cmd_tx: crossbeam_channel::Sender<crate::ui::UiCommand>,
-
+    // serial_log_tx: crossbeam_channel::Sender<SerialLogMessage>,
+    // // serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
+    // serial_cmd_rx: tokio::sync::mpsc::Receiver<SerialCommand>,
+    // ui_cmd_tx: crossbeam_channel::Sender<crate::ui::UiCommand>,
     cobs_buf: postcard::accumulator::CobsAccumulator<4096>,
     raw_buf: [u8; 1024],
     bytes: BytesMut,
 }
 
 impl UsbRawHandler {
-    pub async fn init(
-        serial_log_tx: crossbeam_channel::Sender<SerialLogMessage>,
-        serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
-        ui_cmd_tx: crossbeam_channel::Sender<crate::ui::UiCommand>,
+    pub async fn init(// serial_log_tx: crossbeam_channel::Sender<SerialLogMessage>,
+        // // serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
+        // serial_cmd_rx: tokio::sync::mpsc::Receiver<SerialCommand>,
+        // ui_cmd_tx: crossbeam_channel::Sender<crate::ui::UiCommand>,
     ) -> Result<Self> {
         let di = nusb::list_devices()
-            .await
-            .unwrap()
+            .await?
             .find(|d| d.vendor_id() == 0xc0d0 && d.product_id() == 0xcaf0)
-            .expect("no device found");
-        let device = di.open().await.expect("error opening device");
-        let interface = device
-            .claim_interface(0)
-            .await
-            .expect("error claiming interface");
+            .context("no device found")?;
+        let device = di.open().await.context("error opening device")?;
+        let interface = device.claim_interface(0).await?;
         // let di = nusb::list_devices()
         //     .wait()
         //     .unwrap()
@@ -60,11 +56,13 @@ impl UsbRawHandler {
 
         let mut writer = interface
             .endpoint::<Bulk, Out>(0x01)
-            .unwrap()
+            .context("error opening bulk out endpoint")?
             .writer(128)
             .with_num_transfers(8);
 
-        let mut reader = interface.endpoint::<Bulk, In>(0x81).unwrap();
+        let mut reader = interface
+            .endpoint::<Bulk, In>(0x81)
+            .context("error opening bulk in endpoint")?;
 
         // debug!("max packet size = {}", reader.max_packet_size());
 
@@ -74,28 +72,23 @@ impl UsbRawHandler {
             writer,
             reader,
 
-            serial_log_tx,
-            serial_cmd_rx,
-            ui_cmd_tx,
-
+            // serial_log_tx,
+            // serial_cmd_rx,
+            // ui_cmd_tx,
             cobs_buf: postcard::accumulator::CobsAccumulator::new(),
             raw_buf: [0; 1024],
             bytes: BytesMut::with_capacity(1024),
         })
     }
 
-    #[cfg(feature = "nope")]
-    fn reconnect(&mut self) -> Result<()> {
-        // let di = nusb::list_devices()
-        //     .await
-        //     .unwrap()
-        //     .find(|d| d.vendor_id() == 0xc0d0 && d.product_id() == 0xcaf0)
-        //     .expect("no device found");
-        // let device = di.open().await.expect("error opening device");
-        // let interface = device
-        //     .claim_interface(0)
-        //     .await
-        //     .expect("error claiming interface");
+    // #[cfg(feature = "nope")]
+    pub async fn reconnect(&mut self) -> Result<()> {
+        let di = nusb::list_devices()
+            .await?
+            .find(|d| d.vendor_id() == 0xc0d0 && d.product_id() == 0xcaf0)
+            .context("no device found")?;
+        let device = di.open().await.context("error opening device")?;
+        let interface = device.claim_interface(0).await?;
 
         debug!("Interface claimed");
 
@@ -103,21 +96,25 @@ impl UsbRawHandler {
         const BULK_IN_EP: u8 = 0x81;
 
         self.writer = interface
-            .endpoint::<Bulk, Out>(BULK_OUT_EP)
-            .unwrap()
+            .endpoint::<Bulk, Out>(0x01)
+            .context("error opening bulk out endpoint")?
             .writer(128)
             .with_num_transfers(8);
 
         self.reader = interface
-            .endpoint::<Bulk, In>(BULK_IN_EP)
-            .unwrap()
+            .endpoint::<Bulk, In>(0x81)
+            .context("error opening bulk in endpoint")?
             .reader(128)
             .with_num_transfers(8);
 
         Ok(())
     }
 
-    fn run_accum(&mut self, n: usize) -> Result<()> {
+    fn run_accum(
+        &mut self,
+        n: usize,
+        serial_log_tx: &mut crossbeam_channel::Sender<SerialLogMessage>,
+    ) -> Result<()> {
         if n == 0 {
             return Ok(());
         }
@@ -131,7 +128,7 @@ impl UsbRawHandler {
                     let consumed = len - remaining.len();
                     self.bytes.advance(consumed);
                     // debug!("Received message: {:?}", data);
-                    self.serial_log_tx.send(data)?;
+                    serial_log_tx.send(data)?;
                 }
                 FeedResult::Consumed => {
                     self.bytes.clear();
@@ -152,7 +149,13 @@ impl UsbRawHandler {
         }
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(
+        &mut self,
+        serial_log_tx: &mut crossbeam_channel::Sender<SerialLogMessage>,
+        // serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
+        serial_cmd_rx: &mut tokio::sync::mpsc::Receiver<SerialCommand>,
+        ui_cmd_tx: &mut crossbeam_channel::Sender<crate::ui::UiCommand>,
+    ) -> Result<()> {
         self.cobs_buf = postcard::accumulator::CobsAccumulator::new();
         self.raw_buf = [0; 1024];
         self.bytes.clear();
@@ -190,15 +193,28 @@ impl UsbRawHandler {
         self.reader
             .set_read_timeout(std::time::Duration::from_millis(1));
 
+        self.writer
+            .write(&postcard::to_stdvec_cobs(
+                &SerialCommand::RequestSettings { id: 0 },
+            )?)
+            .await?;
+
+        self.writer
+            .write(&postcard::to_stdvec_cobs(
+                &SerialCommand::RequestSettings { id: 1 },
+            )?)
+            .await?;
+        self.writer.flush().await?;
+
         debug!("Looping");
         loop {
-            #[cfg(feature = "nope")]
+            // #[cfg(feature = "nope")]
             futures::select! {
                 n = self.reader.read(&mut self.raw_buf).fuse() => {
                     match n {
                         Ok(n) => {
                             self.bytes.extend_from_slice(&self.raw_buf[..n]);
-                            match self.run_accum(n) {
+                            match self.run_accum(n, serial_log_tx) {
                                 Ok(_) => {}
                                 Err(e) => {
                                     // debug!("Error processing serial data: {e}");
@@ -207,25 +223,27 @@ impl UsbRawHandler {
                         }
                         Err(e) => {
                             debug!("Error reading from usb port: {:?}", e);
+                            bail!("Error reading from usb port: {:?}", e);
                         }
                     }
                 }
-                // cmd = self.serial_cmd_rx.recv() => {
-                //     match cmd {
-                //         Ok(cmd) => {
-                //             debug!("Sending command: {:?}", cmd);
-                //             let buf = postcard::to_stdvec_cobs(&cmd)?;
-                //             self.writer.write_all(&buf).await.context("Failed to send command")?;
-                //             self.writer.flush().await.context("Failed to flush command")?;
-                //         }
-                //         Err(crossbeam_channel::RecvError) => {
-                //             debug!("Command channel disconnected");
-                //         }
-                //     }
-                // }
+                cmd = serial_cmd_rx.recv().fuse() => {
+                    match cmd {
+                        Some(cmd) => {
+                            debug!("Sending command: {:?}", cmd);
+                            let buf = postcard::to_stdvec_cobs(&cmd)?;
+                            self.writer.write_all(&buf).await.context("Failed to send command")?;
+                            self.writer.flush().await.context("Failed to flush command")?;
+                        }
+                        None => {
+                            debug!("Command channel disconnected");
+                        }
+                    }
+                }
             }
 
             // debug!("Reading");
+            #[cfg(feature = "nope")]
             match self.reader.read(&mut self.raw_buf).await {
                 Ok(n) => {
                     self.bytes.extend_from_slice(&self.raw_buf[..n]);
@@ -242,6 +260,7 @@ impl UsbRawHandler {
             }
 
             // debug!("Checking for commands");
+            #[cfg(feature = "nope")]
             match self.serial_cmd_rx.try_recv() {
                 Ok(cmd) => {
                     debug!("Sending command: {:?}", cmd);
@@ -251,12 +270,17 @@ impl UsbRawHandler {
                         .write(&buf)
                         .await
                         .context("Failed to send command")?;
+                    self.writer.flush().await.unwrap();
                 }
-                Err(crossbeam_channel::TryRecvError::Disconnected) => {
-                    // debug!("Command channel disconnected");
-                    // return Err(anyhow!("Command channel disconnected"));
+                // Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                //     // debug!("Command channel disconnected");
+                //     // return Err(anyhow!("Command channel disconnected"));
+                // }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {}
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    debug!("Command channel closed");
+                    return Err(anyhow!("Command channel closed"));
                 }
-                Err(crossbeam_channel::TryRecvError::Empty) => {}
             }
 
             // let n = self.reader.read(&mut self.raw_buf).await;

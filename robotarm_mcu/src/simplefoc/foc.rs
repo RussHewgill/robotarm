@@ -415,7 +415,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             let mut n = n0;
             loop {
                 embassy_futures::yield_now().await;
-                self.run_commands().await;
+                // self.run_commands().await;
+                self.run_commands();
 
                 let t_us = Instant::now().as_micros();
                 self.loop_foc(t_us).await;

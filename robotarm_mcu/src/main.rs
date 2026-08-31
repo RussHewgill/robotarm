@@ -1641,6 +1641,7 @@ fn main() -> ! {
         //     .spawn(crate::init::core0_task0(foc0, None))
         //     .unwrap();
 
+        // crate::comms::usb_raw::usb_init(&spawner, driver);
         spawner.spawn(crate::init::core0_task1(foc1, None).unwrap());
 
         // crate::comms::usb::UsbMonitor::init(&spawner, driver);

@@ -7,15 +7,19 @@ use crate::{
 };
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
-    pub async fn run_commands(&mut self) {
+    // #[inline(never)]
+    pub fn run_commands(&mut self) {
         // if let Some(logger) = &mut self.usb_logger {
         //     if let Ok(cmd) = logger.recv(self.id).await {
         //         self.run_command(cmd);
         //     }
         // }
-        if let Ok(cmd) = self.usb_logger.recv(self.id).await {
+        while let Ok(cmd) = self.usb_logger.recv(self.id) {
             self.run_command(cmd);
         }
+        // if let Ok(cmd) = self.usb_logger.recv(self.id) {
+        //     self.run_command(cmd);
+        // }
     }
 
     #[cfg(feature = "nope")]
@@ -60,16 +64,28 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         }
     }
 
+    // #[inline(never)]
     fn run_command(&mut self, cmd: SerialCommand) {
         if cmd.id() != self.id {
-            error!(
-                "Received command for different id: {}, expected id: {}, dropping command",
-                cmd.id(),
-                self.id
-            );
+            // error!(
+            //     "Received command for different id: {}, expected id: {}, dropping command",
+            //     cmd.id(),
+            //     self.id
+            // );
             return;
         }
 
+        // match cmd {
+        //     SerialCommand::ZeroPosition { id } => {
+        //         debug!("Received ZeroPosition command: id: {}", id);
+        //         self.encoder.reset_position();
+        //     }
+        //     _ => {
+        //         debug!("Received command: {:?}", cmd);
+        //     }
+        // }
+
+        // #[cfg(feature = "nope")]
         match cmd {
             SerialCommand::ZeroPosition { id } => {
                 debug!("Received ZeroPosition command: id: {}", id);

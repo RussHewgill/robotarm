@@ -253,20 +253,23 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         }
     }
 
-    let mut commands_n = 0;
+    let commands_freq = 50;
+    let commands_interval = embassy_time::Duration::from_micros(1_000_000 / commands_freq);
+    let mut commands_next_update = (Instant::now() + commands_interval).as_micros();
 
     // #[cfg(feature = "nope")]
     loop {
         yield_now().await;
-        if commands_n <= 0 {
-            foc.run_commands().await;
-            commands_n = 10000;
-        } else {
-            commands_n -= 1;
-        }
-        // foc.run_commands().await;
 
         let t_us = Instant::now().as_micros();
+
+        if t_us >= commands_next_update {
+            foc.run_commands();
+            commands_next_update = (Instant::now() + commands_interval).as_micros();
+        }
+        // foc.run_commands().await;
+        // foc.run_commands();
+
         foc.loop_foc(t_us).await;
         foc.update_foc(t_us).await;
 
@@ -315,7 +318,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
             let elapsed = t1 - t0;
             let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
             info!(
-                "ID: {}, Elapsed: {}s, Cycles: {}, Freq: {}Hz",
+                "ID: {}, Elapsed: {} s, Cycles: {}, Freq: {} Hz",
                 foc.id,
                 elapsed.as_millis() as f32 * 1e-3,
                 c,

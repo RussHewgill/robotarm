@@ -411,12 +411,13 @@ fn main() -> eframe::Result<()> {
 
     // let (serial_log_tx, serial_log_rx) = tokio::sync::mpsc::channel(100);
     // let (serial_cmd_tx, serial_cmd_rx) = tokio::sync::mpsc::channel(100);
-    let (serial_log_tx, serial_log_rx) = crossbeam_channel::unbounded();
-    let (serial_cmd_tx, serial_cmd_rx) = crossbeam_channel::unbounded();
-    let (ui_cmd_tx, ui_cmd_rx) = crossbeam_channel::unbounded();
+    let (mut serial_log_tx, serial_log_rx) = crossbeam_channel::unbounded();
+    // let (serial_cmd_tx, serial_cmd_rx) = crossbeam_channel::unbounded();
+    let (serial_cmd_tx, mut serial_cmd_rx) = tokio::sync::mpsc::channel(100);
+    let (mut ui_cmd_tx, ui_cmd_rx) = crossbeam_channel::unbounded();
 
     debug!("Starting serial thread");
-    std::thread::spawn(|| {
+    std::thread::spawn(move || {
         let port = "COM8";
         let rate = 921600;
 
@@ -433,17 +434,36 @@ fn main() -> eframe::Result<()> {
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            let mut usb = crate::serial::usb_raw::UsbRawHandler::init(
-                serial_log_tx,
-                serial_cmd_rx,
-                ui_cmd_tx,
-            )
-            .await
-            .unwrap();
+            let mut usb = loop {
+                match crate::serial::usb_raw::UsbRawHandler::init(
+                    // serial_log_tx,
+                    // serial_cmd_rx,
+                    // ui_cmd_tx,
+                )
+                .await
+                {
+                    Ok(usb) => break usb,
+                    Err(e) => {
+                        error!("Error initializing USB handler: {}", e);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                }
+            };
 
             loop {
-                if let Err(e) = usb.run().await {
+                ui_cmd_tx.send(crate::ui::UiCommand::ClearPlot).unwrap();
+                if let Err(e) = usb
+                    .run(&mut serial_log_tx, &mut serial_cmd_rx, &mut ui_cmd_tx)
+                    .await
+                {
                     error!("Error in usb handler: {}", e);
+                }
+
+                // sleep for 1 second
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+                if let Err(e) = usb.reconnect().await {
+                    error!("Error reconnecting USB handler: {}", e);
                 }
             }
         });
