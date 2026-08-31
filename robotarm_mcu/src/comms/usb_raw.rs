@@ -12,16 +12,12 @@ use static_cell::StaticCell;
 
 use crate::{MOTOR_ID_A, MOTOR_ID_B};
 
-pub type LogChannel = embassy_sync::channel::Channel<
-    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-    robotarm_protocol::SerialLogMessage,
-    5,
->;
-pub type CmdChannel = embassy_sync::channel::Channel<
-    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-    robotarm_protocol::SerialCommand,
-    5,
->;
+// pub type UsbMutex = embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+pub type UsbMutex = embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
+
+pub type LogChannel =
+    embassy_sync::channel::Channel<UsbMutex, robotarm_protocol::SerialLogMessage, 5>;
+pub type CmdChannel = embassy_sync::channel::Channel<UsbMutex, robotarm_protocol::SerialCommand, 5>;
 
 pub static LOG_CHAN: LogChannel = LogChannel::new();
 pub static CMD_CHAN0: CmdChannel = CmdChannel::new();
@@ -46,25 +42,10 @@ pub static CMD_CHAN1: CmdChannel = CmdChannel::new();
 #[derive(Clone)]
 pub struct UsbLogger {
     /// MCU recieves command from USB task
-    rx0: embassy_sync::channel::Receiver<
-        'static,
-        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-        robotarm_protocol::SerialCommand,
-        5,
-    >,
-    rx1: embassy_sync::channel::Receiver<
-        'static,
-        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-        robotarm_protocol::SerialCommand,
-        5,
-    >,
+    rx0: embassy_sync::channel::Receiver<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
+    rx1: embassy_sync::channel::Receiver<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
     /// MCU sends log to USB task
-    tx: embassy_sync::channel::Sender<
-        'static,
-        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-        robotarm_protocol::SerialLogMessage,
-        5,
-    >,
+    tx: embassy_sync::channel::Sender<'static, UsbMutex, robotarm_protocol::SerialLogMessage, 5>,
 }
 
 impl UsbLogger {
@@ -208,21 +189,11 @@ pub fn usb_init(
 #[embassy_executor::task]
 async fn usb_logger_task(
     mut usb_monitor: UsbMonitor,
-    cmd_tx0: embassy_sync::channel::Sender<
-        'static,
-        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-        robotarm_protocol::SerialCommand,
-        5,
-    >,
-    cmd_tx1: embassy_sync::channel::Sender<
-        'static,
-        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-        robotarm_protocol::SerialCommand,
-        5,
-    >,
+    cmd_tx0: embassy_sync::channel::Sender<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
+    cmd_tx1: embassy_sync::channel::Sender<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
     log_rx: embassy_sync::channel::Receiver<
         'static,
-        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        UsbMutex,
         robotarm_protocol::SerialLogMessage,
         5,
     >,
