@@ -244,6 +244,8 @@ impl App {
                 self.plots[self.current_plot].save_plot();
             }
 
+            ui.end_row();
+            ui.end_row();
             ui.label("Window time (s)");
             ui.add(egui::Slider::new(
                 &mut self.plots[self.current_plot].window_time,
@@ -512,6 +514,46 @@ impl DataPlot {
     }
 
     fn clear_old_points(&mut self, current_time: f64) {
+        self.angle
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.vel
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pos
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.target_pos
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.target_vel
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.voltage
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.current_d
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.current_q
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pid_output_vel
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pid_output_pos
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pid_vel_internals_error
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pid_vel_internals_p
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pid_vel_internals_i
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pid_vel_internals_d
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pid_pos_internals_error
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pid_pos_internals_p
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pid_pos_internals_i
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.pid_pos_internals_d
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+    }
+
+    #[cfg(feature = "nope")]
+    fn clear_old_points(&mut self, current_time: f64) {
         while let Some((t2, _)) = self.angle.front() {
             if *t2 < current_time - self.window_time {
                 self.angle.pop_front();
@@ -693,7 +735,7 @@ impl DataPlot {
 
 impl DataPlot {
     pub fn show_plot(&mut self, ui: &mut egui::Ui) {
-        self.clear_old_points(self.prev_time);
+        // self.clear_old_points(self.prev_time);
 
         let root = EguiBackend::new(ui).into_drawing_area();
 
@@ -730,9 +772,12 @@ impl DataPlot {
                 // data in 0-2pi, we want -1 to 1
                 chart
                     .draw_series(LineSeries::new(
-                        self.angle.iter().map(|(t, angle)| {
-                            (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)
-                        }),
+                        self.angle
+                            .iter()
+                            .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                            .map(|(t, angle)| {
+                                (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)
+                            }),
                         GREEN.stroke_width(self.stroke_width),
                     ))
                     .unwrap()
@@ -743,7 +788,10 @@ impl DataPlot {
             if self.draw_pos {
                 chart
                     .draw_series(LineSeries::new(
-                        self.pos.iter().map(|(t, pos)| (*t, *pos)),
+                        self.pos
+                            .iter()
+                            .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                            .map(|(t, pos)| (*t, *pos)),
                         TEAL.stroke_width(self.stroke_width),
                     ))
                     .unwrap()
@@ -754,7 +802,10 @@ impl DataPlot {
             if self.draw_vel {
                 chart
                     .draw_secondary_series(LineSeries::new(
-                        self.vel.iter().map(|(t, vel)| (*t, *vel * self.scale_vel)),
+                        self.vel
+                            .iter()
+                            .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                            .map(|(t, vel)| (*t, *vel * self.scale_vel)),
                         BLUE.stroke_width(self.stroke_width),
                     ))
                     .unwrap()
@@ -765,10 +816,13 @@ impl DataPlot {
             if self.draw_target_pos {
                 chart
                     .draw_series(LineSeries::new(
-                        self.target_pos.iter().map(|(t, angle)| {
-                            // (*t, -(*angle - std::f64::consts::PI) / std::f64::consts::PI)
-                            (*t, *angle)
-                        }),
+                        self.target_pos
+                            .iter()
+                            .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                            .map(|(t, angle)| {
+                                // (*t, -(*angle - std::f64::consts::PI) / std::f64::consts::PI)
+                                (*t, *angle)
+                            }),
                         RED.stroke_width(self.stroke_width),
                     ))
                     .unwrap()
@@ -781,6 +835,7 @@ impl DataPlot {
                     .draw_secondary_series(LineSeries::new(
                         self.target_vel
                             .iter()
+                            .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                             .map(|(t, target)| (*t, *target * self.scale_vel)),
                         MAGENTA.stroke_width(self.stroke_width),
                     ))
@@ -792,7 +847,10 @@ impl DataPlot {
             if self.draw_voltage {
                 chart
                     .draw_series(LineSeries::new(
-                        self.voltage.iter().map(|(t, voltage)| (*t, *voltage / 12.)),
+                        self.voltage
+                            .iter()
+                            .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                            .map(|(t, voltage)| (*t, *voltage / 12.)),
                         colors::ORANGE.stroke_width(self.stroke_width),
                     ))
                     .unwrap()
@@ -803,7 +861,7 @@ impl DataPlot {
             if self.draw_current {
                 // chart
                 //     .draw_series(LineSeries::new(
-                //         self.current.iter().map(|(t, current)| (*t, *current / 2.)),
+                //         self.current.iter().filter(|(t, _)| *t >= self.prev_time - self.window_time).map(|(t, current)| (*t, *current / 2.)),
                 //         &CYAN,
                 //     ))
                 //     .unwrap()
@@ -816,6 +874,7 @@ impl DataPlot {
                     .draw_series(LineSeries::new(
                         self.current_d
                             .iter()
+                            .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                             .map(|(t, current)| (*t, *current * current_scale)),
                         &CYAN,
                     ))
@@ -827,6 +886,7 @@ impl DataPlot {
                     .draw_series(LineSeries::new(
                         self.current_q
                             .iter()
+                            .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                             .map(|(t, current)| (*t, *current * current_scale)),
                         &YELLOW,
                     ))
@@ -882,6 +942,7 @@ impl DataPlot {
                         .draw_series(LineSeries::new(
                             self.pid_output_vel
                                 .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                                 // .map(|(t, output)| (*t, *output * self.scale_vel * 10.0)),
                                 .map(|(t, output)| (*t, *output * self.scale_vel * 1.0)),
                             &CYAN,
@@ -894,9 +955,12 @@ impl DataPlot {
                 if self.draw_pid_vel_internals_error {
                     chart
                         .draw_series(DashedLineSeries::new(
-                            self.pid_vel_internals_error.iter().map(|(t, error)| {
-                                (*t, *error * self.pid_vel_internals_scale_error)
-                            }),
+                            self.pid_vel_internals_error
+                                .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                                .map(|(t, error)| {
+                                    (*t, *error * self.pid_vel_internals_scale_error)
+                                }),
                             5,
                             5,
                             ShapeStyle {
@@ -917,6 +981,7 @@ impl DataPlot {
                         .draw_series(DashedLineSeries::new(
                             self.pid_vel_internals_p
                                 .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                                 .map(|(t, p)| (*t, *p * self.pid_vel_internals_scale_p)),
                             5,
                             5,
@@ -938,6 +1003,7 @@ impl DataPlot {
                         .draw_series(DashedLineSeries::new(
                             self.pid_vel_internals_i
                                 .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                                 .map(|(t, i)| (*t, *i * self.pid_vel_internals_scale_i)),
                             5,
                             5,
@@ -959,6 +1025,7 @@ impl DataPlot {
                         .draw_series(DashedLineSeries::new(
                             self.pid_vel_internals_d
                                 .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                                 .map(|(t, d)| (*t, *d * self.pid_vel_internals_scale_d)),
                             5,
                             5,
@@ -984,6 +1051,7 @@ impl DataPlot {
                         .draw_series(LineSeries::new(
                             self.pid_output_pos
                                 .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                                 // .map(|(t, output)| (*t, *output * self.scale_pos * 10.0)),
                                 .map(|(t, output)| (*t, *output * self.scale_vel * 1.0)),
                             &CYAN,
@@ -996,9 +1064,12 @@ impl DataPlot {
                 if self.draw_pid_pos_internals_error {
                     chart
                         .draw_series(DashedLineSeries::new(
-                            self.pid_pos_internals_error.iter().map(|(t, error)| {
-                                (*t, *error * self.pid_pos_internals_scale_error)
-                            }),
+                            self.pid_pos_internals_error
+                                .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                                .map(|(t, error)| {
+                                    (*t, *error * self.pid_pos_internals_scale_error)
+                                }),
                             5,
                             5,
                             ShapeStyle {
@@ -1019,6 +1090,7 @@ impl DataPlot {
                         .draw_series(DashedLineSeries::new(
                             self.pid_pos_internals_p
                                 .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                                 .map(|(t, p)| (*t, *p * self.pid_pos_internals_scale_p)),
                             5,
                             5,
@@ -1040,6 +1112,7 @@ impl DataPlot {
                         .draw_series(DashedLineSeries::new(
                             self.pid_pos_internals_i
                                 .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                                 .map(|(t, i)| (*t, *i * self.pid_pos_internals_scale_i)),
                             5,
                             5,
@@ -1061,6 +1134,7 @@ impl DataPlot {
                         .draw_series(DashedLineSeries::new(
                             self.pid_pos_internals_d
                                 .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                                 .map(|(t, d)| (*t, *d * self.pid_pos_internals_scale_d)),
                             5,
                             5,

@@ -32,10 +32,12 @@ impl App {
                         id,
                         timestamp,
                         zero_electrical_angle,
+                        encoder_calibration_enabled,
                     } => {
                         debug!("Got debug data from motor {}", id);
                         self.status[id as usize].zero_electrical_angle =
                             zero_electrical_angle as f64;
+                        self.status[id as usize].calibration_enabled = encoder_calibration_enabled;
                     }
                     // SerialLogMessage::Ping => {}
                     SerialLogMessage::MotorPID {

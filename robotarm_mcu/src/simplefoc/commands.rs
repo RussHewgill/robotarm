@@ -88,8 +88,15 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
         }
 
-        #[cfg(feature = "nope")]
+        // #[cfg(feature = "nope")]
         match cmd {
+            SerialCommand::SetEncoderCalibration { id, enable } => {
+                // debug!(
+                //     "Received SetEncoderCalibration command: id: {}, enable: {}",
+                //     id, enable
+                // );
+                self.encoder.enable_calibration(enable);
+            }
             SerialCommand::ZeroPosition { id } => {
                 self.encoder.reset_position();
             }
@@ -159,6 +166,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     id,
                     timestamp: embassy_time::Instant::now().as_micros(),
                     zero_electrical_angle: self.zero_electric_angle,
+                    encoder_calibration_enabled: self.encoder.get_encoder_calibration_enabled(),
                 });
             }
             SerialCommand::SetEnabled { id, enabled } => {
@@ -242,7 +250,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
         }
 
-        // #[cfg(feature = "nope")]
+        #[cfg(feature = "nope")]
         match cmd {
             SerialCommand::SetEncoderCalibration { id, enable } => {
                 debug!(

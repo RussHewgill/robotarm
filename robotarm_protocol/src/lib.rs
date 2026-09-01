@@ -39,6 +39,7 @@ pub enum SerialLogMessage {
         id: u8,
         timestamp: u64,
         zero_electrical_angle: f32,
+        encoder_calibration_enabled: bool,
     },
     FocLoopRate {
         id: u8,

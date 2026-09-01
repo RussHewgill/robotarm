@@ -833,6 +833,26 @@ impl App {
                 self::pid_settings::set_vel_limit,
             );
             ui.end_row();
+
+            let calibrated = self.status[id as usize].calibration_enabled;
+            if ui
+                .add(
+                    egui::Button::new("Calibrated")
+                        .selected(calibrated)
+                        .frame_when_inactive(!calibrated)
+                        .frame(true),
+                )
+                .clicked()
+            {
+                self.status[id as usize].calibration_enabled = !calibrated;
+                let cmd = SerialCommand::SetEncoderCalibration {
+                    id,
+                    enable: !calibrated,
+                };
+                self.send_command(cmd);
+            }
+
+            ui.end_row();
         });
     }
 

@@ -51,4 +51,6 @@ pub struct FocStatus {
     pub lpf_vel: f32,
 
     pub zero_electrical_angle: f64,
+
+    pub calibration_enabled: bool,
 }

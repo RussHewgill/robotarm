@@ -529,7 +529,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         (offset, gain, phase, amplitude)
     }
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     pub async fn calibrate_encoder(&mut self) {
         // self.set_motion_control(MotionControlType::VelocityOpenLoop);
 
@@ -562,7 +562,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // self.disable();
 
-        let mut lut = [0.0f32; 128];
+        let mut lut = [0.0f32; 256];
 
         for i in 0..lut.len() {
             let angle = (i as f32 / lut.len() as f32) * crate::simplefoc::types::_2PI;
@@ -575,7 +575,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // unimplemented!()
     }
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     async fn run_sweep(&mut self, direction: f32) -> (f32, f32) {
         let mut expected = heapless::Vec::<f32, 2_000>::new();
         let mut measured = heapless::Vec::<f32, 2_000>::new();
@@ -652,7 +652,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     }
 
     /// https://github.com/simplefoc/Arduino-FOC-drivers/blob/master/src/encoders/calibrated/CalibratedSensor.cpp
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     pub async fn calibrate_encoder(&mut self) {
         use crate::hardware::encoder_sensor::N_LUT;
 
@@ -680,7 +680,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         let theta_init = self.encoder.get_angle();
         let theta_absolute_init = self.encoder.get_mechanical_angle();
 
-        let settle_time_ms = 10;
+        let settle_time_ms = 20;
 
         // Start calibration
         // forwards
@@ -776,6 +776,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         let mut calibration_lut: [f32; N_LUT] = [0.0; N_LUT];
 
         // Build Look Up Table
+        #[cfg(feature = "nope")]
         for i in 0..N_LUT {
             let mut ind =
                 index_offset as i32 + i as i32 * self.sensor_direction.multiplier() as i32;
@@ -784,9 +785,30 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             } else if ind < 0 {
                 ind += N_LUT as i32;
             }
-            calibration_lut[ind as usize] = error[i * dn as usize] - error_mean;
+            calibration_lut[ind as usize] = error[(i as f32 * dn) as usize] - error_mean;
             calibration_lut[ind as usize] =
                 self.sensor_direction.multiplier() as f32 * calibration_lut[ind as usize];
+        }
+
+        for i in 0..N_LUT {
+            let mut ind =
+                index_offset as i32 + i as i32 * self.sensor_direction.multiplier() as i32;
+            if ind > N_LUT as i32 - 1 {
+                ind -= N_LUT as i32;
+            } else if ind < 0 {
+                ind += N_LUT as i32;
+            }
+
+            let sample_pos = i as f32 * dn;
+            let sample_floor = libm::floorf(sample_pos) as usize;
+            let sample_frac = sample_pos - sample_floor as f32;
+
+            let e0 = error[sample_floor % n_ticks];
+            let e1 = error[(sample_floor + 1) % n_ticks];
+            let sample = (1.0 - sample_frac) * e0 + sample_frac * e1;
+
+            calibration_lut[ind as usize] =
+                self.sensor_direction.multiplier() as f32 * (sample - error_mean);
         }
 
         debug!("Calibration LUT: {:?}", calibration_lut);
@@ -811,7 +833,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         }
 
         for i in 0..window {
-            let ind = n_ticks + window / 2 - 1 + i;
+            let ind = n_ticks - window / 2 - 1 + i;
             window_buf[i] = error[ind % n_ticks];
             window_sum += window_buf[i];
         }

@@ -221,6 +221,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     foc.init();
 
     // foc.calibrate_encoder().await;
+    // foc.encoder.enable_calibration(false);
 
     info!("Starting FOC init");
     foc.init_foc().await;

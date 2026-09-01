@@ -73,6 +73,9 @@ impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
     fn enable_calibration(&mut self, enable: bool) {
         self.enable_calibration = enable;
     }
+    fn get_encoder_calibration_enabled(&self) -> bool {
+        self.enable_calibration
+    }
 }
 
 impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
@@ -347,16 +350,18 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
 
         let angle = if self.enable_calibration {
             let lut_resolution = _2PI / N_LUT as f32;
-            let lut_index = raw_angle / lut_resolution;
+            let lut_index = (raw_angle / lut_resolution) as usize;
 
-            let y0 = self.lut[lut_index as usize];
-            let y1 = self.lut[(lut_index as usize + 1) % N_LUT];
+            let y0 = self.lut[lut_index];
+            let y1 = self.lut[(lut_index + 1) % N_LUT];
 
             // Linearly interpolate between the y0 and y1 values
             // Calculate the relative distance from the y0 (raw_angle has to be between y0 and y1)
             // If distance = 0, interpolated offset = y0
             // If distance = 1, interpolated offset = y1
-            let distance = (raw_angle - lut_index as f32 * lut_resolution) / lut_resolution;
+            // let distance = (raw_angle - lut_index as f32 * lut_resolution) / lut_resolution;
+            let base_angle = lut_index as f32 * lut_resolution;
+            let distance = (raw_angle - base_angle) / lut_resolution;
             let offset = (1. - distance) * y0 + distance * y1;
 
             raw_angle - offset
