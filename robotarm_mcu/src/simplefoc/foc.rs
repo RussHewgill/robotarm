@@ -67,6 +67,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     }
 
     pub fn set_target_position(&mut self, position: f32) {
+        // self.motor.target_shaft_angle = position * -self.sensor_direction.multiplier();
         self.motor.target_shaft_angle = position;
     }
 
@@ -444,6 +445,389 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // unimplemented!()
         (0.0, 0.0)
+    }
+
+    #[cfg(feature = "nope")]
+    fn fit_encoder_offset(expected: &[f32], measured: &[f32]) -> (f32, f32, f32, f32) {
+        if expected.len() != measured.len() || expected.len() < 4 {
+            return (0.0, 1.0, 0.0, 0.0);
+        }
+
+        let mut a = [[0.0f32; 4]; 4];
+        let mut b = [0.0f32; 4];
+
+        for i in 0..expected.len() {
+            let x = expected[i];
+            let y = measured[i];
+            let s = libm::sinf(x);
+            let c = libm::cosf(x);
+            let basis = [1.0f32, x, s, c];
+
+            for row in 0..4 {
+                b[row] += basis[row] * y;
+                for col in 0..4 {
+                    a[row][col] += basis[row] * basis[col];
+                }
+            }
+        }
+
+        // Gaussian elimination with partial pivoting.
+        let mut mat = a;
+        let mut vec = b;
+
+        for i in 0..4 {
+            let mut pivot_row = i;
+            let mut pivot_val = mat[i][i].abs();
+
+            for r in (i + 1)..4 {
+                let v = mat[r][i].abs();
+                if v > pivot_val {
+                    pivot_val = v;
+                    pivot_row = r;
+                }
+            }
+
+            if pivot_val < 1e-8 {
+                return (0.0, 1.0, 0.0, 0.0);
+            }
+
+            if pivot_row != i {
+                mat.swap(i, pivot_row);
+                vec.swap(i, pivot_row);
+            }
+
+            let inv_pivot = 1.0 / mat[i][i];
+            for col in i..4 {
+                mat[i][col] *= inv_pivot;
+            }
+            vec[i] *= inv_pivot;
+
+            for row in 0..4 {
+                if row == i {
+                    continue;
+                }
+
+                let factor = mat[row][i];
+                if factor == 0.0 {
+                    continue;
+                }
+
+                for col in i..4 {
+                    mat[row][col] -= factor * mat[i][col];
+                }
+                vec[row] -= factor * vec[i];
+            }
+        }
+
+        let offset = vec[0];
+        let gain = vec[1];
+        let sin_coeff = vec[2];
+        let cos_coeff = vec[3];
+        let phase = libm::atan2f(-cos_coeff, sin_coeff);
+        let amplitude = libm::sqrtf(sin_coeff * sin_coeff + cos_coeff * cos_coeff);
+
+        (offset, gain, phase, amplitude)
+    }
+
+    #[cfg(feature = "nope")]
+    pub async fn calibrate_encoder(&mut self) {
+        // self.set_motion_control(MotionControlType::VelocityOpenLoop);
+
+        self.motor.voltage_sensor_align = 4.0;
+
+        // let vel = 1.0; // rad/s
+
+        self.enable();
+        // self.set_target_velocity(vel);
+
+        // let (offset, gain, phase, amplitude) = Self::fit_encoder_offset(&expected, &measured);
+        // debug!(
+        //     "encoder fit: offset={}, gain={}, phase={}, amplitude={}",
+        //     offset, gain, phase, amplitude
+        // );
+
+        self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
+        Timer::after_millis(500).await;
+
+        let (out_cw_a, out_cw_b) = self.run_sweep(1.).await;
+        let (out_ccw_a, out_ccw_b) = self.run_sweep(-1.).await;
+
+        let ecc_a = (out_cw_a + out_ccw_a) / 2.0;
+        let ecc_b = (out_cw_b + out_ccw_b) / 2.0;
+
+        debug!(
+            "encoder fit: CW: a={}, b={}, CCW: a={}, b={}, ECC: a={}, b={}",
+            out_cw_a, out_cw_b, out_ccw_a, out_ccw_b, ecc_a, ecc_b
+        );
+
+        // self.disable();
+
+        let mut lut = [0.0f32; 128];
+
+        for i in 0..lut.len() {
+            let angle = (i as f32 / lut.len() as f32) * crate::simplefoc::types::_2PI;
+            lut[i] = ecc_a * libm::cosf(angle) + ecc_b * libm::sinf(angle);
+            // lut[i] = ecc_a * libm::sinf(angle) + ecc_b * libm::cosf(angle);
+        }
+
+        self.encoder.set_calibration_lut(lut);
+
+        // unimplemented!()
+    }
+
+    #[cfg(feature = "nope")]
+    async fn run_sweep(&mut self, direction: f32) -> (f32, f32) {
+        let mut expected = heapless::Vec::<f32, 2_000>::new();
+        let mut measured = heapless::Vec::<f32, 2_000>::new();
+
+        let _ = self.encoder.update(Instant::now().as_micros()).await;
+
+        // self.set_phase_voltage(self.motor.voltage_sensor_align, 0., 0.);
+        // Timer::after_millis(500).await;
+
+        let _ = self.encoder.update(Instant::now().as_micros()).await;
+        let angle0 = self.encoder.get_angle();
+
+        let n = 2_000;
+        // make motor rotate one full mechanical revolution (2PI rad) forward
+        for i in 0..n {
+            let shaft_angle = crate::simplefoc::types::_2PI * (i as f32 / n as f32);
+            let mut electrical_angle =
+                self.sensor_direction.multiplier() * shaft_angle * self.motor.pole_pairs as f32;
+
+            if direction < 0.0 {
+                electrical_angle =
+                    super::types::_2PI * self.motor.pole_pairs as f32 - electrical_angle;
+            }
+
+            self.set_phase_voltage(self.motor.voltage_sensor_align, 0., electrical_angle);
+            Timer::after_micros(1000).await;
+            let t_us = Instant::now().as_micros();
+            let _ = self.encoder.update(t_us).await;
+
+            let measured_angle = self.encoder.get_angle() - angle0;
+            expected.push(shaft_angle * direction.signum()).unwrap();
+            measured.push(measured_angle).unwrap();
+        }
+
+        // Find average angular offset using Circular Mean
+        let mut sum_sin = 0.;
+        let mut sum_cos = 0.;
+        for i in 0..n {
+            let diff = measured[i] - expected[i];
+            sum_sin += libm::sinf(diff);
+            sum_cos += libm::cosf(diff);
+        }
+        let offset = libm::atan2f(sum_sin, sum_cos);
+
+        // Extract the 1st Harmonic (Fourier Transform)
+        let mut sum_a = 0.;
+        let mut sum_b = 0.;
+        for i in 0..n {
+            // let expected = expected[i] + offset;
+            // let mut err = measured[i] - expected;
+            let reference = expected[i] + offset;
+            let mut err = measured[i] - reference;
+
+            // while(err >  PI) err -= 2.0f * PI;
+            // while(err < -PI) err += 2.0f * PI;
+            while err > core::f32::consts::PI {
+                err -= crate::simplefoc::types::_2PI;
+            }
+            while err < -core::f32::consts::PI {
+                err += crate::simplefoc::types::_2PI;
+            }
+
+            // sum_a += err * libm::cosf(measured[i]);
+            // sum_b += err * libm::sinf(measured[i]);
+            sum_a += err * libm::cosf(reference);
+            sum_b += err * libm::sinf(reference);
+        }
+
+        // Multiply by (2/N) to get Fourier amplitude coefficients
+        let out_a = (2. / n as f32) * sum_a;
+        let out_b = (2. / n as f32) * sum_b;
+
+        (out_a, out_b)
+    }
+
+    /// https://github.com/simplefoc/Arduino-FOC-drivers/blob/master/src/encoders/calibrated/CalibratedSensor.cpp
+    // #[cfg(feature = "nope")]
+    pub async fn calibrate_encoder(&mut self) {
+        use crate::hardware::encoder_sensor::N_LUT;
+
+        let mut avg_elec_angle = 0.0;
+        let mut elec_angle = 0.0;
+
+        let align_voltage = self.motor.voltage_sensor_align;
+
+        // Calibration parameters
+        // The motor will take a n_pos samples per electrical cycle
+        // which amounts to n_ticks (n_pos * motor.pole_pairs) samples per mechanical rotation
+        // Additionally, the motor will take n2_ticks steps to reach any of the n_ticks posiitons
+        // incrementing the electrical angle by deltaElectricalAngle each time
+        let n_pos = 10;
+        let n_ticks = n_pos * self.motor.pole_pairs as usize;
+        let n2_ticks = 10;
+        let delta_electrical_angle = crate::simplefoc::types::_2PI * self.motor.pole_pairs as f32
+            / (n_ticks as f32 * n2_ticks as f32);
+        let mut error = [0f32; N_LUT];
+
+        self.set_phase_voltage(align_voltage, 0., elec_angle);
+        Timer::after_millis(1000).await;
+        let _ = self.encoder.update(Instant::now().as_micros()).await;
+
+        let theta_init = self.encoder.get_angle();
+        let theta_absolute_init = self.encoder.get_mechanical_angle();
+
+        let settle_time_ms = 10;
+
+        // Start calibration
+        // forwards
+
+        let mut zero_angle_prev = 0.0;
+        for i in 0..n_ticks {
+            for j in 0..n2_ticks {
+                let _ = self.encoder.update(Instant::now().as_micros()).await;
+                elec_angle += delta_electrical_angle;
+                self.set_phase_voltage(align_voltage, 0., elec_angle);
+            }
+            Timer::after_millis(settle_time_ms).await;
+            let _ = self.encoder.update(Instant::now().as_micros()).await;
+
+            // calculate error
+            let theta_actual =
+                self.sensor_direction.multiplier() * self.encoder.get_angle() - theta_init;
+            error[i] = 0.5 * (theta_actual - elec_angle / self.motor.pole_pairs as f32);
+
+            // calculate the current electrical zero angle
+            let zero_angle = (self.sensor_direction.multiplier()
+                * self.encoder.get_mechanical_angle()
+                * self.motor.pole_pairs as f32)
+                - (elec_angle + crate::simplefoc::types::_PI_2);
+            let mut zero_angle = Self::normalize_angle(zero_angle);
+
+            // remove the 2PI jumps
+            if zero_angle - zero_angle_prev > core::f32::consts::PI {
+                zero_angle = zero_angle - crate::simplefoc::types::_2PI;
+            } else if zero_angle - zero_angle_prev < -core::f32::consts::PI {
+                zero_angle = zero_angle + crate::simplefoc::types::_2PI;
+            }
+            zero_angle_prev = zero_angle;
+            avg_elec_angle += zero_angle / n_ticks as f32;
+        }
+
+        // backwards
+        let mut zero_angle_prev = 0.0;
+        // for (int i = n_ticks - 1; i >= 0; i--)
+        for i in (0..n_ticks).rev() {
+            for j in 0..n2_ticks {
+                let _ = self.encoder.update(Instant::now().as_micros()).await;
+                elec_angle -= delta_electrical_angle;
+                self.set_phase_voltage(align_voltage, 0., elec_angle);
+            }
+            Timer::after_millis(settle_time_ms).await;
+            let _ = self.encoder.update(Instant::now().as_micros()).await;
+
+            // calculate error
+            let theta_actual =
+                self.sensor_direction.multiplier() * self.encoder.get_angle() - theta_init;
+            error[i] += 0.5 * (theta_actual - elec_angle / self.motor.pole_pairs as f32);
+
+            // calculate the current electrical zero angle
+            let zero_angle = (self.sensor_direction.multiplier()
+                * self.encoder.get_mechanical_angle()
+                * self.motor.pole_pairs as f32)
+                - (elec_angle + crate::simplefoc::types::_PI_2);
+            let mut zero_angle = Self::normalize_angle(zero_angle);
+
+            // remove the 2PI jumps
+            if zero_angle - zero_angle_prev > core::f32::consts::PI {
+                zero_angle = zero_angle - crate::simplefoc::types::_2PI;
+            } else if zero_angle - zero_angle_prev < -core::f32::consts::PI {
+                zero_angle = zero_angle + crate::simplefoc::types::_2PI;
+            }
+            zero_angle_prev = zero_angle;
+            avg_elec_angle += zero_angle / n_ticks as f32;
+        }
+
+        let _ = self.encoder.update(Instant::now().as_micros()).await;
+        let theta_absolute_post = self.encoder.get_mechanical_angle();
+
+        self.set_phase_voltage(0., 0., 0.);
+
+        // raw offset from initial position in absolute radians between 0-2PI
+        let raw_offset = (theta_absolute_init - theta_absolute_post) / 2.;
+
+        // calculating the average zero electrical angle from the forward calibration.
+        let zero_electric_angle = Self::normalize_angle(avg_elec_angle / 2.);
+
+        // Perform filtering to linearize position sensor eccentricity
+        // FIR n-sample average, where n = number of samples in one electrical cycle
+        // This filter has zero gain at electrical frequency and all integer multiples
+        // So cogging effects should be completely filtered out
+        let error_mean = self.filter_error(&mut error, n_ticks, n_pos);
+
+        // calculate offset index
+        let index_offset =
+            libm::floorf(N_LUT as f32 * raw_offset / crate::simplefoc::types::_2PI) as usize;
+        let dn = n_ticks as f32 / N_LUT as f32;
+
+        let mut calibration_lut: [f32; N_LUT] = [0.0; N_LUT];
+
+        // Build Look Up Table
+        for i in 0..N_LUT {
+            let mut ind =
+                index_offset as i32 + i as i32 * self.sensor_direction.multiplier() as i32;
+            if ind > N_LUT as i32 - 1 {
+                ind -= N_LUT as i32;
+            } else if ind < 0 {
+                ind += N_LUT as i32;
+            }
+            calibration_lut[ind as usize] = error[i * dn as usize] - error_mean;
+            calibration_lut[ind as usize] =
+                self.sensor_direction.multiplier() as f32 * calibration_lut[ind as usize];
+        }
+
+        debug!("Calibration LUT: {:?}", calibration_lut);
+        self.encoder.set_calibration_lut(calibration_lut);
+    }
+
+    // #[cfg(feature = "nope")]
+    fn filter_error(
+        &self,
+        error: &mut [f32; crate::hardware::encoder_sensor::N_LUT],
+        n_ticks: usize,
+        window: usize,
+    ) -> f32 {
+        use crate::hardware::encoder_sensor::N_LUT;
+        let mut window_buf = heapless::Vec::<f32, 256>::new();
+
+        let mut window_sum = 0.;
+        let mut buffer_index = 0;
+
+        for i in 0..window {
+            window_buf.push(0.0).unwrap();
+        }
+
+        for i in 0..window {
+            let ind = n_ticks + window / 2 - 1 + i;
+            window_buf[i] = error[ind % n_ticks];
+            window_sum += window_buf[i];
+        }
+
+        let mut error_mean = 0.0;
+        for i in 0..n_ticks {
+            window_sum -= window_buf[buffer_index];
+            window_buf[buffer_index] = error[(i + window / 2) % n_ticks];
+            window_sum += window_buf[buffer_index];
+            buffer_index = (buffer_index + 1) % window;
+
+            error[i] = window_sum / window as f32;
+            error_mean += error[i] / n_ticks as f32;
+        }
+
+        error_mean
     }
 
     async fn align_current_sensor(&mut self) {

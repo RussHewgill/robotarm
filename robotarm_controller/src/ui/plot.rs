@@ -90,6 +90,10 @@ pub struct DataPlot {
     vel: VecDeque<(f64, f64)>,
     vel_bounds: (f64, f64),
 
+    pub draw_pos: bool,
+    #[serde(skip)]
+    pos: VecDeque<(f64, f64)>,
+
     pub draw_target_pos: bool,
     #[serde(skip)]
     target_pos: VecDeque<(f64, f64)>,
@@ -139,6 +143,24 @@ pub struct DataPlot {
     pid_vel_internals_scale_i: f64,
     pid_vel_internals_scale_d: f64,
 
+    pub draw_pid_pos_internals_error: bool,
+    pub draw_pid_pos_internals_p: bool,
+    pub draw_pid_pos_internals_i: bool,
+    pub draw_pid_pos_internals_d: bool,
+    #[serde(skip)]
+    pid_pos_internals_error: VecDeque<(f64, f64)>,
+    #[serde(skip)]
+    pid_pos_internals_p: VecDeque<(f64, f64)>,
+    #[serde(skip)]
+    pid_pos_internals_i: VecDeque<(f64, f64)>,
+    #[serde(skip)]
+    pid_pos_internals_d: VecDeque<(f64, f64)>,
+
+    pid_pos_internals_scale_error: f64,
+    pid_pos_internals_scale_p: f64,
+    pid_pos_internals_scale_i: f64,
+    pid_pos_internals_scale_d: f64,
+
     // scale_angle: f64,
     scale_vel: f64,
 }
@@ -153,12 +175,14 @@ impl Default for DataPlot {
 
             draw_angle: true,
             angle: VecDeque::new(),
+            draw_pos: true,
+            pos: VecDeque::new(),
             draw_vel: true,
             vel: VecDeque::new(),
             vel_bounds: (-6.28, 6.28),
             draw_target_pos: true,
             target_pos: VecDeque::new(),
-            draw_target_vel: false,
+            draw_target_vel: true,
             target_vel: VecDeque::new(),
             draw_voltage: false,
             voltage: VecDeque::new(),
@@ -168,23 +192,37 @@ impl Default for DataPlot {
             current_d_lpf: None,
             current_q_lpf: None,
             current_lpf_alpha: 0.1,
-            draw_pid_output_vel: false,
+            draw_pid_output_vel: true,
             pid_output_vel: VecDeque::new(),
             draw_pid_output_pos: false,
             pid_output_pos: VecDeque::new(),
-            draw_pid_vel_internals_error: false,
-            draw_pid_vel_internals_p: false,
-            draw_pid_vel_internals_i: false,
-            draw_pid_vel_internals_d: false,
+            draw_pid_vel_internals_error: true,
+            draw_pid_vel_internals_p: true,
+            draw_pid_vel_internals_i: true,
+            draw_pid_vel_internals_d: true,
             pid_vel_internals_error: VecDeque::new(),
             pid_vel_internals_p: VecDeque::new(),
             pid_vel_internals_i: VecDeque::new(),
             pid_vel_internals_d: VecDeque::new(),
 
-            pid_vel_internals_scale_error: 1.0,
-            pid_vel_internals_scale_p: 1.0,
-            pid_vel_internals_scale_i: 1.0,
-            pid_vel_internals_scale_d: 1.0,
+            pid_vel_internals_scale_error: 0.1,
+            pid_vel_internals_scale_p: 0.1,
+            pid_vel_internals_scale_i: 0.1,
+            pid_vel_internals_scale_d: 0.1,
+
+            draw_pid_pos_internals_error: true,
+            draw_pid_pos_internals_p: true,
+            draw_pid_pos_internals_i: true,
+            draw_pid_pos_internals_d: true,
+            pid_pos_internals_error: VecDeque::new(),
+            pid_pos_internals_p: VecDeque::new(),
+            pid_pos_internals_i: VecDeque::new(),
+            pid_pos_internals_d: VecDeque::new(),
+
+            pid_pos_internals_scale_error: 0.1,
+            pid_pos_internals_scale_p: 0.1,
+            pid_pos_internals_scale_i: 0.1,
+            pid_pos_internals_scale_d: 0.1,
 
             // scale_angle: std::f64::consts::PI * 2.,
             // scale_vel: 0.05,
@@ -196,6 +234,16 @@ impl Default for DataPlot {
 impl App {
     pub fn plot_settings(&mut self, ui: &mut egui::Ui) {
         egui::Grid::new(format!("Plot Controls Grid")).show(ui, |ui| {
+            if ui.button("Clear Plot").clicked() {
+                self.plots[self.current_plot].reset();
+            }
+            ui.end_row();
+            ui.end_row();
+
+            if ui.button("Save to CSV").clicked() {
+                self.plots[self.current_plot].save_plot();
+            }
+
             ui.label("Window time (s)");
             ui.add(egui::Slider::new(
                 &mut self.plots[self.current_plot].window_time,
@@ -219,6 +267,8 @@ impl App {
             ui.label("Plot settings:");
             ui.end_row();
             ui.checkbox(&mut self.plots[self.current_plot].draw_angle, "Angle");
+            ui.end_row();
+            ui.checkbox(&mut self.plots[self.current_plot].draw_pos, "Position");
             ui.end_row();
             ui.checkbox(&mut self.plots[self.current_plot].draw_vel, "Velocity");
             ui.end_row();
@@ -250,10 +300,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_vel_internals_scale_error,
-                    0.1..=10.0,
+                    0.01..=10.0,
                 )
                 .logarithmic(true)
-                .max_decimals(1),
+                .max_decimals(2),
             );
             ui.end_row();
             ui.checkbox(
@@ -263,10 +313,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_vel_internals_scale_p,
-                    0.1..=10.0,
+                    0.01..=10.0,
                 )
                 .logarithmic(true)
-                .max_decimals(1),
+                .max_decimals(2),
             );
             ui.end_row();
             ui.checkbox(
@@ -276,10 +326,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_vel_internals_scale_i,
-                    0.1..=10.0,
+                    0.01..=10.0,
                 )
                 .logarithmic(true)
-                .max_decimals(1),
+                .max_decimals(2),
             );
             ui.end_row();
             ui.checkbox(
@@ -289,10 +339,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_vel_internals_scale_d,
-                    0.1..=10.0,
+                    0.01..=10.0,
                 )
                 .logarithmic(true)
-                .max_decimals(1),
+                .max_decimals(2),
             );
             ui.end_row();
             ui.end_row();
@@ -300,6 +350,60 @@ impl App {
                 &mut self.plots[self.current_plot].draw_pid_output_pos,
                 "PID output pos",
             );
+            ui.end_row();
+
+            ui.checkbox(
+                &mut self.plots[self.current_plot].draw_pid_pos_internals_error,
+                "PID pos error",
+            );
+            ui.add(
+                egui::Slider::new(
+                    &mut self.plots[self.current_plot].pid_pos_internals_scale_error,
+                    0.01..=10.0,
+                )
+                .logarithmic(true)
+                .max_decimals(2),
+            );
+            ui.end_row();
+            ui.checkbox(
+                &mut self.plots[self.current_plot].draw_pid_pos_internals_p,
+                "PID pos P",
+            );
+            ui.add(
+                egui::Slider::new(
+                    &mut self.plots[self.current_plot].pid_pos_internals_scale_p,
+                    0.01..=10.0,
+                )
+                .logarithmic(true)
+                .max_decimals(2),
+            );
+            ui.end_row();
+            ui.checkbox(
+                &mut self.plots[self.current_plot].draw_pid_pos_internals_i,
+                "PID pos I",
+            );
+            ui.add(
+                egui::Slider::new(
+                    &mut self.plots[self.current_plot].pid_pos_internals_scale_i,
+                    0.01..=10.0,
+                )
+                .logarithmic(true)
+                .max_decimals(2),
+            );
+            ui.end_row();
+            ui.checkbox(
+                &mut self.plots[self.current_plot].draw_pid_pos_internals_d,
+                "PID pos D",
+            );
+            ui.add(
+                egui::Slider::new(
+                    &mut self.plots[self.current_plot].pid_pos_internals_scale_d,
+                    0.01..=10.0,
+                )
+                .logarithmic(true)
+                .max_decimals(2),
+            );
+            ui.end_row();
 
             // ui.add(egui::Slider::new(&mut self.plot.scale_angle, 0.1..=10.).text("Angle scale"));
             // ui.add(egui::Slider::new(&mut self.plot.scale_vel, 0.01..=1.).text("Velocity scale"));
@@ -308,6 +412,10 @@ impl App {
 }
 
 impl DataPlot {
+    pub fn save_plot(&self) {
+        unimplemented!()
+    }
+
     pub fn get_angle(&self) -> &VecDeque<(f64, f64)> {
         &self.angle
     }
@@ -323,6 +431,11 @@ impl DataPlot {
 
     pub fn add_point_angle(&mut self, t: f64, angle: f64) {
         self.angle.push_back((t, angle));
+        self.prev_time = t;
+    }
+
+    pub fn add_point_pos(&mut self, t: f64, pos: f64) {
+        self.pos.push_back((t, pos));
         self.prev_time = t;
     }
 
@@ -390,6 +503,14 @@ impl DataPlot {
         self.prev_time = t;
     }
 
+    pub fn add_points_pid_pos_internals(&mut self, t: f64, error: f64, p: f64, i: f64, d: f64) {
+        self.pid_pos_internals_error.push_back((t, error));
+        self.pid_pos_internals_p.push_back((t, p));
+        self.pid_pos_internals_i.push_back((t, i));
+        self.pid_pos_internals_d.push_back((t, d));
+        self.prev_time = t;
+    }
+
     fn clear_old_points(&mut self, current_time: f64) {
         while let Some((t2, _)) = self.angle.front() {
             if *t2 < current_time - self.window_time {
@@ -402,6 +523,14 @@ impl DataPlot {
         while let Some((t2, _)) = self.vel.front() {
             if *t2 < current_time - self.window_time {
                 self.vel.pop_front();
+            } else {
+                break;
+            }
+        }
+
+        while let Some((t2, _)) = self.pos.front() {
+            if *t2 < current_time - self.window_time {
+                self.pos.pop_front();
             } else {
                 break;
             }
@@ -501,11 +630,41 @@ impl DataPlot {
                 break;
             }
         }
+
+        while let Some((t2, _)) = self.pid_pos_internals_error.front() {
+            if *t2 < current_time - self.window_time {
+                self.pid_pos_internals_error.pop_front();
+            } else {
+                break;
+            }
+        }
+        while let Some((t2, _)) = self.pid_pos_internals_p.front() {
+            if *t2 < current_time - self.window_time {
+                self.pid_pos_internals_p.pop_front();
+            } else {
+                break;
+            }
+        }
+        while let Some((t2, _)) = self.pid_pos_internals_i.front() {
+            if *t2 < current_time - self.window_time {
+                self.pid_pos_internals_i.pop_front();
+            } else {
+                break;
+            }
+        }
+        while let Some((t2, _)) = self.pid_pos_internals_d.front() {
+            if *t2 < current_time - self.window_time {
+                self.pid_pos_internals_d.pop_front();
+            } else {
+                break;
+            }
+        }
     }
 
     pub fn reset(&mut self) {
         self.angle.clear();
         self.vel.clear();
+        self.pos.clear();
         self.target_pos.clear();
         self.target_vel.clear();
         self.voltage.clear();
@@ -513,6 +672,18 @@ impl DataPlot {
         self.current_q.clear();
         self.current_d_lpf = None;
         self.current_q_lpf = None;
+        self.pid_output_vel.clear();
+        self.pid_output_pos.clear();
+
+        self.pid_vel_internals_error.clear();
+        self.pid_vel_internals_p.clear();
+        self.pid_vel_internals_i.clear();
+        self.pid_vel_internals_d.clear();
+
+        self.pid_pos_internals_error.clear();
+        self.pid_pos_internals_p.clear();
+        self.pid_pos_internals_i.clear();
+        self.pid_pos_internals_d.clear();
 
         self.prev_time = 0.;
 
@@ -566,6 +737,17 @@ impl DataPlot {
                     ))
                     .unwrap()
                     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &GREEN))
+                    .label("Angle");
+            }
+
+            if self.draw_pos {
+                chart
+                    .draw_series(LineSeries::new(
+                        self.pos.iter().map(|(t, pos)| (*t, *pos)),
+                        TEAL.stroke_width(self.stroke_width),
+                    ))
+                    .unwrap()
+                    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &TEAL))
                     .label("Position");
             }
 
@@ -584,7 +766,8 @@ impl DataPlot {
                 chart
                     .draw_series(LineSeries::new(
                         self.target_pos.iter().map(|(t, angle)| {
-                            (*t, -(*angle - std::f64::consts::PI) / std::f64::consts::PI)
+                            // (*t, -(*angle - std::f64::consts::PI) / std::f64::consts::PI)
+                            (*t, *angle)
                         }),
                         RED.stroke_width(self.stroke_width),
                     ))
@@ -692,101 +875,208 @@ impl DataPlot {
 
             chart.configure_mesh().draw().unwrap();
 
-            if self.draw_pid_output_vel {
-                chart
-                    .draw_series(LineSeries::new(
-                        self.pid_output_vel
-                            .iter()
-                            // .map(|(t, output)| (*t, *output * self.scale_vel * 10.0)),
-                            .map(|(t, output)| (*t, *output * self.scale_vel * 1.0)),
-                        &CYAN,
-                    ))
-                    .unwrap()
-                    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &CYAN))
-                    .label("PID Output Vel (x10)");
+            // vel
+            {
+                if self.draw_pid_output_vel {
+                    chart
+                        .draw_series(LineSeries::new(
+                            self.pid_output_vel
+                                .iter()
+                                // .map(|(t, output)| (*t, *output * self.scale_vel * 10.0)),
+                                .map(|(t, output)| (*t, *output * self.scale_vel * 1.0)),
+                            &CYAN,
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &CYAN))
+                        .label("PID Output Vel (x10)");
+                }
+
+                if self.draw_pid_vel_internals_error {
+                    chart
+                        .draw_series(DashedLineSeries::new(
+                            self.pid_vel_internals_error.iter().map(|(t, error)| {
+                                (*t, *error * self.pid_vel_internals_scale_error)
+                            }),
+                            5,
+                            5,
+                            ShapeStyle {
+                                color: ORANGE.to_rgba(),
+                                filled: false,
+                                stroke_width: self.stroke_width,
+                            },
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| {
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &ORANGE)
+                        })
+                        .label("PID Vel Error");
+                }
+
+                if self.draw_pid_vel_internals_p {
+                    chart
+                        .draw_series(DashedLineSeries::new(
+                            self.pid_vel_internals_p
+                                .iter()
+                                .map(|(t, p)| (*t, *p * self.pid_vel_internals_scale_p)),
+                            5,
+                            5,
+                            ShapeStyle {
+                                color: BROWN.to_rgba(),
+                                filled: false,
+                                stroke_width: self.stroke_width,
+                            },
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| {
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &BROWN)
+                        })
+                        .label("PID Vel P");
+                }
+
+                if self.draw_pid_vel_internals_i {
+                    chart
+                        .draw_series(DashedLineSeries::new(
+                            self.pid_vel_internals_i
+                                .iter()
+                                .map(|(t, i)| (*t, *i * self.pid_vel_internals_scale_i)),
+                            5,
+                            5,
+                            ShapeStyle {
+                                color: TEAL.to_rgba(),
+                                filled: false,
+                                stroke_width: self.stroke_width,
+                            },
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| {
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &TEAL)
+                        })
+                        .label("PID Vel I");
+                }
+
+                if self.draw_pid_vel_internals_d {
+                    chart
+                        .draw_series(DashedLineSeries::new(
+                            self.pid_vel_internals_d
+                                .iter()
+                                .map(|(t, d)| (*t, *d * self.pid_vel_internals_scale_d)),
+                            5,
+                            5,
+                            ShapeStyle {
+                                color: PURPLE.to_rgba(),
+                                filled: false,
+                                stroke_width: self.stroke_width,
+                            },
+                        ))
+                        .unwrap()
+                        // .legend(|(x, y)| DashedPathElement::new(vec![(x, y), (x + 20, y)], &BLUE))
+                        .legend(|(x, y)| {
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &PURPLE)
+                        })
+                        .label("PID Vel D");
+                }
             }
 
-            if self.draw_pid_vel_internals_error {
-                chart
-                    .draw_series(DashedLineSeries::new(
-                        self.pid_vel_internals_error
-                            .iter()
-                            .map(|(t, error)| (*t, *error * self.pid_vel_internals_scale_error)),
-                        5,
-                        5,
-                        ShapeStyle {
-                            color: ORANGE.to_rgba(),
-                            filled: false,
-                            stroke_width: self.stroke_width,
-                        },
-                    ))
-                    .unwrap()
-                    .legend(|(x, y)| {
-                        DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &ORANGE)
-                    })
-                    .label("PID Vel Error");
-            }
+            // pos
+            {
+                if self.draw_pid_output_pos {
+                    chart
+                        .draw_series(LineSeries::new(
+                            self.pid_output_pos
+                                .iter()
+                                // .map(|(t, output)| (*t, *output * self.scale_pos * 10.0)),
+                                .map(|(t, output)| (*t, *output * self.scale_vel * 1.0)),
+                            &CYAN,
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &CYAN))
+                        .label("PID Output pos (x10)");
+                }
 
-            if self.draw_pid_vel_internals_p {
-                chart
-                    .draw_series(DashedLineSeries::new(
-                        self.pid_vel_internals_p
-                            .iter()
-                            .map(|(t, p)| (*t, *p * self.pid_vel_internals_scale_p)),
-                        5,
-                        5,
-                        ShapeStyle {
-                            color: BROWN.to_rgba(),
-                            filled: false,
-                            stroke_width: self.stroke_width,
-                        },
-                    ))
-                    .unwrap()
-                    .legend(|(x, y)| {
-                        DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &BROWN)
-                    })
-                    .label("PID Vel P");
-            }
+                if self.draw_pid_pos_internals_error {
+                    chart
+                        .draw_series(DashedLineSeries::new(
+                            self.pid_pos_internals_error.iter().map(|(t, error)| {
+                                (*t, *error * self.pid_pos_internals_scale_error)
+                            }),
+                            5,
+                            5,
+                            ShapeStyle {
+                                color: ORANGE.to_rgba(),
+                                filled: false,
+                                stroke_width: self.stroke_width,
+                            },
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| {
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &ORANGE)
+                        })
+                        .label("PID pos Error");
+                }
 
-            if self.draw_pid_vel_internals_i {
-                chart
-                    .draw_series(DashedLineSeries::new(
-                        self.pid_vel_internals_i
-                            .iter()
-                            .map(|(t, i)| (*t, *i * self.pid_vel_internals_scale_i)),
-                        5,
-                        5,
-                        ShapeStyle {
-                            color: TEAL.to_rgba(),
-                            filled: false,
-                            stroke_width: self.stroke_width,
-                        },
-                    ))
-                    .unwrap()
-                    .legend(|(x, y)| DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &TEAL))
-                    .label("PID Vel I");
-            }
+                if self.draw_pid_pos_internals_p {
+                    chart
+                        .draw_series(DashedLineSeries::new(
+                            self.pid_pos_internals_p
+                                .iter()
+                                .map(|(t, p)| (*t, *p * self.pid_pos_internals_scale_p)),
+                            5,
+                            5,
+                            ShapeStyle {
+                                color: BROWN.to_rgba(),
+                                filled: false,
+                                stroke_width: self.stroke_width,
+                            },
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| {
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &BROWN)
+                        })
+                        .label("PID pos P");
+                }
 
-            if self.draw_pid_vel_internals_d {
-                chart
-                    .draw_series(DashedLineSeries::new(
-                        self.pid_vel_internals_d
-                            .iter()
-                            .map(|(t, d)| (*t, *d * self.pid_vel_internals_scale_d)),
-                        5,
-                        5,
-                        ShapeStyle {
-                            color: PURPLE.to_rgba(),
-                            filled: false,
-                            stroke_width: self.stroke_width,
-                        },
-                    ))
-                    .unwrap()
-                    // .legend(|(x, y)| DashedPathElement::new(vec![(x, y), (x + 20, y)], &BLUE))
-                    .legend(|(x, y)| {
-                        DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &PURPLE)
-                    })
-                    .label("PID Vel D");
+                if self.draw_pid_pos_internals_i {
+                    chart
+                        .draw_series(DashedLineSeries::new(
+                            self.pid_pos_internals_i
+                                .iter()
+                                .map(|(t, i)| (*t, *i * self.pid_pos_internals_scale_i)),
+                            5,
+                            5,
+                            ShapeStyle {
+                                color: TEAL.to_rgba(),
+                                filled: false,
+                                stroke_width: self.stroke_width,
+                            },
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| {
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &TEAL)
+                        })
+                        .label("PID pos I");
+                }
+
+                if self.draw_pid_pos_internals_d {
+                    chart
+                        .draw_series(DashedLineSeries::new(
+                            self.pid_pos_internals_d
+                                .iter()
+                                .map(|(t, d)| (*t, *d * self.pid_pos_internals_scale_d)),
+                            5,
+                            5,
+                            ShapeStyle {
+                                color: PURPLE.to_rgba(),
+                                filled: false,
+                                stroke_width: self.stroke_width,
+                            },
+                        ))
+                        .unwrap()
+                        // .legend(|(x, y)| DashedPathElement::new(vec![(x, y), (x + 20, y)], &BLUE))
+                        .legend(|(x, y)| {
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &PURPLE)
+                        })
+                        .label("PID pos D");
+                }
             }
 
             chart
@@ -806,6 +1096,7 @@ impl DataPlot {
     #[cfg(feature = "nope")]
     pub fn show_plot0(&mut self, ui: &mut egui::Ui) {}
 
+    #[cfg(feature = "nope")]
     pub fn show_plot1(&mut self, ui: &mut egui::Ui) {
         let root = EguiBackend::new(ui).into_drawing_area();
 

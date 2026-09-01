@@ -115,8 +115,8 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     // not used except with current sensor
     // pub(super) lpf_current_q: LowPassFilter,
     // pub(super) lpf_current_d: LowPassFilter,
-    pub pid_velocity: PIDController,
-    pub pid_angle: PIDController,
+    pub pid_velocity: PIDController<f32>,
+    pub pid_angle: PIDController<f32>,
 
     pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
     // pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning_vel::VelocityAutoTuner>,
@@ -126,8 +126,8 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub(super) lpf_velocity: LowPassFilter,
     pub(super) lpf_angle: LowPassFilter,
 
-    pub(super) pid_current_q: PIDController,
-    pub(super) pid_current_d: PIDController,
+    pub(super) pid_current_q: PIDController<f32>,
+    pub(super) pid_current_d: PIDController<f32>,
 
     pub(super) lpf_current_q: LowPassFilter,
     pub(super) lpf_current_d: LowPassFilter,
@@ -163,6 +163,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         const PID_VELOCITY_KP: f32 = 0.05;
         const PID_VELOCITY_KI: f32 = 10_000.0;
+        // const PID_VELOCITY_KI: f32 = 0.0;
         // const PID_VELOCITY_KI: f32 = 0.1;
         // const PID_VELOCITY_KD: f32 = 0.0005;
         // const PID_VELOCITY_KD: f32 = 0.005;
@@ -185,6 +186,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         const PID_VELOCITY_LIMIT: f32 = 100.;
 
         const PID_ANGLE_KP: f32 = 20.0;
+        const PID_ANGLE_KI: f32 = 10_000.0;
+        // const PID_ANGLE_KI: f32 = 0.0;
+        const PID_ANGLE_KD: f32 = 0.0;
         // const PID_ANGLE_LIMIT: f32 = 20.0;
         // const PID_ANGLE_LIMIT: f32 = 10.0;
         const PID_ANGLE_LIMIT: f32 = 5.0;
@@ -253,7 +257,6 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
             // modulation: FOCModulation::SinePWM,
             modulation: FOCModulation::SpaceVectorPWM,
-
             pid_velocity: PIDController::new(
                 PID_VELOCITY_KP,
                 PID_VELOCITY_KI,
@@ -262,7 +265,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 PID_VELOCITY_LIMIT,
             ),
 
-            pid_angle: PIDController::new(PID_ANGLE_KP, 0.0, 0.0, 0.0, PID_ANGLE_LIMIT),
+            pid_angle: PIDController::new(
+                PID_ANGLE_KP,
+                PID_ANGLE_KI,
+                PID_ANGLE_KD,
+                0.0,
+                PID_ANGLE_LIMIT,
+            ),
 
             pid_angle_tuner: None,
             pid_velocity_tuner: None,
@@ -318,8 +327,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     // }
 
     pub fn set_vel_pid_debug(&mut self, target_input: f32) {
-        let tuner = crate::simplefoc::pid_tuning::PidTuner::new(&self.pid_velocity, target_input);
-        self.pid_velocity_tuner = Some(tuner);
+        // let tuner = crate::simplefoc::pid_tuning::PidTuner::new(&self.pid_velocity, target_input);
+        // self.pid_velocity_tuner = Some(tuner);
+        unimplemented!()
     }
 
     pub fn set_zero_electric_angle(&mut self, zero_electric_angle: f32) {

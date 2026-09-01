@@ -1,7 +1,10 @@
 use defmt::{debug, error, info};
 use embassy_rp::{Peri, gpio::Output};
 
-use crate::{hardware::encoder_sensor::EncoderSensor, simplefoc::types::_2PI};
+use crate::{
+    hardware::encoder_sensor::{EncoderSensor, N_LUT},
+    simplefoc::types::_2PI,
+};
 
 #[derive(defmt::Format)]
 pub struct MT6701<SPI> {
@@ -21,6 +24,9 @@ pub struct MT6701<SPI> {
     vel_angle_prev_ts: u64, // last velocity calculation timestamp
     full_rotations: i32, // full rotation tracking
     vel_full_rotations: i32, // previous full rotation value for velocity calculation
+
+    lut: [f32; N_LUT],        // lookup table for magnet correction
+    enable_calibration: bool, // flag to enable/disable calibration
 }
 
 #[derive(defmt::Format, Debug)]
@@ -59,6 +65,14 @@ impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
             .map_err(|_| MT6701Error::SPIError)?;
         Ok(())
     }
+
+    fn set_calibration_lut(&mut self, calibration: [f32; super::encoder_sensor::N_LUT]) {
+        self.lut = calibration;
+    }
+
+    fn enable_calibration(&mut self, enable: bool) {
+        self.enable_calibration = enable;
+    }
 }
 
 impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
@@ -80,6 +94,9 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
             vel_angle_prev_ts: 0,
             full_rotations: 0,
             vel_full_rotations: 0,
+
+            lut: [0.0; N_LUT],
+            enable_calibration: false,
         }
     }
 
@@ -320,8 +337,32 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
     pub async fn _update(&mut self, ts_us: u64) -> Result<(), MT6701Error> {
         let raw_angle = self.read_raw_angle().await?;
         // debug!("Raw angle: {}", raw_angle);
-        let angle = (raw_angle as f32 / 16384_f32) * _2PI;
+        // let angle = (raw_angle as f32 / 16384_f32) * _2PI;
+        let raw_angle = (raw_angle as f32 / 16384_f32) * _2PI;
         // debug!("Angle: {}", angle);
+
+        // let index = raw_angle >> 7;
+
+        // let angle = angle - self.lut[index as usize];
+
+        let angle = if self.enable_calibration {
+            let lut_resolution = _2PI / N_LUT as f32;
+            let lut_index = raw_angle / lut_resolution;
+
+            let y0 = self.lut[lut_index as usize];
+            let y1 = self.lut[(lut_index as usize + 1) % N_LUT];
+
+            // Linearly interpolate between the y0 and y1 values
+            // Calculate the relative distance from the y0 (raw_angle has to be between y0 and y1)
+            // If distance = 0, interpolated offset = y0
+            // If distance = 1, interpolated offset = y1
+            let distance = (raw_angle - lut_index as f32 * lut_resolution) / lut_resolution;
+            let offset = (1. - distance) * y0 + distance * y1;
+
+            raw_angle - offset
+        } else {
+            raw_angle
+        };
 
         let move_angle = angle - self.angle_prev;
 

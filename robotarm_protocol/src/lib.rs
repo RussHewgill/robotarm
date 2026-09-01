@@ -26,13 +26,15 @@ pub enum SerialLogMessage {
         feed_forward: f32,
         pid_outputs: (f32, f32),
         // pid_internals_vel: (f32, f32, f32, f32),
+        // pid_internals_pos: (f32, f32, f32, f32),
     },
-    // PIDDebugData {
-    //     id: u8,
-    //     timestamp: u64,
-    //     // (error, p_term, i_term, d_term)
-    //     pid_internals_vel: (f32, f32, f32, f32),
-    // },
+    PIDDebugData {
+        id: u8,
+        timestamp: u64,
+        // (error, p_term, i_term, d_term)
+        pid_internals_vel: (f32, f32, f32, f32),
+        pid_internals_pos: (f32, f32, f32, f32),
+    },
     DebugData {
         id: u8,
         timestamp: u64,
@@ -74,7 +76,7 @@ impl SerialLogMessage {
             SerialLogMessage::EncoderData { id, .. } => *id,
             SerialLogMessage::MotorPID { id, .. } => *id,
             SerialLogMessage::FocLoopRate { id, .. } => *id,
-            // SerialLogMessage::PIDDebugData { id, .. } => *id,
+            SerialLogMessage::PIDDebugData { id, .. } => *id,
         }
     }
 }
@@ -100,6 +102,10 @@ pub enum SerialCommand {
     SetDebugRate {
         id: u8,
         rate_hz: u16,
+    },
+    SetEncoderCalibration {
+        id: u8,
+        enable: bool,
     },
     SetModeTorque {
         id: u8,
@@ -162,6 +168,7 @@ impl SerialCommand {
             SerialCommand::RequestDebugData { id } => *id,
             SerialCommand::SetEnabled { id, .. } => *id,
             SerialCommand::SetDebugRate { id, .. } => *id,
+            SerialCommand::SetEncoderCalibration { id, .. } => *id,
             SerialCommand::SetModeTorque { id } => *id,
             SerialCommand::SetModeVelocityOpenLoop { id } => *id,
             SerialCommand::SetModeVelocity { id } => *id,

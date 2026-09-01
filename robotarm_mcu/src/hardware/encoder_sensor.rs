@@ -1,5 +1,7 @@
 use defmt::{debug, error, info, trace, warn};
 
+pub const N_LUT: usize = 128;
+
 pub trait EncoderSensor {
     type Error: core::fmt::Debug;
 
@@ -16,6 +18,9 @@ pub trait EncoderSensor {
     async fn read_raw_debug(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
+
+    fn set_calibration_lut(&mut self, calibration: [f32; N_LUT]) {}
+    fn enable_calibration(&mut self, enable: bool) {}
 }
 
 // impl EncoderSensor for () {

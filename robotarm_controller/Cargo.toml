@@ -50,4 +50,5 @@ k = "0.32.0"
 nalgebra = "0.30.1"
 
 nusb = { version = "0.2.7", features = ["tokio"] }
+csv = "1.4.0"
 # nusb = { version = "0.2.7", features = [] }

@@ -12,8 +12,8 @@ use static_cell::StaticCell;
 
 use crate::{MOTOR_ID_A, MOTOR_ID_B};
 
-// pub type UsbMutex = embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-pub type UsbMutex = embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
+pub type UsbMutex = embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+// pub type UsbMutex = embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 
 pub type LogChannel =
     embassy_sync::channel::Channel<UsbMutex, robotarm_protocol::SerialLogMessage, 5>;
@@ -253,29 +253,40 @@ async fn usb_logger_task(
             embassy_futures::select::Either::First(msg) => {
                 // debug!("Sending log message: {:?}", msg);
                 // #[cfg(feature = "nope")]
+
+                // if let Ok(encoded) = postcard::to_slice_cobs(&msg, &mut usb_monitor.buf) {
+                //     // if encoded.len() <= 64 {
+                //     //     // let _ = self.tx.write_packet(encoded).await;
+                //     //     // unimplemented!()
+                //     //     if let Err(e) = usb_monitor.write_ep.write(encoded).await {
+                //     //         error!("Failed to write USB packet: {:?}", e);
+                //     //     }
+                //     // } else {
+                //     //     // for i in encoded.chunks(64) {
+                //     //     //     let _ = self.tx.write_packet(i).await;
+                //     //     // }
+                //     //     // error!("Encoded message too long for USB packet");
+                //     //     // let mut _ = self.tx.write_packet(&encoded[..64]).await;
+                //     //     for c in encoded.chunks(64) {
+                //     //         if let Err(e) = usb_monitor.write_ep.write(c).await {
+                //     //             error!("Failed to write USB packet: {:?}", e);
+                //     //         }
+                //     //     }
+                //     // }
+                //     // // let _ = self.class.write_packet(encoded).await;
+                //     if let Err(e) = usb_monitor.write_ep.write(&encoded).await {
+                //         error!("Failed to write USB packet: {:?}", e);
+                //     }
+                //     // usb_monitor.write_ep.
+                // } else {
+                //     error!("Failed to encode message");
+                // }
+
                 if let Ok(encoded) = postcard::to_slice_cobs(&msg, &mut usb_monitor.buf) {
-                    // if encoded.len() <= 64 {
-                    //     // let _ = self.tx.write_packet(encoded).await;
-                    //     // unimplemented!()
-                    // } else {
-                    //     // for i in encoded.chunks(64) {
-                    //     //     let _ = self.tx.write_packet(i).await;
-                    //     // }
-                    //     error!("Encoded message too long for USB packet");
-                    //     // let mut _ = self.tx.write_packet(&encoded[..64]).await;
-                    // }
-                    // // let _ = self.class.write_packet(encoded).await;
-                    // if let Err(e) = usb_monitor.write_ep.write(&encoded).await {
-                    //     error!("Failed to write USB packet: {:?}", e);
-                    // }
-                    // usb_monitor.write_ep.
-                    for c in encoded.chunks(64) {
-                        if let Err(e) = usb_monitor.write_ep.write(c).await {
-                            error!("Failed to write USB packet: {:?}", e);
-                        }
+                    // debug!("Encoded len = {}", encoded.len());
+                    if let Err(e) = usb_monitor.write_ep.write(&encoded).await {
+                        error!("Failed to write USB packet: {:?}", e);
                     }
-                } else {
-                    error!("Failed to encode message");
                 }
             }
             embassy_futures::select::Either::Second(Err(e)) => {

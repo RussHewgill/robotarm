@@ -135,18 +135,21 @@ where
 
         let out_unclamped = self.kp * (self.error + i + self.d);
 
-        let saturated = out_unclamped > self.out_range_max || out_unclamped < self.out_range_min;
+        // let saturated = out_unclamped > self.out_range_max || out_unclamped < self.out_range_min;
 
-        let same_sign = (out_unclamped > T::zero() && self.error > T::zero())
-            || (out_unclamped < T::zero() && self.error < T::zero());
+        // let same_sign = (out_unclamped > T::zero() && self.error > T::zero())
+        //     || (out_unclamped < T::zero() && self.error < T::zero());
 
-        // self.i = integrator;
-        let out = if !(same_sign && saturated) {
-            out_unclamped
-        } else {
-            self.i = i;
-            out_unclamped.clamp(self.out_range_min, self.out_range_max)
-        };
+        // // self.i = integrator;
+        // let out = if !(same_sign && saturated) {
+        //     out_unclamped
+        // } else {
+        //     self.i = i;
+        //     out_unclamped.clamp(self.out_range_min, self.out_range_max)
+        // };
+
+        self.i = i;
+        let out = out_unclamped.clamp(self.out_range_min, self.out_range_max);
 
         let internals = (self.error, self.p, self.i, self.d);
 
@@ -240,5 +243,11 @@ where
     /// Get the set point.
     pub fn get_sp(&mut self) -> T {
         self.sp
+    }
+
+    #[inline]
+    pub fn set_output_range(&mut self, min: T, max: T) {
+        self.out_range_min = min;
+        self.out_range_max = max;
     }
 }

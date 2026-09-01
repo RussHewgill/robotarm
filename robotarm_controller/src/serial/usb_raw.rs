@@ -110,6 +110,33 @@ impl UsbRawHandler {
         Ok(())
     }
 
+    #[cfg(feature = "nope")]
+    fn run_accum(
+        &mut self,
+        n: usize,
+        serial_log_tx: &mut crossbeam_channel::Sender<SerialLogMessage>,
+    ) -> Result<()> {
+        if n == 0 {
+            return Ok(());
+        }
+
+        // debug!("Received {} bytes: {:?}", n, &self.bytes[..n]);
+
+        match postcard::from_bytes(&self.bytes[..n]) {
+            Ok(msg) => {
+                serial_log_tx.send(msg)?;
+                self.bytes.advance(n);
+                Ok(())
+            }
+            Err(e) => {
+                error!("Error deserializing message: {:?}", e);
+                self.bytes.advance(n);
+                Err(anyhow!("Error deserializing message: {:?}", e))
+            }
+        }
+    }
+
+    // #[cfg(feature = "nope")]
     fn run_accum(
         &mut self,
         n: usize,

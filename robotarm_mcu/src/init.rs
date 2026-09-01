@@ -76,8 +76,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     >,
 ) {
     debug!("Starting FOC task for ID: {}", foc.id);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // match foc.id {
@@ -109,8 +109,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_debug_freq(2);
     // foc.set_debug_freq(10);
-    // foc.set_debug_freq(100);
-    foc.set_debug_freq(500);
+    foc.set_debug_freq(100);
+    // foc.set_debug_freq(500);
     // foc.set_debug_freq(0);
 
     // foc.set_vel_pid_debug(0.);
@@ -174,7 +174,6 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         }
     }
 
-    let mut t0 = Instant::now();
     let mut c = 0;
 
     // foc.angle_sensor_downsample = 0;
@@ -196,7 +195,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_zero_electric_angle(0.);
 
-    foc.set_zero_electric_angle(3.08);
+    // foc.set_zero_electric_angle(2.8);
+    // foc.set_zero_electric_angle(3.08);
     // foc.set_zero_electric_angle(5.05);
 
     // match foc.id {
@@ -219,6 +219,9 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     info!("Starting init");
     foc.init();
+
+    // foc.calibrate_encoder().await;
+
     info!("Starting FOC init");
     foc.init_foc().await;
     // spawner.spawn(loop_foc(foc)).unwrap();
@@ -228,6 +231,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.find_angle_limits().await;
     // debug!("Done");
 
+    let mut t0 = Instant::now();
     let mut n = 0;
     #[cfg(feature = "nope")]
     loop {

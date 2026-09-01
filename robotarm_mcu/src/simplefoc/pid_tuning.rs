@@ -29,6 +29,7 @@ pub struct PidTuner {
     n_samples: u32,
 }
 
+#[cfg(feature = "nope")]
 impl PidTuner {
     pub fn new(pid: &PIDController, target_input: f32) -> Self {
         let output_low = -pid.get_limit();

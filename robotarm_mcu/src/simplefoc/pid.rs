@@ -1,14 +1,15 @@
 use defmt::debug;
 use embassy_time::Instant;
+use num_traits::float::FloatCore;
 
 use crate::simplefoc::pid_standard;
 
-pub struct PIDController {
+pub struct PIDController<T: FloatCore> {
     // pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
     pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f64>,
     pid: self::prev::PIDController,
     // pid3: (pidgeon::ControllerConfig, pidgeon::PidState),
-    pid4: pid_standard::StandardPID<f64>,
+    pid4: pid_standard::StandardPID<T>,
     // pid4: pid_standard::StandardPID<f32>,
     ramp: f32,
     prev_output: f32,
@@ -16,7 +17,7 @@ pub struct PIDController {
     prev_t_us: u64,
 }
 
-impl PIDController {
+impl<T: FloatCore> PIDController<T> {
     pub fn new(p: f32, i: f32, d: f32, ramp: f32, limit: f32) -> Self {
         // debug!(
         //     "Creating PIDController with p: {}, i: {}, d: {}, ramp: {}, limit: {}",
@@ -61,14 +62,14 @@ impl PIDController {
         //     .unwrap();
         // let pid3 = PidState::default();
 
-        let pid4 = pid_standard::StandardPID::new(
-            p as f64,
-            i as f64,
-            d as f64,
-            0.0,
-            -limit as f64,
-            limit as f64,
-        );
+        // let pid4 = pid_standard::StandardPID::new(
+        //     p as f64,
+        //     i as f64,
+        //     d as f64,
+        //     0.0,
+        //     -limit as f64,
+        //     limit as f64,
+        // );
 
         // let pid4 = pid_standard::StandardPID::new(
         //     p as f32,
@@ -78,6 +79,15 @@ impl PIDController {
         //     -limit as f32,
         //     limit as f32,
         // );
+
+        let pid4 = pid_standard::StandardPID::new(
+            T::from(p).unwrap(),
+            T::from(i).unwrap(),
+            T::from(d).unwrap(),
+            T::from(0.0).unwrap(),
+            T::from(-limit).unwrap(),
+            T::from(limit).unwrap(),
+        );
 
         Self {
             pid,
@@ -138,25 +148,31 @@ impl PIDController {
             return 0.0;
         }
 
-        self.pid4.set_sp(setpoint as f64);
-        let dt = (t_us - self.prev_t_us) as f64 * 1e-6;
-        let (output, internals) = self.pid4.update(input as f64, dt);
+        // self.pid4.set_sp(setpoint as f64);
+        // let dt = (t_us - self.prev_t_us) as f64 * 1e-6;
+        // let (output, internals) = self.pid4.update(input as f64, dt);
 
         // self.pid4.set_sp(setpoint as f32);
         // let dt = (t_us - self.prev_t_us) as f32 * 1e-6;
         // let (output, internals) = self.pid4.update(input as f32, dt);
 
+        self.pid4.set_sp(T::from(setpoint).unwrap());
+        let dt = T::from(t_us - self.prev_t_us).unwrap() * T::from(1e-6).unwrap();
+        let (output, internals) = self.pid4.update(T::from(input).unwrap(), dt);
+
         // debug!("output: {}", output);
 
         self.prev_internals = (
-            internals.0 as f32,
-            internals.1 as f32,
-            internals.2 as f32,
-            internals.3 as f32,
+            internals.0.to_f32().unwrap(),
+            internals.1.to_f32().unwrap(),
+            internals.2.to_f32().unwrap(),
+            internals.3.to_f32().unwrap(),
         );
 
-        self.prev_output = output as f32;
-        output as f32
+        // self.prev_output = output as f32;
+        // output as f32
+        self.prev_output = output.to_f32().unwrap();
+        output.to_f32().unwrap()
     }
 
     pub fn prev_output(&self) -> f32 {
@@ -212,7 +228,7 @@ impl PIDController {
 }
 
 // #[cfg(feature = "nope")]
-impl PIDController {
+impl<T: FloatCore> PIDController<T> {
     pub fn get_p(&self) -> f32 {
         self.pid2.config().kp() as f32
         // self.pid3.0.kp() as f32
@@ -259,7 +275,7 @@ impl PIDController {
         //     .build()
         //     .unwrap();
         // self.pid3.0 = config;
-        self.pid4.set_kp(p as f64);
+        self.pid4.set_kp(T::from(p).unwrap());
     }
     pub fn set_i(&mut self, i: f32) {
         let mut conf = *self.pid2.config();
@@ -289,7 +305,7 @@ impl PIDController {
         //     -self.pid.limit as f64,
         //     self.pid.limit as f64,
         // );
-        self.pid4.set_ti_s(i as f64);
+        self.pid4.set_ti_s(T::from(i).unwrap());
         self.pid4.reset_integral_term();
     }
     pub fn set_d(&mut self, d: f32) {
@@ -320,7 +336,7 @@ impl PIDController {
         //     -self.pid.limit as f64,
         //     self.pid.limit as f64,
         // );
-        self.pid4.set_td_s(d as f64);
+        self.pid4.set_td_s(T::from(d).unwrap());
     }
     pub fn set_ramp(&mut self, ramp: f32) {
         self.ramp = ramp;
@@ -346,8 +362,8 @@ impl PIDController {
         //     .build()
         //     .unwrap();
         // self.pid3.0 = config;
-        // self.pid4.
-        unimplemented!()
+        self.pid4
+            .set_output_range(T::from(-limit).unwrap(), T::from(limit).unwrap());
     }
 
     pub fn prev_internals(&self) -> (f32, f32, f32, f32) {

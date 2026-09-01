@@ -244,8 +244,15 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // #[cfg(feature = "nope")]
         match cmd {
+            SerialCommand::SetEncoderCalibration { id, enable } => {
+                debug!(
+                    "Received SetEncoderCalibration command: id: {}, enable: {}",
+                    id, enable
+                );
+                unimplemented!()
+            }
             SerialCommand::ZeroPosition { id } => {
-                trace!("Received ZeroPosition command: id: {}", id);
+                debug!("Received ZeroPosition command: id: {}", id);
                 self.encoder.reset_position();
             }
             SerialCommand::SetLPF {
@@ -259,28 +266,28 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 if let Some(lpf_angle) = lpf_angle {
                     self.lpf_angle.tf = lpf_angle;
                 }
-                trace!(
+                debug!(
                     "Received SetLPF command: id: {}, lpf_vel: {:?}, lpf_angle: {:?}",
                     id, lpf_vel, lpf_angle
                 );
             }
             SerialCommand::SetDebugRate { id, rate_hz } => {
                 self.set_debug_freq(rate_hz as u64);
-                trace!(
+                debug!(
                     "Received SetDebugRate command: id: {}, rate_hz: {}",
                     id, rate_hz
                 );
             }
             SerialCommand::SetVoltageLimit { id, voltage_limit } => {
                 self.set_voltage_limit(voltage_limit);
-                trace!(
+                debug!(
                     "Received SetVoltageLimit command: id: {}, voltage_limit: {}",
                     id, voltage_limit
                 );
             }
             // SerialCommand::SetSensorOffset { id, offset } => {
             //     if id == self.id {
-            //         trace!(
+            //         debug!(
             //             "Received SetSensorOffset command: id: {}, current offset: {}, sensor_offset: {}",
             //             id, self.sensor_offset, offset
             //         );
@@ -296,30 +303,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             // }
             SerialCommand::SetFeedForward { id, ff } => {
                 self.feed_forward_torque = ff;
-                trace!(
+                debug!(
                     "Received SetFeedForward command: id: {}, feed_forward_torque: {}",
                     id, ff
                 );
             }
             SerialCommand::RequestSettings { id } => {
-                trace!("Received RequestSettings command: id: {}", id);
-                // if let Some(logger) = &mut self.usb_logger {
-                //     logger.send_log_msg(SerialLogMessage::MotorPID {
-                //         id: self.id,
-                //         vel_p: self.pid_velocity.get_p(),
-                //         vel_i: self.pid_velocity.get_i(),
-                //         vel_d: self.pid_velocity.get_d(),
-                //         vel_ramp: self.pid_velocity.get_ramp(),
-                //         vel_limit: self.pid_velocity.get_limit(),
-                //         angle_p: self.pid_angle.get_p(),
-                //         angle_i: self.pid_angle.get_i(),
-                //         angle_d: self.pid_angle.get_d(),
-                //         angle_ramp: self.pid_angle.get_ramp(),
-                //         angle_limit: self.pid_angle.get_limit(),
-                //         lpf_angle: self.lpf_angle.tf,
-                //         lpf_vel: self.lpf_velocity.tf,
-                //     });
-                // }
+                debug!("Received RequestSettings command: id: {}", id);
                 self.usb_logger.send_log_msg(SerialLogMessage::MotorPID {
                     id: self.id,
                     vel_p: self.pid_velocity.get_p(),
@@ -337,7 +327,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 });
             }
             SerialCommand::RequestDebugData { id } => {
-                trace!("Received RequestDebugData command: id: {}", id);
+                debug!("Received RequestDebugData command: id: {}", id);
 
                 // if let Some(logger) = &mut self.usb_logger {
                 //     logger.send_log_msg(SerialLogMessage::DebugData {
@@ -358,7 +348,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 } else {
                     self.disable();
                 }
-                trace!(
+                debug!(
                     "Received SetEnabled command: id: {}, enabled: {}",
                     id, enabled
                 );
@@ -371,26 +361,26 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     MotionControlType::VelocityOpenLoop => self.set_target_velocity(target),
                 }
                 // self.set_target_position(target);
-                trace!(
+                debug!(
                     "Received SetMotorTarget command: id: {}, target: {}",
                     id, target
                 );
             }
             SerialCommand::SetModeTorque { id } => {
                 self.set_motion_control(MotionControlType::Torque);
-                trace!("Received SetModeTorque command: id: {}", id);
+                debug!("Received SetModeTorque command: id: {}", id);
             }
             SerialCommand::SetModeAngle { id } => {
                 self.set_motion_control(MotionControlType::Angle);
-                trace!("Received SetModeAngle command: id: {}", id);
+                debug!("Received SetModeAngle command: id: {}", id);
             }
             SerialCommand::SetModeVelocity { id } => {
                 self.set_motion_control(MotionControlType::Velocity);
-                trace!("Received SetModeVelocity command: id: {}", id);
+                debug!("Received SetModeVelocity command: id: {}", id);
             }
             SerialCommand::SetModeVelocityOpenLoop { id } => {
                 self.set_motion_control(MotionControlType::VelocityOpenLoop);
-                trace!("Received SetModeVelocityOpenLoop command: id: {}", id);
+                debug!("Received SetModeVelocityOpenLoop command: id: {}", id);
             }
             SerialCommand::SetVelocityPID {
                 id,
@@ -415,7 +405,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 if let Some(ramp) = ramp {
                     self.pid_velocity.set_ramp(ramp);
                 }
-                trace!(
+                debug!(
                     "Received SetPID command: id: {}, p: {:?}, i: {:?}, d: {:?}, limit: {:?}",
                     id, p, i, d, limit
                 );
@@ -443,14 +433,14 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 if let Some(ramp) = ramp {
                     self.pid_angle.set_ramp(ramp);
                 }
-                trace!(
+                debug!(
                     "Received SetPID command: id: {}, p: {:?}, i: {:?}, d: {:?}, limit: {:?}",
                     id, p, i, d, limit
                 );
             }
             SerialCommand::SetZeroElectricalAngle { id, angle } => {
                 self.zero_electric_angle = angle;
-                trace!(
+                debug!(
                     "Received SetZeroElectricalAngle command: id: {}, zero_electric_angle: {}",
                     id, angle
                 );

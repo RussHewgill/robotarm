@@ -1318,9 +1318,9 @@ fn main() -> ! {
 
     // let voltage_limit = 2.0;
     // let voltage_limit = 4.;
-    // let voltage_limit = 8.;
+    let voltage_limit = 8.;
     // let voltage_limit = 10.;
-    let voltage_limit = 12.;
+    // let voltage_limit = 12.;
     // let voltage_limit = 18.;
 
     // let supply_voltage = 12.0;
@@ -1595,7 +1595,7 @@ fn main() -> ! {
                 // let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
                 // crate::comms::usb::UsbMonitor::init(&spawner, driver);
-                // crate::comms::usb_raw::usb_init(&spawner, driver);
+                crate::comms::usb_raw::usb_init(&spawner, driver);
 
                 // spawner.spawn(
                 //     crate::simplefoc::current_read_task::core1_task_current_sens(current_sensor)
@@ -1641,7 +1641,7 @@ fn main() -> ! {
         //     .spawn(crate::init::core0_task0(foc0, None))
         //     .unwrap();
 
-        crate::comms::usb_raw::usb_init(&spawner, driver);
+        // crate::comms::usb_raw::usb_init(&spawner, driver);
         spawner.spawn(crate::init::core0_task1(foc1, None).unwrap());
 
         // crate::comms::usb::UsbMonitor::init(&spawner, driver);

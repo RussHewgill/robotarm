@@ -77,22 +77,30 @@ impl App {
                     } => {
                         debug!("TODO: Got encoder data {:#?}", id);
                     }
-                    // SerialLogMessage::PIDDebugData {
-                    //     id,
-                    //     timestamp,
-                    //     pid_internals_vel,
-                    // } => {
-                    //     if let Some(t0) = self.t0 {
-                    //         let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
-                    //         self.plots[id as usize].add_points_pid_vel_internals(
-                    //             t,
-                    //             pid_internals_vel.0 as f64,
-                    //             pid_internals_vel.1 as f64,
-                    //             pid_internals_vel.2 as f64,
-                    //             pid_internals_vel.3 as f64,
-                    //         );
-                    //     }
-                    // }
+                    SerialLogMessage::PIDDebugData {
+                        id,
+                        timestamp,
+                        pid_internals_vel,
+                        pid_internals_pos,
+                    } => {
+                        if let Some(t0) = self.t0 {
+                            let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
+                            self.plots[id as usize].add_points_pid_vel_internals(
+                                t,
+                                pid_internals_vel.0 as f64,
+                                pid_internals_vel.1 as f64,
+                                pid_internals_vel.2 as f64,
+                                pid_internals_vel.3 as f64,
+                            );
+                            self.plots[id as usize].add_points_pid_pos_internals(
+                                t,
+                                pid_internals_pos.0 as f64,
+                                pid_internals_pos.1 as f64,
+                                pid_internals_pos.2 as f64,
+                                pid_internals_pos.3 as f64,
+                            );
+                        }
+                    }
                     SerialLogMessage::FocLoopRate {
                         id,
                         timestamp,
@@ -122,18 +130,40 @@ impl App {
                         // debug!("Got motor data {:#?}", msg);
                         // debug!("Got motor data");
 
+                        // let motor_voltage = (0., 0.);
+                        // let sensor_currents = Some((0., 0.));
+                        // let feed_forward = 0.;
+
                         // debug!("Got motor data from motor {}", id);
 
                         // debug!("Sensor currents: {:?}", sensor_currents);
+
+                        // let file = "motor_data.csv";
+                        // let mut writer = std::fs::OpenOptions::new()
+                        //     .create(true)
+                        //     .append(true)
+                        //     .open(file)
+                        //     .expect("Failed to open CSV file for writing");
+                        // let mut wtr = csv::Writer::from_writer(writer);
+                        // wtr.write_field(format!("{:.6}", timestamp as f64 * 1e-6))
+                        //     .expect("Failed to write timestamp");
+                        // wtr.write_field(format!("{}", target_position))
+                        //     .expect("Failed to write position");
+                        // wtr.write_field(format!("{}", position))
+                        //     .expect("Failed to write position");
+                        // // wtr.write_field(format!("{}", velocity))
+                        // //     .expect("Failed to write velocity");
+                        // wtr.write_record(None::<&[u8]>).unwrap();
 
                         /// only plot data from motor 0 for now
                         if let Some(t0) = self.t0 {
                             let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
                             self.plots[id as usize].add_point_angle(t, angle as f64);
+                            self.plots[id as usize].add_point_pos(t, position as f64);
                             self.plots[id as usize].add_point_vel(t, velocity as f64);
                             self.plots[id as usize].add_point_target_vel(t, target_velocity as f64);
                             self.plots[id as usize].add_point_target_pos(t, target_position as f64);
-                            self.plots[id as usize].add_point_voltage(t, motor_voltage.0 as f64);
+                            // self.plots[id as usize].add_point_voltage(t, motor_voltage.0 as f64);
                             self.plots[id as usize]
                                 .add_point_pid_output_vel(t, pid_outputs.0 as f64);
                             self.plots[id as usize]
@@ -165,6 +195,7 @@ impl App {
                                 self.last_update[id as usize] = Some(Instant::now());
 
                                 let offset = self.status[id as usize].angle_offset;
+                                // debug!("target_pos: {}", target_position as f64);
                                 self.status[id as usize].target_pos =
                                     target_position as f64 + offset;
                                 self.status[id as usize].target_vel = target_velocity as f64;

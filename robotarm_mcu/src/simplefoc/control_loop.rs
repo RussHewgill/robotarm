@@ -260,6 +260,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 }
             }
             MotionControlType::Velocity => {
+                #[cfg(feature = "nope")]
                 if let Some(tuner) = &mut self.pid_velocity_tuner {
                     if !tuner.done() {
                         self.motor.target_current = tuner.update(self.shaft_velocity, t_us);
@@ -274,6 +275,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                         t_us,
                     );
                 }
+
+                self.motor.target_current = self.feed_forward_torque
+                    + self.pid_velocity.update(
+                        self.motor.target_shaft_velocity,
+                        self.shaft_velocity,
+                        t_us,
+                    );
 
                 if self.torque_controller == TorqueControlType::Voltage {
                     match self.motor.phase_resistance {
@@ -424,15 +432,18 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     self.pid_angle.prev_output(),
                 ),
                 // pid_internals_vel: self.pid_velocity.prev_internals(),
+                // pid_internals_vel: (0., 0., 0., 0.),
+                // pid_internals_vel: None,
             })
             .await;
 
-            // self.send_debug_message(SerialLogMessage::PIDDebugData {
-            //     id: self.id,
-            //     timestamp: t_us,
-            //     pid_internals_vel: self.pid_velocity.prev_internals(),
-            // })
-            // .await;
+            self.send_debug_message(SerialLogMessage::PIDDebugData {
+                id: self.id,
+                timestamp: t_us,
+                pid_internals_vel: self.pid_velocity.prev_internals(),
+                pid_internals_pos: self.pid_angle.prev_internals(),
+            })
+            .await;
         }
 
         self.debug = false;
