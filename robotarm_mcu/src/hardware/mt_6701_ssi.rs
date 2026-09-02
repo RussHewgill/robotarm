@@ -59,11 +59,13 @@ impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
         self.full_rotations = 0;
     }
 
-    async fn read_raw_debug(&mut self) -> Result<(), Self::Error> {
-        self.read_raw_angle_debug()
-            .await
-            .map_err(|_| MT6701Error::SPIError)?;
-        Ok(())
+    async fn read_raw_debug(&mut self) -> Result<u16, Self::Error> {
+        // self.read_raw_angle_debug()
+        //     .await
+        //     .map_err(|_| MT6701Error::SPIError)?;
+        let raw_angle = self.read_raw_angle().await?;
+
+        Ok(raw_angle)
     }
 
     fn set_calibration_lut(&mut self, calibration: [f32; super::encoder_sensor::N_LUT]) {
@@ -75,6 +77,9 @@ impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
     }
     fn get_encoder_calibration_enabled(&self) -> bool {
         self.enable_calibration
+    }
+    fn get_encoder_calibration_lut(&self) -> Option<[f32; N_LUT]> {
+        Some(self.lut)
     }
 }
 
@@ -339,35 +344,53 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
 
     pub async fn _update(&mut self, ts_us: u64) -> Result<(), MT6701Error> {
         let raw_angle = self.read_raw_angle().await?;
-        // debug!("Raw angle: {}", raw_angle);
         // let angle = (raw_angle as f32 / 16384_f32) * _2PI;
+
+        // let angle = if self.enable_calibration {
+        //     let raw_angle = crate::simplefoc::encoder_calibration::apply_lut(raw_angle, &self.lut);
+        //     (raw_angle as f32 / 16384_f32) * _2PI
+        // } else {
+        //     (raw_angle as f32 / 16384_f32) * _2PI
+        // };
+
+        // let angle = (raw_angle as f32 / 16384_f32) * _2PI;
+        // let angle = if self.enable_calibration {
+        //     let index = raw_angle >> 7;
+        //     angle - self.lut[index as usize]
+        // } else {
+        //     angle
+        // };
+
+        // let raw_angle = (raw_angle as f32 / 16384_f32) * _2PI;
+        // let angle = if self.enable_calibration {
+        //     let lut_resolution = _2PI / N_LUT as f32;
+        //     let lut_index = (raw_angle / lut_resolution) as usize;
+
+        //     let y0 = self.lut[lut_index];
+        //     let y1 = self.lut[(lut_index + 1) % N_LUT];
+
+        //     // Linearly interpolate between the y0 and y1 values
+        //     // Calculate the relative distance from the y0 (raw_angle has to be between y0 and y1)
+        //     // If distance = 0, interpolated offset = y0
+        //     // If distance = 1, interpolated offset = y1
+        //     // let distance = (raw_angle - lut_index as f32 * lut_resolution) / lut_resolution;
+        //     let base_angle = lut_index as f32 * lut_resolution;
+        //     let distance = (raw_angle - base_angle) / lut_resolution;
+        //     let offset = (1. - distance) * y0 + distance * y1;
+
+        //     raw_angle - offset
+        // } else {
+        //     raw_angle
+        // };
+
         let raw_angle = (raw_angle as f32 / 16384_f32) * _2PI;
-        // debug!("Angle: {}", angle);
-
-        // let index = raw_angle >> 7;
-
-        // let angle = angle - self.lut[index as usize];
-
         let angle = if self.enable_calibration {
-            let lut_resolution = _2PI / N_LUT as f32;
-            let lut_index = (raw_angle / lut_resolution) as usize;
-
-            let y0 = self.lut[lut_index];
-            let y1 = self.lut[(lut_index + 1) % N_LUT];
-
-            // Linearly interpolate between the y0 and y1 values
-            // Calculate the relative distance from the y0 (raw_angle has to be between y0 and y1)
-            // If distance = 0, interpolated offset = y0
-            // If distance = 1, interpolated offset = y1
-            // let distance = (raw_angle - lut_index as f32 * lut_resolution) / lut_resolution;
-            let base_angle = lut_index as f32 * lut_resolution;
-            let distance = (raw_angle - base_angle) / lut_resolution;
-            let offset = (1. - distance) * y0 + distance * y1;
-
-            raw_angle - offset
+            crate::simplefoc::encoder_calibration::apply_calibration_lut(raw_angle, &self.lut)
         } else {
             raw_angle
         };
+
+        // let angle = raw_angle;
 
         let move_angle = angle - self.angle_prev;
 

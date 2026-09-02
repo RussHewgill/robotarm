@@ -1316,6 +1316,21 @@ fn main() -> ! {
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
+    // let config = Config::new(ClockConfig::system_freq(200_000_000).unwrap());
+    // let p = embassy_rp::init(config);
+
+    debug!(
+        "Clock frequency: {} MHz",
+        embassy_rp::clocks::clk_sys_freq() / 1_000_000
+    );
+    let core_voltage = embassy_rp::clocks::core_voltage().unwrap();
+    info!("Core voltage: {}", core_voltage);
+
+    debug!(
+        "core voltage: {:?}",
+        embassy_rp::clocks::ClockConfig::default().core_voltage
+    );
+
     // let voltage_limit = 2.0;
     // let voltage_limit = 4.;
     let voltage_limit = 8.;
@@ -1453,8 +1468,6 @@ fn main() -> ! {
         // let desired_freq_hz = 24_000 * 2;
         let desired_freq_hz = 24_000 * 2 * 2;
         let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
-
-        debug!("Clock frequency: {} Hz", clock_freq_hz);
 
         let div = 1;
         let period = (clock_freq_hz / (desired_freq_hz * div as u32)) as u16 - 1;

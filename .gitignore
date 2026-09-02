@@ -3,3 +3,5 @@
 robotarm_mcu/assets/
 *.log
 */*.log
+*.xlsx
+*.csv

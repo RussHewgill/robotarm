@@ -231,6 +231,12 @@ impl UsbRawHandler {
                 &SerialCommand::RequestSettings { id: 1 },
             )?)
             .await?;
+
+        self.writer
+            .write(&postcard::to_stdvec_cobs(
+                &SerialCommand::RequestDebugData { id: 1 },
+            )?)
+            .await?;
         self.writer.flush().await?;
 
         debug!("Looping");

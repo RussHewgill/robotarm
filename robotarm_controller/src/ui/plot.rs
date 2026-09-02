@@ -138,6 +138,7 @@ pub struct DataPlot {
     #[serde(skip)]
     pid_vel_internals_d: VecDeque<(f64, f64)>,
 
+    pid_vel_internals_scale_output: f64,
     pid_vel_internals_scale_error: f64,
     pid_vel_internals_scale_p: f64,
     pid_vel_internals_scale_i: f64,
@@ -156,6 +157,7 @@ pub struct DataPlot {
     #[serde(skip)]
     pid_pos_internals_d: VecDeque<(f64, f64)>,
 
+    pid_pos_internals_scale_output: f64,
     pid_pos_internals_scale_error: f64,
     pid_pos_internals_scale_p: f64,
     pid_pos_internals_scale_i: f64,
@@ -205,6 +207,7 @@ impl Default for DataPlot {
             pid_vel_internals_i: VecDeque::new(),
             pid_vel_internals_d: VecDeque::new(),
 
+            pid_vel_internals_scale_output: 0.1,
             pid_vel_internals_scale_error: 0.1,
             pid_vel_internals_scale_p: 0.1,
             pid_vel_internals_scale_i: 0.1,
@@ -219,6 +222,7 @@ impl Default for DataPlot {
             pid_pos_internals_i: VecDeque::new(),
             pid_pos_internals_d: VecDeque::new(),
 
+            pid_pos_internals_scale_output: 0.1,
             pid_pos_internals_scale_error: 0.1,
             pid_pos_internals_scale_p: 0.1,
             pid_pos_internals_scale_i: 0.1,
@@ -233,6 +237,10 @@ impl Default for DataPlot {
 
 impl App {
     pub fn plot_settings(&mut self, ui: &mut egui::Ui) {
+        let log_decimals = 4;
+        let log_min = 0.001;
+        let log_max = 10.0;
+
         egui::Grid::new(format!("Plot Controls Grid")).show(ui, |ui| {
             if ui.button("Clear Plot").clicked() {
                 self.plots[self.current_plot].reset();
@@ -294,6 +302,14 @@ impl App {
                 &mut self.plots[self.current_plot].draw_pid_output_vel,
                 "PID output vel",
             );
+            ui.add(
+                egui::Slider::new(
+                    &mut self.plots[self.current_plot].pid_vel_internals_scale_output,
+                    log_min..=log_max,
+                )
+                .logarithmic(true)
+                .max_decimals(log_decimals),
+            );
             ui.end_row();
             ui.checkbox(
                 &mut self.plots[self.current_plot].draw_pid_vel_internals_error,
@@ -302,10 +318,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_vel_internals_scale_error,
-                    0.01..=10.0,
+                    log_min..=log_max,
                 )
                 .logarithmic(true)
-                .max_decimals(2),
+                .max_decimals(log_decimals),
             );
             ui.end_row();
             ui.checkbox(
@@ -315,10 +331,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_vel_internals_scale_p,
-                    0.01..=10.0,
+                    log_min..=log_max,
                 )
                 .logarithmic(true)
-                .max_decimals(2),
+                .max_decimals(log_decimals),
             );
             ui.end_row();
             ui.checkbox(
@@ -328,10 +344,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_vel_internals_scale_i,
-                    0.01..=10.0,
+                    log_min..=log_max,
                 )
                 .logarithmic(true)
-                .max_decimals(2),
+                .max_decimals(log_decimals),
             );
             ui.end_row();
             ui.checkbox(
@@ -341,10 +357,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_vel_internals_scale_d,
-                    0.01..=10.0,
+                    log_min..=log_max,
                 )
                 .logarithmic(true)
-                .max_decimals(2),
+                .max_decimals(log_decimals),
             );
             ui.end_row();
             ui.end_row();
@@ -361,10 +377,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_pos_internals_scale_error,
-                    0.01..=10.0,
+                    log_min..=log_max,
                 )
                 .logarithmic(true)
-                .max_decimals(2),
+                .max_decimals(log_decimals),
             );
             ui.end_row();
             ui.checkbox(
@@ -374,10 +390,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_pos_internals_scale_p,
-                    0.01..=10.0,
+                    log_min..=log_max,
                 )
                 .logarithmic(true)
-                .max_decimals(2),
+                .max_decimals(log_decimals),
             );
             ui.end_row();
             ui.checkbox(
@@ -387,10 +403,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_pos_internals_scale_i,
-                    0.01..=10.0,
+                    log_min..=log_max,
                 )
                 .logarithmic(true)
-                .max_decimals(2),
+                .max_decimals(log_decimals),
             );
             ui.end_row();
             ui.checkbox(
@@ -400,10 +416,10 @@ impl App {
             ui.add(
                 egui::Slider::new(
                     &mut self.plots[self.current_plot].pid_pos_internals_scale_d,
-                    0.01..=10.0,
+                    log_min..=log_max,
                 )
                 .logarithmic(true)
-                .max_decimals(2),
+                .max_decimals(log_decimals),
             );
             ui.end_row();
 
@@ -744,7 +760,7 @@ impl DataPlot {
         {
             let root = upper;
 
-            root.fill(&WHITE.mix(0.6)).unwrap();
+            root.fill(&WHITE.mix(0.5)).unwrap();
             let mut chart = plotters::chart::ChartBuilder::on(&root)
                 .margin(5)
                 .x_label_area_size(30)
@@ -921,7 +937,7 @@ impl DataPlot {
         {
             let root = lower;
 
-            root.fill(&WHITE.mix(0.6)).unwrap();
+            root.fill(&WHITE.mix(0.5)).unwrap();
             let mut chart = plotters::chart::ChartBuilder::on(&root)
                 .margin(5)
                 .x_label_area_size(30)
@@ -944,7 +960,9 @@ impl DataPlot {
                                 .iter()
                                 .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                                 // .map(|(t, output)| (*t, *output * self.scale_vel * 10.0)),
-                                .map(|(t, output)| (*t, *output * self.scale_vel * 1.0)),
+                                .map(|(t, output)| {
+                                    (*t, *output * self.pid_vel_internals_scale_output)
+                                }),
                             &CYAN,
                         ))
                         .unwrap()
@@ -964,14 +982,14 @@ impl DataPlot {
                             5,
                             5,
                             ShapeStyle {
-                                color: ORANGE.to_rgba(),
+                                color: RED.to_rgba(),
                                 filled: false,
                                 stroke_width: self.stroke_width,
                             },
                         ))
                         .unwrap()
                         .legend(|(x, y)| {
-                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &ORANGE)
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &RED)
                         })
                         .label("PID Vel Error");
                 }
@@ -986,14 +1004,14 @@ impl DataPlot {
                             5,
                             5,
                             ShapeStyle {
-                                color: BROWN.to_rgba(),
+                                color: GREEN.to_rgba(),
                                 filled: false,
                                 stroke_width: self.stroke_width,
                             },
                         ))
                         .unwrap()
                         .legend(|(x, y)| {
-                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &BROWN)
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &GREEN)
                         })
                         .label("PID Vel P");
                 }
@@ -1008,14 +1026,14 @@ impl DataPlot {
                             5,
                             5,
                             ShapeStyle {
-                                color: TEAL.to_rgba(),
+                                color: MAGENTA.to_rgba(),
                                 filled: false,
                                 stroke_width: self.stroke_width,
                             },
                         ))
                         .unwrap()
                         .legend(|(x, y)| {
-                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &TEAL)
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &MAGENTA)
                         })
                         .label("PID Vel I");
                 }
@@ -1030,7 +1048,7 @@ impl DataPlot {
                             5,
                             5,
                             ShapeStyle {
-                                color: PURPLE.to_rgba(),
+                                color: NAVY.to_rgba(),
                                 filled: false,
                                 stroke_width: self.stroke_width,
                             },
@@ -1038,7 +1056,7 @@ impl DataPlot {
                         .unwrap()
                         // .legend(|(x, y)| DashedPathElement::new(vec![(x, y), (x + 20, y)], &BLUE))
                         .legend(|(x, y)| {
-                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &PURPLE)
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &NAVY)
                         })
                         .label("PID Vel D");
                 }
@@ -1073,14 +1091,14 @@ impl DataPlot {
                             5,
                             5,
                             ShapeStyle {
-                                color: ORANGE.to_rgba(),
+                                color: RED.to_rgba(),
                                 filled: false,
                                 stroke_width: self.stroke_width,
                             },
                         ))
                         .unwrap()
                         .legend(|(x, y)| {
-                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &ORANGE)
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &RED)
                         })
                         .label("PID pos Error");
                 }
@@ -1095,14 +1113,14 @@ impl DataPlot {
                             5,
                             5,
                             ShapeStyle {
-                                color: BROWN.to_rgba(),
+                                color: GREEN.to_rgba(),
                                 filled: false,
                                 stroke_width: self.stroke_width,
                             },
                         ))
                         .unwrap()
                         .legend(|(x, y)| {
-                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &BROWN)
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &GREEN)
                         })
                         .label("PID pos P");
                 }
@@ -1117,14 +1135,14 @@ impl DataPlot {
                             5,
                             5,
                             ShapeStyle {
-                                color: TEAL.to_rgba(),
+                                color: MAGENTA.to_rgba(),
                                 filled: false,
                                 stroke_width: self.stroke_width,
                             },
                         ))
                         .unwrap()
                         .legend(|(x, y)| {
-                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &TEAL)
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &MAGENTA)
                         })
                         .label("PID pos I");
                 }
@@ -1139,7 +1157,7 @@ impl DataPlot {
                             5,
                             5,
                             ShapeStyle {
-                                color: PURPLE.to_rgba(),
+                                color: NAVY.to_rgba(),
                                 filled: false,
                                 stroke_width: self.stroke_width,
                             },
@@ -1147,7 +1165,7 @@ impl DataPlot {
                         .unwrap()
                         // .legend(|(x, y)| DashedPathElement::new(vec![(x, y), (x + 20, y)], &BLUE))
                         .legend(|(x, y)| {
-                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &PURPLE)
+                            DashedPathElement::new(vec![(x, y), (x + 20, y)], 5, 5, &NAVY)
                         })
                         .label("PID pos D");
                 }

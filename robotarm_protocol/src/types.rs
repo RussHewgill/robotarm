@@ -8,10 +8,14 @@ pub enum MotionControlType {
     Velocity,
     Angle,
     VelocityOpenLoop,
+    AngleOpenLoop,
 }
 
 impl MotionControlType {
     pub fn is_open_loop(&self) -> bool {
-        matches!(self, MotionControlType::VelocityOpenLoop)
+        matches!(
+            self,
+            MotionControlType::VelocityOpenLoop | MotionControlType::AngleOpenLoop
+        )
     }
 }

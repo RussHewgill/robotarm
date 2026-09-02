@@ -432,6 +432,21 @@ impl App {
                 self.send_command(SerialCommand::SetModeAngle { id });
             }
             ui.end_row();
+
+            let but = egui::Button::new("Set Angle Open Loop");
+            let but = if matches!(
+                self.status[id as usize].motion_control,
+                Some(robotarm_protocol::MotionControlType::AngleOpenLoop)
+            ) {
+                but.fill(egui::Color32::LIGHT_GREEN)
+            } else {
+                but
+            };
+            if ui.add(but).clicked() {
+                let cmd = SerialCommand::SetModeAngleOpenLoop { id };
+                self.send_command(cmd);
+            }
+            ui.end_row();
         });
 
         // ui.horizontal(|ui| {
@@ -505,6 +520,7 @@ impl App {
             if !matches!(
                 self.status[id as usize].motion_control,
                 Some(robotarm_protocol::MotionControlType::Angle)
+                    | Some(robotarm_protocol::MotionControlType::AngleOpenLoop)
             ) {
             } else if resp.changed() {
                 send_target = Some(self.status[id as usize].target_pos);

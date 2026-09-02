@@ -107,6 +107,7 @@ where
 
     /// Update the PID values given a process varable and the time since the
     /// last update, and in exchange return the calculated output value.
+    #[cfg(feature = "nope")]
     pub fn update(&mut self, pv: T, dt_s: T) -> (T, (T, T, T, T)) {
         let old_error = self.error;
         self.error = self.sp - pv;
@@ -135,25 +136,146 @@ where
 
         let out_unclamped = self.kp * (self.error + i + self.d);
 
-        let saturated = out_unclamped > self.out_range_max || out_unclamped < self.out_range_min;
+        // let saturated = out_unclamped > self.out_range_max || out_unclamped < self.out_range_min;
 
-        let same_sign = (out_unclamped > T::zero() && self.error > T::zero())
-            || (out_unclamped < T::zero() && self.error < T::zero());
+        // let same_sign = (out_unclamped > T::zero() && self.error > T::zero())
+        //     || (out_unclamped < T::zero() && self.error < T::zero());
 
-        // self.i = integrator;
-        let out = if !(same_sign && saturated) {
-            out_unclamped
-        } else {
-            self.i = i;
-            out_unclamped.clamp(self.out_range_min, self.out_range_max)
-        };
+        // // self.i = integrator;
+        // let out = if !(same_sign && saturated) {
+        //     out_unclamped
+        // } else {
+        //     self.i = i;
+        //     out_unclamped.clamp(self.out_range_min, self.out_range_max)
+        // };
 
-        // self.i = i;
-        // let out = out_unclamped.clamp(self.out_range_min, self.out_range_max);
+        self.i = i;
+        let out = out_unclamped.clamp(self.out_range_min, self.out_range_max);
+        self.p = out;
 
         let internals = (self.error, self.p, self.i, self.d);
 
         (out, internals)
+    }
+
+    pub fn update(&mut self, pv: T, dt_s: T) -> (T, (T, T, T, T)) {
+        let old_error = self.error;
+        self.error = self.sp - pv;
+        let delta_error = self.error - old_error;
+
+        let delta_error = if let Some(mut lp_filter) = self.d_low_pass.take() {
+            let val = lp_filter.update(delta_error, dt_s);
+
+            self.d_low_pass = Some(lp_filter);
+
+            val
+        } else {
+            delta_error
+        };
+
+        // Calculate tentative integral change (dI)
+        let mut delta_i = self.one_over_ti_s * self.error * dt_s;
+
+        // Existing `i_band` logic: reset inner integral if error is out of band bounds
+        if self.error.abs() > self.i_band {
+            self.i = T::zero();
+            delta_i = T::zero();
+        }
+
+        // Calculate D term
+        self.d = self.td_s * (delta_error / dt_s);
+
+        // Calculate tentative unconstrained output
+        // Standard form: P_total = Kp * (e + I + dI + D)
+        let tentative_p = self.kp * (self.error + self.i + delta_i + self.d);
+
+        // no anti-windup
+        // #[cfg(feature = "nope")]
+        {
+            // self.i = self.i + delta_i;
+            self.i = T::zero();
+            self.p = self.kp * (self.error + self.d);
+            // self.p = tentative_p;
+        }
+
+        // conditional anti-windup
+        #[cfg(feature = "nope")]
+        {
+            let is_saturated_high = tentative_p > self.out_range_max;
+            let is_saturated_low = tentative_p < self.out_range_min;
+
+            // Freeze integration if we are saturated AND the error is trying to
+            // push us further into saturation.
+            if (is_saturated_high && self.error > T::zero())
+                || (is_saturated_low && self.error < T::zero())
+            {
+                delta_i = T::zero();
+            }
+
+            self.i = self.i + delta_i;
+            self.p = self.kp * (self.error + self.i + self.d);
+        }
+
+        // back calculation anti-windup
+        #[cfg(feature = "nope")]
+        {
+            let tt_s = self.get_ti_s();
+
+            // Normal integration for this timestep
+            self.i = self.i + delta_i;
+            self.p = self.kp * (self.error + self.i + self.d);
+
+            // Calculate the difference between saturated and unsaturated output
+            let out = self.out_range_min.max(self.out_range_max.min(self.p));
+            let excess_output = out - self.p;
+
+            // Back-calculate the integral for the *next* time step
+            // Standard form back-calculation: dI = (Excess / Kp) * (dt / Tt)
+            if self.kp != T::zero() && tt_s > T::zero() {
+                self.i = self.i + (excess_output / self.kp) * (dt_s / tt_s);
+            }
+        }
+
+        let out = self.p.clamp(self.out_range_min, self.out_range_max);
+
+        (out, (self.error, self.p, self.i, self.d))
+    }
+
+    #[cfg(feature = "nope")]
+    pub fn update(&mut self, pv: T, dt_s: T) -> (T, (T, T, T, T)) {
+        let old_error = self.error;
+        self.error = self.sp - pv;
+        let delta_error = self.error - old_error;
+
+        let delta_error = if let Some(mut lp_filter) = self.d_low_pass.take() {
+            let val = lp_filter.update(delta_error, dt_s);
+
+            self.d_low_pass = Some(lp_filter);
+
+            val
+        } else {
+            delta_error
+        };
+
+        self.i = match self.error.abs() > self.i_band {
+            false => self.i + self.one_over_ti_s * self.error * dt_s,
+            true => T::zero(),
+        };
+
+        self.d = self.td_s * (delta_error / dt_s);
+
+        self.p = self.kp * (self.error + self.i + self.d);
+
+        let out = self.out_range_min.max(self.out_range_max.min(self.p));
+
+        (out, (self.error, self.p, self.i, self.d))
+    }
+
+    pub fn reset(&mut self) {
+        self.i = T::zero();
+        self.d = T::zero();
+        self.p = T::zero();
+        self.error = T::zero();
     }
 
     #[inline]

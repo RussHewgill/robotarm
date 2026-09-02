@@ -182,6 +182,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     MotionControlType::Velocity => self.set_target_velocity(target),
                     MotionControlType::Angle => self.set_target_position(target),
                     MotionControlType::VelocityOpenLoop => self.set_target_velocity(target),
+                    MotionControlType::AngleOpenLoop => self.set_target_position(target),
                 }
                 // self.set_target_position(target);
             }
@@ -196,6 +197,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
             SerialCommand::SetModeVelocityOpenLoop { id } => {
                 self.set_motion_control(MotionControlType::VelocityOpenLoop);
+            }
+            SerialCommand::SetModeAngleOpenLoop { id } => {
+                self.set_motion_control(MotionControlType::AngleOpenLoop);
             }
             SerialCommand::SetVelocityPID {
                 id,

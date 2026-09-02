@@ -113,7 +113,12 @@ impl<T: FloatCore> PIDController<T> {
     }
 
     pub fn reset(&mut self) {
-        unimplemented!()
+        // self.pid.reset();
+        // self.pid2.reset();
+        self.pid4.reset();
+        self.prev_output = 0.0;
+        self.prev_internals = (0.0, 0.0, 0.0, 0.0);
+        self.prev_t_us = 0;
     }
 
     // #[cfg(feature = "nope")]
@@ -259,7 +264,11 @@ impl<T: FloatCore> PIDController<T> {
     pub fn set_p(&mut self, p: f32) {
         // let _ = self.pid2.config_mut().set_kp(p);
         let mut conf = *self.pid2.config();
-        conf.set_kp(p as f64).expect("Invalid PID config");
+        // conf.set_kp(p as f64).expect("Invalid PID config");
+        if let Err(e) = conf.set_kp(p as f64) {
+            // debug!("Failed to set kp: {}", e);
+            return;
+        }
         self.pid2.set_config(conf);
         self.pid.p = p;
         // let config = pidgeon::ControllerConfigBuilder::new()

@@ -85,6 +85,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         if matches!(self.motion_control, MotionControlType::VelocityOpenLoop) {
             return;
         }
+        if matches!(self.motion_control, MotionControlType::AngleOpenLoop) {
+            return;
+        }
         if !self.enabled {
             return;
         }
@@ -395,6 +398,15 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     //     self.motor.voltage.q, self.motor.voltage.d
                     // );
                 }
+            }
+            MotionControlType::AngleOpenLoop => {
+                self.motor.voltage.q = self.angle_openloop(
+                    self.motor.target_shaft_angle,
+                    // shaft_angle,
+                    // voltage_bemf,
+                    // electrical_angle,
+                );
+                self.motor.voltage.d = 0.0;
             }
         }
 

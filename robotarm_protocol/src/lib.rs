@@ -28,6 +28,12 @@ pub enum SerialLogMessage {
         // pid_internals_vel: (f32, f32, f32, f32),
         // pid_internals_pos: (f32, f32, f32, f32),
     },
+    LogData {
+        id: u8,
+        // timestamp: u64,
+        start_new: bool,
+        data: [f32; 8],
+    },
     PIDDebugData {
         id: u8,
         timestamp: u64,
@@ -78,6 +84,7 @@ impl SerialLogMessage {
             SerialLogMessage::MotorPID { id, .. } => *id,
             SerialLogMessage::FocLoopRate { id, .. } => *id,
             SerialLogMessage::PIDDebugData { id, .. } => *id,
+            SerialLogMessage::LogData { id, .. } => *id,
         }
     }
 }
@@ -118,6 +125,9 @@ pub enum SerialCommand {
         id: u8,
     },
     SetModeAngle {
+        id: u8,
+    },
+    SetModeAngleOpenLoop {
         id: u8,
     },
     SetVelocityPID {
@@ -174,6 +184,7 @@ impl SerialCommand {
             SerialCommand::SetModeVelocityOpenLoop { id } => *id,
             SerialCommand::SetModeVelocity { id } => *id,
             SerialCommand::SetModeAngle { id } => *id,
+            SerialCommand::SetModeAngleOpenLoop { id } => *id,
             SerialCommand::SetVelocityPID { id, .. } => *id,
             SerialCommand::SetAnglePID { id, .. } => *id,
             SerialCommand::SetLPF { id, .. } => *id,

@@ -40,6 +40,41 @@ impl App {
                         self.status[id as usize].calibration_enabled = encoder_calibration_enabled;
                     }
                     // SerialLogMessage::Ping => {}
+                    SerialLogMessage::LogData {
+                        id,
+                        // timestamp,
+                        start_new,
+                        data,
+                    } => {
+                        // debug!("Got log data from motor {}", id);
+
+                        let file = "motor_data.csv";
+                        let mut writer = if start_new {
+                            std::fs::remove_file(file).ok();
+                            std::fs::OpenOptions::new()
+                                .create(true)
+                                .append(true)
+                                .open(file)
+                                .expect("Failed to open CSV file for writing")
+                        } else {
+                            std::fs::OpenOptions::new()
+                                .create(true)
+                                .append(true)
+                                .open(file)
+                                .expect("Failed to open CSV file for writing")
+                        };
+                        let mut wtr = csv::Writer::from_writer(writer);
+                        // wtr.write_field(format!("{:.6}", timestamp as f64 * 1e-6))
+                        //     .unwrap();
+                        for d in data.iter() {
+                            wtr.write_field(format!("{}", d)).unwrap();
+                        }
+                        // wtr.write_field(format!("{}", data[0])).unwrap();
+                        // wtr.write_field(format!("{}", data[1])).unwrap();
+                        // wtr.write_field(format!("{}", velocity))
+                        //     .expect("Failed to write velocity");
+                        wtr.write_record(None::<&[u8]>).unwrap();
+                    }
                     SerialLogMessage::MotorPID {
                         id,
                         vel_p,

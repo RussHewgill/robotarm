@@ -195,7 +195,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_zero_electric_angle(0.);
 
-    // foc.set_zero_electric_angle(2.8);
+    foc.set_zero_electric_angle(1.55);
     // foc.set_zero_electric_angle(3.08);
     // foc.set_zero_electric_angle(5.05);
 
@@ -220,13 +220,15 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     info!("Starting init");
     foc.init();
 
-    // foc.calibrate_encoder().await;
-    // foc.encoder.enable_calibration(false);
-
     info!("Starting FOC init");
     foc.init_foc().await;
     // spawner.spawn(loop_foc(foc)).unwrap();
     foc.enable();
+
+    foc.calibrate_encoder().await;
+    foc.encoder.enable_calibration(false);
+
+    foc.test_calibration().await;
 
     // debug!("Finding angle limits");
     // foc.find_angle_limits().await;
