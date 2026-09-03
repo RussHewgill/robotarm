@@ -384,6 +384,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
         // };
 
         let raw_angle = (raw_angle as f32 / 16384_f32) * _2PI;
+
         let angle = if self.enable_calibration {
             crate::simplefoc::encoder_calibration::apply_calibration_lut(raw_angle, &self.lut)
         } else {

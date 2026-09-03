@@ -675,3 +675,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         uq
     }
 }
+
+/// normalizing radian angle to [0,2PI]
+pub fn normalize_angle(angle: f32) -> f32 {
+    let angle = angle % (2.0 * core::f32::consts::PI);
+    if angle >= 0.0 {
+        angle
+    } else {
+        angle + 2.0 * core::f32::consts::PI
+    }
+}

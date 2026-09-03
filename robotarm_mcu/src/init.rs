@@ -228,7 +228,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     foc.calibrate_encoder().await;
     foc.encoder.enable_calibration(false);
 
-    foc.test_calibration().await;
+    // foc.test_calibration().await;
 
     // debug!("Finding angle limits");
     // foc.find_angle_limits().await;

@@ -2,7 +2,7 @@ use defmt::{debug, error, info, trace, warn};
 
 // pub const N_LUT: usize = 128;
 pub const N_LUT: usize = 256;
-// pub const N_LUT_SAMPLES: usize = 128;
+// pub const N_LUT_SAMPLES: usize = 256;
 pub const N_LUT_SAMPLES: usize = 1024;
 // pub const N_LUT: usize = 4096;
 // pub const N_LUT_SAMPLES: usize = 4096;
