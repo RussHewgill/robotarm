@@ -143,15 +143,23 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     vel_p: self.pid_velocity.get_p(),
                     vel_i: self.pid_velocity.get_i(),
                     vel_d: self.pid_velocity.get_d(),
-                    vel_ramp: self.pid_velocity.get_ramp(),
+                    // vel_ramp: self.pid_velocity.get_ramp(),
                     vel_limit: self.pid_velocity.get_limit(),
                     angle_p: self.pid_angle.get_p(),
                     angle_i: self.pid_angle.get_i(),
                     angle_d: self.pid_angle.get_d(),
-                    angle_ramp: self.pid_angle.get_ramp(),
+                    // angle_ramp: self.pid_angle.get_ramp(),
                     angle_limit: self.pid_angle.get_limit(),
                     lpf_angle: self.lpf_angle.tf,
                     lpf_vel: self.lpf_velocity.tf,
+
+                    vel_feed_forward: self.pid_velocity.get_feed_forward(),
+                    vel_i_band: self.pid_velocity.get_i_band(),
+                    vel_d_lpf: self.pid_velocity.get_d_lpf(),
+
+                    // pos_feed_forward: f32,
+                    pos_i_band: self.pid_angle.get_i_band(),
+                    pos_d_lpf: self.pid_angle.get_d_lpf(),
                 });
             }
             SerialCommand::RequestDebugData { id } => {
@@ -201,53 +209,48 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             SerialCommand::SetModeAngleOpenLoop { id } => {
                 self.set_motion_control(MotionControlType::AngleOpenLoop);
             }
-            SerialCommand::SetVelocityPID {
-                id,
-                p,
-                i,
-                d,
-                ramp,
-                limit,
-            } => {
-                if let Some(p) = p {
+            SerialCommand::SetVelocityPID { id, pid_settings } => {
+                if let Some(p) = pid_settings.p {
                     self.pid_velocity.set_p(p);
                 }
-                if let Some(i) = i {
+                if let Some(i) = pid_settings.i {
                     self.pid_velocity.set_i(i);
                 }
-                if let Some(d) = d {
+                if let Some(d) = pid_settings.d {
                     self.pid_velocity.set_d(d);
                 }
-                if let Some(limit) = limit {
+                if let Some(limit) = pid_settings.limit {
                     self.pid_velocity.set_limit(limit);
                 }
-                if let Some(ramp) = ramp {
-                    self.pid_velocity.set_ramp(ramp);
+                // if let Some(ramp) = pid_settings.ramp {
+                //     self.pid_velocity.set_ramp(ramp);
+                // }
+                if let Some(i_band) = pid_settings.i_band {
+                    self.pid_velocity.set_i_band(i_band);
+                }
+                if let Some(d_lpf) = pid_settings.d_lpf {
+                    self.pid_velocity.set_d_low_pass(d_lpf);
+                }
+                if let Some(feed_forward) = pid_settings.feed_forward {
+                    self.pid_velocity.set_feed_forward(feed_forward);
                 }
             }
-            SerialCommand::SetAnglePID {
-                id,
-                p,
-                i,
-                d,
-                ramp,
-                limit,
-            } => {
-                if let Some(p) = p {
+            SerialCommand::SetAnglePID { id, pid_settings } => {
+                if let Some(p) = pid_settings.p {
                     self.pid_angle.set_p(p);
                 }
-                if let Some(i) = i {
+                if let Some(i) = pid_settings.i {
                     self.pid_angle.set_i(i);
                 }
-                if let Some(d) = d {
+                if let Some(d) = pid_settings.d {
                     self.pid_angle.set_d(d);
                 }
-                if let Some(limit) = limit {
+                if let Some(limit) = pid_settings.limit {
                     self.pid_angle.set_limit(limit);
                 }
-                if let Some(ramp) = ramp {
-                    self.pid_angle.set_ramp(ramp);
-                }
+                // if let Some(ramp) = pid_settings.ramp {
+                //     self.pid_angle.set_ramp(ramp);
+                // }
             }
             SerialCommand::SetZeroElectricalAngle { id, angle } => {
                 self.zero_electric_angle = angle;

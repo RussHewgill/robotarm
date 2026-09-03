@@ -14,11 +14,14 @@ debug = true
 
 [features]
 # default = ["picoA"]
-default = ["testing"]
+default = ["debug_logging", "testing"]
 testing = []
 picoA = []
 picoB = []
 picoC = []
+current_sensing = []
+thermal_throttling = []
+debug_logging = []
 
 [dependencies]
 

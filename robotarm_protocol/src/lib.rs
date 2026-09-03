@@ -63,15 +63,23 @@ pub enum SerialLogMessage {
         vel_p: f32,
         vel_i: f32,
         vel_d: f32,
-        vel_ramp: f32,
+        // vel_ramp: f32,
         vel_limit: f32,
         angle_p: f32,
         angle_i: f32,
         angle_d: f32,
-        angle_ramp: f32,
+        // angle_ramp: f32,
         angle_limit: f32,
         lpf_vel: f32,
         lpf_angle: f32,
+
+        vel_feed_forward: f32,
+        vel_i_band: f32,
+        vel_d_lpf: f32,
+
+        // pos_feed_forward: f32,
+        pos_i_band: f32,
+        pos_d_lpf: f32,
     },
 }
 
@@ -132,19 +140,11 @@ pub enum SerialCommand {
     },
     SetVelocityPID {
         id: u8,
-        p: Option<f32>,
-        i: Option<f32>,
-        d: Option<f32>,
-        ramp: Option<f32>,
-        limit: Option<f32>,
+        pid_settings: PIDSettings,
     },
     SetAnglePID {
         id: u8,
-        p: Option<f32>,
-        i: Option<f32>,
-        d: Option<f32>,
-        ramp: Option<f32>,
-        limit: Option<f32>,
+        pid_settings: PIDSettings,
     },
     SetLPF {
         id: u8,

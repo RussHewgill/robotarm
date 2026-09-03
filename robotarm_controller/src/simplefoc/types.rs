@@ -36,16 +36,21 @@ pub struct FocStatus {
     pub vel_pid_p: f32,
     pub vel_pid_i: f32,
     pub vel_pid_d: f32,
-    pub vel_pid_ramp: f32,
+    // pub vel_pid_ramp: f32,
     pub vel_pid_limit: f64,
+    pub vel_pid_i_band: f64,
+    pub vel_pid_d_lpf: f64,
+    pub vel_pid_feed_forward: f64,
 
     pub pos_pid_output: f32,
 
     pub pos_pid_p: f32,
     pub pos_pid_i: f32,
     pub pos_pid_d: f32,
-    pub pos_pid_ramp: f32,
+    // pub pos_pid_ramp: f32,
     pub pos_pid_limit: f32,
+    pub pos_pid_i_band: f64,
+    pub pos_pid_d_lpf: f64,
 
     pub lpf_angle: f32,
     pub lpf_vel: f32,

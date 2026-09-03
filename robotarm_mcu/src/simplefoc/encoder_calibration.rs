@@ -846,7 +846,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         }
 
         // let settle_time_ms = 50;
-        let settle_time_us = 5_000;
+        let settle_time_us = 10_000;
 
         let mut expected_cw2 = [0f32; N_LUT];
         let mut measured_cw2 = [0f32; N_LUT];
@@ -1125,7 +1125,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             Timer::after_micros(1000).await;
         }
 
-        // debug!("Calibration LUT: \n{:?}", calibration_lut);
+        debug!("Calibration LUT: \n{:?}", calibration_lut);
+
         self.encoder.set_calibration_lut(calibration_lut);
     }
 

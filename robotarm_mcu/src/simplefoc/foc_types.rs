@@ -161,14 +161,21 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // const CURR_LPF_TF: f32 = 0.005;
 
-        const PID_VELOCITY_KP: f32 = 0.05;
-        const PID_VELOCITY_KI: f32 = 1_000_000.0;
+        // const PID_VELOCITY_KP: f32 = 0.05;
+        // const PID_VELOCITY_KI: f32 = 1_000_000.0;
+        const PID_VELOCITY_KI: f32 = 10_000.0;
+        // const PID_VELOCITY_KI: f32 = 0.1;
         // const PID_VELOCITY_KI: f32 = 0.0;
         // const PID_VELOCITY_KI: f32 = 0.1;
         // const PID_VELOCITY_KD: f32 = 0.0005;
         // const PID_VELOCITY_KD: f32 = 0.005;
         // const PID_VELOCITY_KD: f32 = 0.5;
         const PID_VELOCITY_KD: f32 = 0.0;
+
+        const PID_VELOCITY_KP: f32 = 0.2;
+        // const PID_VELOCITY_KI: f32 = 0.1;
+        // const PID_VELOCITY_KD: f32 = 0.025;
+        // const PID_VELOCITY_FEED_FORWARD: f32 = 0.01;
 
         const PID_VELOCITY_RAMP: f32 = 1000.0;
         // const PID_VELOCITY_RAMP: f32 = 0.0;
@@ -196,6 +203,15 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         const PID_CURR_KD: f32 = 0.0;
         const PID_CURR_RAMP: f32 = 0.0;
         const PID_CURR_LIMIT: f32 = 12.0;
+
+        let mut pid_velocity = PIDController::new(
+            PID_VELOCITY_KP,
+            PID_VELOCITY_KI,
+            PID_VELOCITY_KD,
+            PID_VELOCITY_RAMP,
+            PID_VELOCITY_LIMIT,
+        );
+        // pid_velocity.set_feed_forward(PID_VELOCITY_FEED_FORWARD);
 
         SimpleFOC {
             id,
@@ -247,13 +263,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
             // modulation: FOCModulation::SinePWM,
             modulation: FOCModulation::SpaceVectorPWM,
-            pid_velocity: PIDController::new(
-                PID_VELOCITY_KP,
-                PID_VELOCITY_KI,
-                PID_VELOCITY_KD,
-                PID_VELOCITY_RAMP,
-                PID_VELOCITY_LIMIT,
-            ),
+            pid_velocity,
 
             pid_angle: PIDController::new(
                 PID_ANGLE_KP,

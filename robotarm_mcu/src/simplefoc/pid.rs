@@ -6,8 +6,8 @@ use crate::simplefoc::pid_standard;
 
 pub struct PIDController<T: FloatCore> {
     // pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f32>,
-    pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f64>,
-    pid: self::prev::PIDController,
+    // pid2: discrete_pid::pid::PidController<discrete_pid::time::Micros, f64>,
+    // pid: self::prev::PIDController,
     // pid3: (pidgeon::ControllerConfig, pidgeon::PidState),
     pid4: pid_standard::StandardPID<T>,
     // pid4: pid_standard::StandardPID<f32>,
@@ -24,24 +24,24 @@ impl<T: FloatCore> PIDController<T> {
         //     p, i, d, ramp, limit
         // );
 
-        let config = discrete_pid::pid::PidConfigBuilder::default()
-            .kp(p as f64)
-            .ki(i as f64)
-            .kd(d as f64)
-            .output_limits(-limit as f64, limit as f64)
-            .sample_time(core::time::Duration::from_micros(100))
-            .filter_tc(0.000001)
-            .use_derivative_on_measurement(false)
-            .build()
-            .expect("Invalid PID config");
-        let mut pid2 = discrete_pid::pid::PidController::new_uninit(config);
-        pid2.activate();
-        // let _ = pid2.config_mut().set_filter_tc(0.000001);
-        // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
-        // let _ = pid2.config_mut().set_use_derivative_on_measurement(true);
-        // let _ = pid2.config_mut().set_use_derivative_on_measurement(false);
+        // let config = discrete_pid::pid::PidConfigBuilder::default()
+        //     .kp(p as f64)
+        //     .ki(i as f64)
+        //     .kd(d as f64)
+        //     .output_limits(-limit as f64, limit as f64)
+        //     .sample_time(core::time::Duration::from_micros(100))
+        //     .filter_tc(0.000001)
+        //     .use_derivative_on_measurement(false)
+        //     .build()
+        //     .expect("Invalid PID config");
+        // let mut pid2 = discrete_pid::pid::PidController::new_uninit(config);
+        // pid2.activate();
+        // // let _ = pid2.config_mut().set_filter_tc(0.000001);
+        // // let _ = pid.config_mut().set_use_strict_causal_integrator(true);
+        // // let _ = pid2.config_mut().set_use_derivative_on_measurement(true);
+        // // let _ = pid2.config_mut().set_use_derivative_on_measurement(false);
 
-        let pid = self::prev::PIDController::new(p, i, d, ramp, limit);
+        // let pid = self::prev::PIDController::new(p, i, d, ramp, limit);
 
         // use pidgeon::{ControllerConfig, PidState, pid_compute};
         // let config = ControllerConfig::builder()
@@ -90,8 +90,8 @@ impl<T: FloatCore> PIDController<T> {
         );
 
         Self {
-            pid,
-            pid2,
+            // pid,
+            // pid2,
             // pid3: (config, pid3),
             pid4,
             ramp,
@@ -163,6 +163,13 @@ impl<T: FloatCore> PIDController<T> {
 
         self.pid4.set_sp(T::from(setpoint).unwrap());
         let dt = T::from(t_us - self.prev_t_us).unwrap() * T::from(1e-6).unwrap();
+        if dt <= T::zero() {
+            // defmt::error!(
+            //     "PIDController update called with non-positive dt: {}",
+            //     dt.to_f32().unwrap()
+            // );
+            return self.prev_output;
+        }
         let (output, internals) = self.pid4.update(T::from(input).unwrap(), dt);
 
         // debug!("output: {}", output);
@@ -173,6 +180,8 @@ impl<T: FloatCore> PIDController<T> {
             internals.2.to_f32().unwrap(),
             internals.3.to_f32().unwrap(),
         );
+
+        self.prev_t_us = t_us;
 
         // self.prev_output = output as f32;
         // output as f32
@@ -235,27 +244,31 @@ impl PIDController {
 // #[cfg(feature = "nope")]
 impl<T: FloatCore> PIDController<T> {
     pub fn get_p(&self) -> f32 {
-        self.pid2.config().kp() as f32
+        // self.pid2.config().kp() as f32
         // self.pid3.0.kp() as f32
+        self.pid4.get_kp().to_f32().unwrap()
     }
     pub fn get_i(&self) -> f32 {
-        self.pid2.config().ki() as f32
+        // self.pid2.config().ki() as f32
         // self.pid3.0.ki() as f32
+        self.pid4.get_ti_s().to_f32().unwrap()
     }
     pub fn get_d(&self) -> f32 {
-        self.pid2.config().kd() as f32
+        // self.pid2.config().kd() as f32
         // self.pid3.0.kd() as f32
+        self.pid4.get_td_s().to_f32().unwrap()
     }
-    pub fn get_ramp(&self) -> f32 {
-        self.ramp
-    }
+    // pub fn get_ramp(&self) -> f32 {
+    //     self.ramp
+    // }
     pub fn get_limit(&self) -> f32 {
-        let (a, b) = (
-            self.pid2.config().output_min(),
-            self.pid2.config().output_max(),
-        );
+        // let (a, b) = (
+        //     self.pid2.config().output_min(),
+        //     self.pid2.config().output_max(),
+        // );
+        let (a, b) = self.pid4.get_output_range();
         if a == -b {
-            b as f32
+            b.to_f32().unwrap()
         } else {
             // asymmetric limits not supported
             0.0
@@ -263,14 +276,14 @@ impl<T: FloatCore> PIDController<T> {
     }
     pub fn set_p(&mut self, p: f32) {
         // let _ = self.pid2.config_mut().set_kp(p);
-        let mut conf = *self.pid2.config();
-        // conf.set_kp(p as f64).expect("Invalid PID config");
-        if let Err(e) = conf.set_kp(p as f64) {
-            // debug!("Failed to set kp: {}", e);
-            return;
-        }
-        self.pid2.set_config(conf);
-        self.pid.p = p;
+        // let mut conf = *self.pid2.config();
+        // // conf.set_kp(p as f64).expect("Invalid PID config");
+        // if let Err(e) = conf.set_kp(p as f64) {
+        //     // debug!("Failed to set kp: {}", e);
+        //     return;
+        // }
+        // self.pid2.set_config(conf);
+        // self.pid.p = p;
         // let config = pidgeon::ControllerConfigBuilder::new()
         //     .with_kp(p as f64)
         //     .with_ki(self.pid3.0.ki())
@@ -287,10 +300,10 @@ impl<T: FloatCore> PIDController<T> {
         self.pid4.set_kp(T::from(p).unwrap());
     }
     pub fn set_i(&mut self, i: f32) {
-        let mut conf = *self.pid2.config();
-        conf.set_ki(i as f64).expect("Invalid PID config");
-        self.pid2.set_config(conf);
-        self.pid.i = i;
+        // let mut conf = *self.pid2.config();
+        // conf.set_ki(i as f64).expect("Invalid PID config");
+        // self.pid2.set_config(conf);
+        // self.pid.i = i;
         // let config = pidgeon::ControllerConfigBuilder::new()
         //     .with_kp(self.pid3.0.kp())
         //     .with_ki(i as f64)
@@ -318,10 +331,10 @@ impl<T: FloatCore> PIDController<T> {
         self.pid4.reset_integral_term();
     }
     pub fn set_d(&mut self, d: f32) {
-        let mut conf = *self.pid2.config();
-        conf.set_kd(d as f64).expect("Invalid PID config");
-        self.pid2.set_config(conf);
-        self.pid.d = d;
+        // let mut conf = *self.pid2.config();
+        // conf.set_kd(d as f64).expect("Invalid PID config");
+        // self.pid2.set_config(conf);
+        // self.pid.d = d;
         // let config = pidgeon::ControllerConfigBuilder::new()
         //     .with_kp(self.pid3.0.kp())
         //     .with_ki(self.pid3.0.ki())
@@ -351,11 +364,11 @@ impl<T: FloatCore> PIDController<T> {
         self.ramp = ramp;
     }
     pub fn set_limit(&mut self, limit: f32) {
-        debug!("Setting PID limit to {}", limit);
+        // debug!("Setting PID limit to {}", limit);
         // let _ = self.pid2.config_mut().set_output_limits(-limit, limit);
-        let mut conf = *self.pid2.config();
-        conf.set_output_limits(-limit as f64, limit as f64)
-            .expect("Invalid PID config");
+        // let mut conf = *self.pid2.config();
+        // conf.set_output_limits(-limit as f64, limit as f64)
+        //     .expect("Invalid PID config");
         // self.pid2.set_config(conf);
         // self.pid.limit = limit;
         // let config = pidgeon::ControllerConfigBuilder::new()
@@ -377,6 +390,30 @@ impl<T: FloatCore> PIDController<T> {
 
     pub fn prev_internals(&self) -> (f32, f32, f32, f32) {
         self.prev_internals
+    }
+
+    pub fn set_i_band(&mut self, i_band: f32) {
+        self.pid4.set_i_band(T::from(i_band).unwrap());
+    }
+
+    pub fn set_d_low_pass(&mut self, d_lpf: f32) {
+        self.pid4.set_d_low_pass(T::from(d_lpf).unwrap());
+    }
+
+    pub fn set_feed_forward(&mut self, feed_forward: f32) {
+        self.pid4.set_feed_forward(T::from(feed_forward).unwrap());
+    }
+
+    pub fn get_feed_forward(&self) -> f32 {
+        self.pid4.get_feed_forward().to_f32().unwrap()
+    }
+
+    pub fn get_i_band(&self) -> f32 {
+        self.pid4.get_i_band().to_f32().unwrap()
+    }
+
+    pub fn get_d_lpf(&self) -> f32 {
+        self.pid4.get_d_lpf().unwrap_or(T::zero()).to_f32().unwrap()
     }
 }
 

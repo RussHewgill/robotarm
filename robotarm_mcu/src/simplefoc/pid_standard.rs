@@ -78,6 +78,7 @@ pub struct StandardPID<T: FloatCore> {
     out_range_min: T,
     out_range_max: T,
     d_low_pass: Option<LowPassFilter<T>>,
+    feed_forward: T,
 }
 
 impl<T> StandardPID<T>
@@ -93,7 +94,8 @@ where
             kp,
             one_over_ti_s: T::one() / ti_s,
             td_s,
-            i_band: T::max_value(),
+            // i_band: T::max_value(),
+            i_band: T::from(2f32).unwrap(),
             p: T::zero(),
             i: T::zero(),
             d: T::zero(),
@@ -101,61 +103,10 @@ where
             sp,
             out_range_min,
             out_range_max,
-            d_low_pass: None,
+            // d_low_pass: None,
+            d_low_pass: Some(LowPassFilter::new(T::from(0.005).unwrap(), T::zero())),
+            feed_forward: T::zero(),
         }
-    }
-
-    /// Update the PID values given a process varable and the time since the
-    /// last update, and in exchange return the calculated output value.
-    #[cfg(feature = "nope")]
-    pub fn update(&mut self, pv: T, dt_s: T) -> (T, (T, T, T, T)) {
-        let old_error = self.error;
-        self.error = self.sp - pv;
-        let delta_error = self.error - old_error;
-
-        let delta_error = if let Some(mut lp_filter) = self.d_low_pass.take() {
-            let val = lp_filter.update(delta_error, dt_s);
-
-            self.d_low_pass = Some(lp_filter);
-
-            val
-        } else {
-            delta_error
-        };
-
-        let i = match self.error.abs() > self.i_band {
-            false => self.i + self.one_over_ti_s * self.error * dt_s,
-            true => T::zero(),
-        };
-
-        self.d = self.td_s * (delta_error / dt_s);
-
-        // self.p = self.kp * (self.error + integrator + self.d);
-
-        // let out = self.out_range_min.max(self.out_range_max.min(self.p));
-
-        let out_unclamped = self.kp * (self.error + i + self.d);
-
-        // let saturated = out_unclamped > self.out_range_max || out_unclamped < self.out_range_min;
-
-        // let same_sign = (out_unclamped > T::zero() && self.error > T::zero())
-        //     || (out_unclamped < T::zero() && self.error < T::zero());
-
-        // // self.i = integrator;
-        // let out = if !(same_sign && saturated) {
-        //     out_unclamped
-        // } else {
-        //     self.i = i;
-        //     out_unclamped.clamp(self.out_range_min, self.out_range_max)
-        // };
-
-        self.i = i;
-        let out = out_unclamped.clamp(self.out_range_min, self.out_range_max);
-        self.p = out;
-
-        let internals = (self.error, self.p, self.i, self.d);
-
-        (out, internals)
     }
 
     pub fn update(&mut self, pv: T, dt_s: T) -> (T, (T, T, T, T)) {
@@ -183,6 +134,7 @@ where
         }
 
         // Calculate D term
+        // unstable for very small dt_s
         self.d = self.td_s * (delta_error / dt_s);
 
         // Calculate tentative unconstrained output
@@ -192,10 +144,10 @@ where
         // no anti-windup
         // #[cfg(feature = "nope")]
         {
-            // self.i = self.i + delta_i;
-            self.i = T::zero();
-            self.p = self.kp * (self.error + self.d);
-            // self.p = tentative_p;
+            // self.i = T::zero();
+            // self.p = self.kp * (self.error + self.d);
+            self.i = self.i + delta_i;
+            self.p = tentative_p;
         }
 
         // conditional anti-windup
@@ -236,37 +188,8 @@ where
             }
         }
 
-        let out = self.p.clamp(self.out_range_min, self.out_range_max);
-
-        (out, (self.error, self.p, self.i, self.d))
-    }
-
-    #[cfg(feature = "nope")]
-    pub fn update(&mut self, pv: T, dt_s: T) -> (T, (T, T, T, T)) {
-        let old_error = self.error;
-        self.error = self.sp - pv;
-        let delta_error = self.error - old_error;
-
-        let delta_error = if let Some(mut lp_filter) = self.d_low_pass.take() {
-            let val = lp_filter.update(delta_error, dt_s);
-
-            self.d_low_pass = Some(lp_filter);
-
-            val
-        } else {
-            delta_error
-        };
-
-        self.i = match self.error.abs() > self.i_band {
-            false => self.i + self.one_over_ti_s * self.error * dt_s,
-            true => T::zero(),
-        };
-
-        self.d = self.td_s * (delta_error / dt_s);
-
-        self.p = self.kp * (self.error + self.i + self.d);
-
-        let out = self.out_range_min.max(self.out_range_max.min(self.p));
+        let out = self.p + self.feed_forward * self.sp;
+        let out = out.clamp(self.out_range_min, self.out_range_max);
 
         (out, (self.error, self.p, self.i, self.d))
     }
@@ -303,7 +226,8 @@ where
     #[inline]
     /// Enable the low pass filter on the derivative term and set the averaging time.
     pub fn set_d_low_pass(&mut self, time_s: T) {
-        self.d_low_pass = Some(LowPassFilter::new(time_s, self.sp));
+        // self.d_low_pass = Some(LowPassFilter::new(time_s, self.sp));
+        self.d_low_pass = Some(LowPassFilter::new(time_s, T::zero()));
     }
 
     #[inline]
@@ -344,26 +268,31 @@ where
     }
 
     #[inline]
+    pub fn set_feed_forward(&mut self, feed_forward: T) {
+        self.feed_forward = feed_forward;
+    }
+
+    #[inline]
     /// Get the proportional gain.
-    pub fn get_kp(&mut self) -> T {
+    pub fn get_kp(&self) -> T {
         self.kp
     }
 
     #[inline]
     /// Get the integral time.
-    pub fn get_ti_s(&mut self) -> T {
+    pub fn get_ti_s(&self) -> T {
         T::one() / self.one_over_ti_s
     }
 
     #[inline]
     /// Get the derivative time.
-    pub fn get_td_s(&mut self) -> T {
+    pub fn get_td_s(&self) -> T {
         self.td_s
     }
 
     #[inline]
     /// Get the set point.
-    pub fn get_sp(&mut self) -> T {
+    pub fn get_sp(&self) -> T {
         self.sp
     }
 
@@ -371,5 +300,21 @@ where
     pub fn set_output_range(&mut self, min: T, max: T) {
         self.out_range_min = min;
         self.out_range_max = max;
+    }
+
+    pub fn get_output_range(&self) -> (T, T) {
+        (self.out_range_min, self.out_range_max)
+    }
+
+    pub fn get_feed_forward(&self) -> T {
+        self.feed_forward
+    }
+
+    pub fn get_i_band(&self) -> T {
+        self.i_band
+    }
+
+    pub fn get_d_lpf(&self) -> Option<T> {
+        self.d_low_pass.as_ref().map(|lp| lp.time_s)
     }
 }

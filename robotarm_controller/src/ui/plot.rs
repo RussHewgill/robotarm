@@ -81,6 +81,8 @@ pub struct DataPlot {
 
     stroke_width: u32,
 
+    pub vel_min_max: (f64, f64),
+
     pub draw_angle: bool,
     #[serde(skip)]
     angle: VecDeque<(f64, f64)>,
@@ -138,6 +140,7 @@ pub struct DataPlot {
     #[serde(skip)]
     pid_vel_internals_d: VecDeque<(f64, f64)>,
 
+    pid_vel_lock_scales: bool,
     pid_vel_internals_scale_output: f64,
     pid_vel_internals_scale_error: f64,
     pid_vel_internals_scale_p: f64,
@@ -157,6 +160,7 @@ pub struct DataPlot {
     #[serde(skip)]
     pid_pos_internals_d: VecDeque<(f64, f64)>,
 
+    pid_pos_lock_scales: bool,
     pid_pos_internals_scale_output: f64,
     pid_pos_internals_scale_error: f64,
     pid_pos_internals_scale_p: f64,
@@ -174,6 +178,8 @@ impl Default for DataPlot {
             prev_time: 0.,
 
             stroke_width: 2,
+
+            vel_min_max: (-15., 15.),
 
             draw_angle: true,
             angle: VecDeque::new(),
@@ -207,6 +213,7 @@ impl Default for DataPlot {
             pid_vel_internals_i: VecDeque::new(),
             pid_vel_internals_d: VecDeque::new(),
 
+            pid_vel_lock_scales: false,
             pid_vel_internals_scale_output: 0.1,
             pid_vel_internals_scale_error: 0.1,
             pid_vel_internals_scale_p: 0.1,
@@ -222,6 +229,7 @@ impl Default for DataPlot {
             pid_pos_internals_i: VecDeque::new(),
             pid_pos_internals_d: VecDeque::new(),
 
+            pid_pos_lock_scales: false,
             pid_pos_internals_scale_output: 0.1,
             pid_pos_internals_scale_error: 0.1,
             pid_pos_internals_scale_p: 0.1,
@@ -274,154 +282,174 @@ impl App {
             ui.add_space(10.);
             ui.end_row();
 
-            ui.label("Plot settings:");
-            ui.end_row();
-            ui.checkbox(&mut self.plots[self.current_plot].draw_angle, "Angle");
-            ui.end_row();
-            ui.checkbox(&mut self.plots[self.current_plot].draw_pos, "Position");
-            ui.end_row();
-            ui.checkbox(&mut self.plots[self.current_plot].draw_vel, "Velocity");
-            ui.end_row();
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_target_pos,
-                "Target position",
-            );
-            ui.end_row();
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_target_vel,
-                "Target velocity",
-            );
-            ui.end_row();
-            ui.checkbox(&mut self.plots[self.current_plot].draw_voltage, "Voltage");
-            ui.end_row();
-            ui.checkbox(&mut self.plots[self.current_plot].draw_current, "Current");
-            ui.end_row();
+            // plot settings
+            {
+                ui.label("Plot settings:");
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_plot].draw_angle, "Angle");
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_plot].draw_pos, "Position");
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_plot].draw_vel, "Velocity");
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_target_pos,
+                    "Target position",
+                );
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_target_vel,
+                    "Target velocity",
+                );
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_plot].draw_voltage, "Voltage");
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_plot].draw_current, "Current");
+                ui.end_row();
+            }
+
             ui.end_row();
 
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_pid_output_vel,
-                "PID output vel",
-            );
-            ui.add(
-                egui::Slider::new(
-                    &mut self.plots[self.current_plot].pid_vel_internals_scale_output,
-                    log_min..=log_max,
-                )
-                .logarithmic(true)
-                .max_decimals(log_decimals),
-            );
-            ui.end_row();
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_pid_vel_internals_error,
-                "PID vel error",
-            );
-            ui.add(
-                egui::Slider::new(
-                    &mut self.plots[self.current_plot].pid_vel_internals_scale_error,
-                    log_min..=log_max,
-                )
-                .logarithmic(true)
-                .max_decimals(log_decimals),
-            );
-            ui.end_row();
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_pid_vel_internals_p,
-                "PID vel P",
-            );
-            ui.add(
-                egui::Slider::new(
-                    &mut self.plots[self.current_plot].pid_vel_internals_scale_p,
-                    log_min..=log_max,
-                )
-                .logarithmic(true)
-                .max_decimals(log_decimals),
-            );
-            ui.end_row();
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_pid_vel_internals_i,
-                "PID vel I",
-            );
-            ui.add(
-                egui::Slider::new(
-                    &mut self.plots[self.current_plot].pid_vel_internals_scale_i,
-                    log_min..=log_max,
-                )
-                .logarithmic(true)
-                .max_decimals(log_decimals),
-            );
-            ui.end_row();
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_pid_vel_internals_d,
-                "PID vel D",
-            );
-            ui.add(
-                egui::Slider::new(
-                    &mut self.plots[self.current_plot].pid_vel_internals_scale_d,
-                    log_min..=log_max,
-                )
-                .logarithmic(true)
-                .max_decimals(log_decimals),
-            );
-            ui.end_row();
-            ui.end_row();
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_pid_output_pos,
-                "PID output pos",
-            );
-            ui.end_row();
+            // vel PID
+            {
+                // ui.checkbox(
+                //     &mut self.plots[self.current_plot].pid_pos_lock_scales,
+                //     "Lock scales",
+                // );
+                // ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_pid_output_vel,
+                    "PID output vel",
+                );
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].pid_vel_internals_scale_output,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_pid_vel_internals_error,
+                    "PID vel error",
+                );
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].pid_vel_internals_scale_error,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_pid_vel_internals_p,
+                    "PID vel P",
+                );
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].pid_vel_internals_scale_p,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_pid_vel_internals_i,
+                    "PID vel I",
+                );
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].pid_vel_internals_scale_i,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_pid_vel_internals_d,
+                    "PID vel D",
+                );
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].pid_vel_internals_scale_d,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                // if self.plots[self.current_plot].pid_pos_lock_scales {
+                //     self.plots[self.current_plot].pid_pos_internals_scale_error =
+                //         self.plots[self.current_plot].pid_vel_internals_scale_output;
+                // }
+            }
 
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_pid_pos_internals_error,
-                "PID pos error",
-            );
-            ui.add(
-                egui::Slider::new(
-                    &mut self.plots[self.current_plot].pid_pos_internals_scale_error,
-                    log_min..=log_max,
-                )
-                .logarithmic(true)
-                .max_decimals(log_decimals),
-            );
-            ui.end_row();
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_pid_pos_internals_p,
-                "PID pos P",
-            );
-            ui.add(
-                egui::Slider::new(
-                    &mut self.plots[self.current_plot].pid_pos_internals_scale_p,
-                    log_min..=log_max,
-                )
-                .logarithmic(true)
-                .max_decimals(log_decimals),
-            );
-            ui.end_row();
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_pid_pos_internals_i,
-                "PID pos I",
-            );
-            ui.add(
-                egui::Slider::new(
-                    &mut self.plots[self.current_plot].pid_pos_internals_scale_i,
-                    log_min..=log_max,
-                )
-                .logarithmic(true)
-                .max_decimals(log_decimals),
-            );
-            ui.end_row();
-            ui.checkbox(
-                &mut self.plots[self.current_plot].draw_pid_pos_internals_d,
-                "PID pos D",
-            );
-            ui.add(
-                egui::Slider::new(
-                    &mut self.plots[self.current_plot].pid_pos_internals_scale_d,
-                    log_min..=log_max,
-                )
-                .logarithmic(true)
-                .max_decimals(log_decimals),
-            );
-            ui.end_row();
+            // pos PID
+            {
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_pid_output_pos,
+                    "PID output pos",
+                );
+                ui.end_row();
+
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_pid_pos_internals_error,
+                    "PID pos error",
+                );
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].pid_pos_internals_scale_error,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_pid_pos_internals_p,
+                    "PID pos P",
+                );
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].pid_pos_internals_scale_p,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_pid_pos_internals_i,
+                    "PID pos I",
+                );
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].pid_pos_internals_scale_i,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_plot].draw_pid_pos_internals_d,
+                    "PID pos D",
+                );
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].pid_pos_internals_scale_d,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+            }
 
             // ui.add(egui::Slider::new(&mut self.plot.scale_angle, 0.1..=10.).text("Angle scale"));
             // ui.add(egui::Slider::new(&mut self.plot.scale_vel, 0.01..=1.).text("Velocity scale"));
@@ -431,7 +459,93 @@ impl App {
 
 impl DataPlot {
     pub fn save_plot(&self) {
-        unimplemented!()
+        let file = format!(
+            "motor_data_{}.csv",
+            chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+        );
+
+        let mut writer = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(file)
+            .expect("Failed to open CSV file for writing");
+        let mut wtr = csv::Writer::from_writer(writer);
+
+        let data = [
+            &self.angle,
+            &self.vel,
+            &self.pos,
+            &self.target_pos,
+            &self.target_vel,
+            &self.voltage,
+            &self.current_d,
+            &self.current_q,
+            &self.pid_output_vel,
+            &self.pid_vel_internals_error,
+            &self.pid_vel_internals_p,
+            &self.pid_vel_internals_i,
+            &self.pid_pos_internals_d,
+            &self.pid_output_pos,
+            &self.pid_pos_internals_error,
+            &self.pid_pos_internals_p,
+            &self.pid_pos_internals_i,
+            &self.pid_pos_internals_d,
+        ];
+
+        let n = data.iter().map(|d| d.len()).max().unwrap_or(0);
+
+        {
+            wtr.write_field("Timestamp").unwrap();
+            wtr.write_field("Angle").unwrap();
+            wtr.write_field("Velocity").unwrap();
+            wtr.write_field("Position").unwrap();
+            wtr.write_field("Target Position").unwrap();
+            wtr.write_field("Target Velocity").unwrap();
+            wtr.write_field("Voltage").unwrap();
+            wtr.write_field("Current D").unwrap();
+            wtr.write_field("Current Q").unwrap();
+            wtr.write_field("PID Output Velocity").unwrap();
+            wtr.write_field("PID Velocity Internals Error").unwrap();
+            wtr.write_field("PID Velocity Internals P").unwrap();
+            wtr.write_field("PID Velocity Internals I").unwrap();
+            wtr.write_field("PID Velocity Internals D").unwrap();
+            wtr.write_field("PID Output Position").unwrap();
+            wtr.write_field("PID Position Internals Error").unwrap();
+            wtr.write_field("PID Position Internals P").unwrap();
+            wtr.write_field("PID Position Internals I").unwrap();
+            wtr.write_field("PID Position Internals D").unwrap();
+            wtr.write_record(None::<&[u8]>).unwrap();
+        }
+
+        for i in 0..n {
+            let timestamps = data
+                .iter()
+                .flat_map(|d| d.get(i).into_iter().flat_map(|(t, _)| Some(*t)));
+
+            let timestamps: Vec<f64> = timestamps.collect();
+            let avg = if !timestamps.is_empty() {
+                timestamps.iter().sum::<f64>() / timestamps.len() as f64
+            } else {
+                0.0
+            };
+
+            if timestamps.iter().filter(|&&t| t != avg).count() > 0 {
+                warn!(
+                    "Timestamps are not aligned at index {}: {:?}",
+                    i, timestamps
+                );
+            }
+            wtr.write_field(avg.to_string()).unwrap();
+
+            for d in &data {
+                if let Some((_, value)) = d.get(i) {
+                    wtr.write_field(value.to_string()).unwrap();
+                } else {
+                    wtr.write_field("").unwrap();
+                }
+            }
+            wtr.write_record(None::<&[u8]>).unwrap();
+        }
     }
 
     pub fn get_angle(&self) -> &VecDeque<(f64, f64)> {
@@ -773,7 +887,8 @@ impl DataPlot {
                 .unwrap()
                 .set_secondary_coord(
                     self.prev_time - self.window_time..self.prev_time,
-                    self.vel_bounds.0..self.vel_bounds.1,
+                    // self.vel_bounds.0..self.vel_bounds.1,
+                    self.vel_min_max.0..self.vel_min_max.1,
                 );
 
             chart.configure_mesh().draw().unwrap();

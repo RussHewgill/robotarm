@@ -55,33 +55,30 @@ mod pid_settings {
     pub(super) fn set_vel_p(id: u8, p: f32) -> SerialCommand {
         SerialCommand::SetVelocityPID {
             id,
-            p: Some(p),
-            i: None,
-            d: None,
-            ramp: None,
-            limit: None,
+            pid_settings: robotarm_protocol::types::PIDSettings {
+                p: Some(p),
+                ..Default::default()
+            },
         }
     }
 
     pub(super) fn set_vel_i(id: u8, i: f32) -> SerialCommand {
         SerialCommand::SetVelocityPID {
             id,
-            p: None,
-            i: Some(i),
-            d: None,
-            ramp: None,
-            limit: None,
+            pid_settings: robotarm_protocol::types::PIDSettings {
+                i: Some(i),
+                ..Default::default()
+            },
         }
     }
 
     pub(super) fn set_vel_d(id: u8, d: f32) -> SerialCommand {
         SerialCommand::SetVelocityPID {
             id,
-            p: None,
-            i: None,
-            d: Some(d),
-            ramp: None,
-            limit: None,
+            pid_settings: robotarm_protocol::types::PIDSettings {
+                d: Some(d),
+                ..Default::default()
+            },
         }
     }
 
@@ -96,24 +93,82 @@ mod pid_settings {
     pub(super) fn set_vel_limit(id: u8, limit: f64) -> SerialCommand {
         SerialCommand::SetVelocityPID {
             id,
-            p: None,
-            i: None,
-            d: None,
-            ramp: None,
-            limit: Some(limit as f32),
+            pid_settings: robotarm_protocol::types::PIDSettings {
+                limit: Some(limit as f32),
+                ..Default::default()
+            },
+        }
+    }
+
+    pub(super) fn set_vel_i_band(id: u8, i_band: f64) -> SerialCommand {
+        SerialCommand::SetVelocityPID {
+            id,
+            pid_settings: robotarm_protocol::types::PIDSettings {
+                i_band: Some(i_band as f32),
+                ..Default::default()
+            },
+        }
+    }
+
+    pub(super) fn set_vel_d_lpf(id: u8, d_lpf: f64) -> SerialCommand {
+        SerialCommand::SetVelocityPID {
+            id,
+            pid_settings: robotarm_protocol::types::PIDSettings {
+                d_lpf: Some(d_lpf as f32),
+                ..Default::default()
+            },
+        }
+    }
+
+    pub(super) fn set_vel_feed_forward(id: u8, ff: f64) -> SerialCommand {
+        SerialCommand::SetVelocityPID {
+            id,
+            pid_settings: robotarm_protocol::types::PIDSettings {
+                feed_forward: Some(ff as f32),
+                ..Default::default()
+            },
         }
     }
 
     pub(super) fn set_pos_limit(id: u8, limit: f32) -> SerialCommand {
         SerialCommand::SetAnglePID {
             id,
-            p: None,
-            i: None,
-            d: None,
-            ramp: None,
-            limit: Some(limit),
+            pid_settings: robotarm_protocol::types::PIDSettings {
+                limit: Some(limit),
+                ..Default::default()
+            },
         }
     }
+
+    pub(super) fn set_pos_i_band(id: u8, i_band: f64) -> SerialCommand {
+        SerialCommand::SetAnglePID {
+            id,
+            pid_settings: robotarm_protocol::types::PIDSettings {
+                i_band: Some(i_band as f32),
+                ..Default::default()
+            },
+        }
+    }
+
+    pub(super) fn set_pos_d_lpf(id: u8, d_lpf: f64) -> SerialCommand {
+        SerialCommand::SetAnglePID {
+            id,
+            pid_settings: robotarm_protocol::types::PIDSettings {
+                d_lpf: Some(d_lpf as f32),
+                ..Default::default()
+            },
+        }
+    }
+
+    // pub(super) fn set_pos_feed_forward(id: u8, ff: f64) -> SerialCommand {
+    //     SerialCommand::SetAnglePID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             feed_forward: Some(ff as f32),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 }
 
 mod scrollable {
@@ -829,6 +884,8 @@ impl App {
                 self::pid_settings::set_vel_d,
             );
             ui.end_row();
+            // ui.separator();
+            ui.end_row();
 
             self::pid_settings::pid_control(
                 ui,
@@ -847,6 +904,36 @@ impl App {
                 &self.serial_cmd_tx.as_ref().unwrap(),
                 id,
                 self::pid_settings::set_vel_limit,
+            );
+            ui.end_row();
+
+            self::pid_settings::pid_control(
+                ui,
+                "Velocity PID I Band",
+                &mut self.status[id as usize].vel_pid_i_band,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                self::pid_settings::set_vel_i_band,
+            );
+            ui.end_row();
+
+            self::pid_settings::pid_control(
+                ui,
+                "Velocity PID D LPF",
+                &mut self.status[id as usize].vel_pid_d_lpf,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                self::pid_settings::set_vel_d_lpf,
+            );
+            ui.end_row();
+
+            self::pid_settings::pid_control(
+                ui,
+                "Velocity PID FF",
+                &mut self.status[id as usize].vel_pid_feed_forward,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                self::pid_settings::set_vel_feed_forward,
             );
             ui.end_row();
 
@@ -883,11 +970,10 @@ impl App {
                 id,
                 |id, p| SerialCommand::SetAnglePID {
                     id,
-                    p: Some(p),
-                    i: None,
-                    d: None,
-                    ramp: None,
-                    limit: None,
+                    pid_settings: robotarm_protocol::types::PIDSettings {
+                        p: Some(p),
+                        ..Default::default()
+                    },
                 },
             );
             ui.end_row();
@@ -900,11 +986,10 @@ impl App {
                 id,
                 |id, i| SerialCommand::SetAnglePID {
                     id,
-                    p: None,
-                    i: Some(i),
-                    d: None,
-                    ramp: None,
-                    limit: None,
+                    pid_settings: robotarm_protocol::types::PIDSettings {
+                        i: Some(i),
+                        ..Default::default()
+                    },
                 },
             );
             ui.end_row();
@@ -917,13 +1002,13 @@ impl App {
                 id,
                 |id, d| SerialCommand::SetAnglePID {
                     id,
-                    p: None,
-                    i: None,
-                    d: Some(d),
-                    ramp: None,
-                    limit: None,
+                    pid_settings: robotarm_protocol::types::PIDSettings {
+                        d: Some(d),
+                        ..Default::default()
+                    },
                 },
             );
+            ui.end_row();
             ui.end_row();
 
             self::pid_settings::pid_control(
@@ -949,80 +1034,36 @@ impl App {
                 self::pid_settings::set_pos_limit,
             );
             ui.end_row();
-        });
 
-        #[cfg(feature = "nope")]
-        egui::Grid::new("position_pid_grid").show(ui, |ui| {
-            ui.label("Position KP: ");
-            if ui.add(egui::DragValue::new(&mut self.pos_pid_p)).changed() {
-                if let Some(tx) = &self.serial_cmd_tx {
-                    let cmd = SerialCommand::SetAnglePID {
-                        id,
-                        p: Some(self.pos_pid_p),
-                        i: None,
-                        d: None,
-                        ramp: None,
-                        limit: None,
-                    };
-                    if let Err(e) = tx.try_send(cmd) {
-                        error!("Failed to send command: {}", e);
-                    }
-                }
-            }
+            self::pid_settings::pid_control(
+                ui,
+                "Position PID I Band",
+                &mut self.status[id as usize].pos_pid_i_band,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                self::pid_settings::set_pos_i_band,
+            );
             ui.end_row();
 
-            ui.label("Position KI: ");
-            if ui.add(egui::DragValue::new(&mut self.pos_pid_i)).changed() {
-                if let Some(tx) = &self.serial_cmd_tx {
-                    let cmd = SerialCommand::SetAnglePID {
-                        id,
-                        p: None,
-                        i: Some(self.pos_pid_i),
-                        d: None,
-                        ramp: None,
-                        limit: None,
-                    };
-                    if let Err(e) = tx.try_send(cmd) {
-                        error!("Failed to send command: {}", e);
-                    }
-                }
-            }
+            self::pid_settings::pid_control(
+                ui,
+                "Position PID D LPF",
+                &mut self.status[id as usize].pos_pid_d_lpf,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                self::pid_settings::set_pos_d_lpf,
+            );
             ui.end_row();
 
-            ui.label("Position KD: ");
-            if ui.add(egui::DragValue::new(&mut self.pos_pid_d)).changed() {
-                if let Some(tx) = &self.serial_cmd_tx {
-                    let cmd = SerialCommand::SetAnglePID {
-                        id,
-                        p: None,
-                        i: None,
-                        d: Some(self.pos_pid_d),
-                        ramp: None,
-                        limit: None,
-                    };
-                    if let Err(e) = tx.try_send(cmd) {
-                        error!("Failed to send command: {}", e);
-                    }
-                }
-            }
-            ui.end_row();
-
-            ui.label("Position LPF: ");
-            if ui
-                .add(egui::DragValue::new(&mut self.lpf_angle).fixed_decimals(4))
-                .changed()
-            {
-                if let Some(tx) = &self.serial_cmd_tx {
-                    let cmd = SerialCommand::SetLPF {
-                        i_vel: None,
-                        lpf_angle: Some(self.lpf_angle),
-                    };
-                    if let Err(e) = tx.try_send(cmd) {
-                        error!("Failed to send command: {}", e);
-                    }
-                }
-            }
-            ui.end_row();
+            // self::pid_settings::pid_control(
+            //     ui,
+            //     "Position PID FF",
+            //     &mut self.status[id as usize].pos_pid_d_feed_forward,
+            //     &self.serial_cmd_tx.as_ref().unwrap(),
+            //     id,
+            //     self::pid_settings::set_pos_feed_forward,
+            // );
+            // ui.end_row();
         });
     }
 }

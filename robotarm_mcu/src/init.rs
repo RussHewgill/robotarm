@@ -109,7 +109,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_debug_freq(2);
     // foc.set_debug_freq(10);
-    foc.set_debug_freq(100);
+    // foc.set_debug_freq(100);
+    foc.set_debug_freq(200);
     // foc.set_debug_freq(500);
     // foc.set_debug_freq(0);
 
@@ -225,8 +226,10 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // spawner.spawn(loop_foc(foc)).unwrap();
     foc.enable();
 
-    foc.calibrate_encoder().await;
-    foc.encoder.enable_calibration(false);
+    // foc.calibrate_encoder().await;
+    foc.encoder
+        .set_calibration_lut(crate::configs::ENCODER_LUT_GL60);
+    foc.encoder.enable_calibration(true);
 
     // foc.test_calibration().await;
 
@@ -269,6 +272,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         yield_now().await;
 
         let t_us = Instant::now().as_micros();
+
+        // let t_us = t_us + 400_000_000;
 
         if t_us >= commands_next_update {
             foc.run_commands();

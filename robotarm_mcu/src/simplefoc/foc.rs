@@ -22,13 +22,13 @@ use crate::{
 
 /// debug
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
-    pub async fn debug_update_sensor(&mut self) {
-        // if let Err(_e) = self.encoder.update(Instant::now().as_micros()).await {
-        //     error!("Failed to update encoder");
-        //     unimplemented!()
-        // }
-        let _ = self.encoder.update(Instant::now().as_micros()).await;
-    }
+    // pub async fn debug_update_sensor(&mut self) {
+    //     // if let Err(_e) = self.encoder.update(Instant::now().as_micros()).await {
+    //     //     error!("Failed to update encoder");
+    //     //     unimplemented!()
+    //     // }
+    //     let _ = self.encoder.update(Instant::now().as_micros()).await;
+    // }
 
     // pub fn debug_encoder(&mut self) -> &mut MT6701<'a, DMA> {
     //     &mut self.encoder
@@ -575,12 +575,12 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         }
     }
 
-    pub(super) fn angle_openloop(&mut self, target: f32) -> f32 {
+    pub(super) fn angle_openloop(&mut self, target: f32, now_us: u64) -> f32 {
         // debug!(
         //     "Open-loop angle control: target: {}, current: {}",
         //     target, self.openloop_shaft_angle
         // );
-        let now_us = Instant::now().as_micros();
+        // let now_us = Instant::now().as_micros();
 
         let t_us = (now_us - self.motor.openloop_ts) as f32 * 1e-6;
 
@@ -633,8 +633,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // shaft_angle: f32,
         voltage_bemf: f32,
         // electrical_angle: f32,
+        now_us: u64,
     ) -> f32 {
-        let now_us = Instant::now().as_micros();
+        // let now_us = Instant::now().as_micros();
 
         let t_us = (now_us - self.motor.openloop_ts) as f32 * 1e-6;
 

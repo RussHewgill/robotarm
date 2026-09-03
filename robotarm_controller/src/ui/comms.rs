@@ -80,15 +80,22 @@ impl App {
                         vel_p,
                         vel_i,
                         vel_d,
-                        vel_ramp,
+                        // vel_ramp,
                         vel_limit,
                         angle_p,
                         angle_i,
                         angle_d,
-                        angle_ramp,
+                        // angle_ramp,
                         angle_limit,
                         lpf_angle,
                         lpf_vel,
+
+                        vel_feed_forward,
+                        vel_i_band,
+                        vel_d_lpf,
+
+                        pos_i_band,
+                        pos_d_lpf,
                     } => {
                         // debug!("Got motor PID settings {:#?}", msg);
                         debug!("Got motor PID settings from motor {}", id);
@@ -96,15 +103,22 @@ impl App {
                         self.status[id as usize].vel_pid_p = vel_p;
                         self.status[id as usize].vel_pid_i = vel_i;
                         self.status[id as usize].vel_pid_d = vel_d;
-                        self.status[id as usize].vel_pid_ramp = vel_ramp;
+                        // self.status[id as usize].vel_pid_ramp = vel_ramp;
                         self.status[id as usize].vel_pid_limit = vel_limit as f64;
                         self.status[id as usize].pos_pid_p = angle_p;
                         self.status[id as usize].pos_pid_i = angle_i;
                         self.status[id as usize].pos_pid_d = angle_d;
-                        self.status[id as usize].pos_pid_ramp = angle_ramp;
+                        // self.status[id as usize].pos_pid_ramp = angle_ramp;
                         self.status[id as usize].pos_pid_limit = angle_limit;
                         self.status[id as usize].lpf_angle = lpf_angle;
                         self.status[id as usize].lpf_vel = lpf_vel;
+
+                        self.status[id as usize].vel_pid_d_lpf = vel_d_lpf as f64;
+                        self.status[id as usize].vel_pid_i_band = vel_i_band as f64;
+                        self.status[id as usize].vel_pid_feed_forward = vel_feed_forward as f64;
+
+                        self.status[id as usize].pos_pid_i_band = pos_i_band as f64;
+                        self.status[id as usize].pos_pid_d_lpf = pos_d_lpf as f64;
                     }
                     SerialLogMessage::EncoderData {
                         id,

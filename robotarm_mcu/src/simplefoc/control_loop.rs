@@ -46,7 +46,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         //     let _ = tx.try_send(electrical_angle);
         // }
 
-        // #[cfg(feature = "nope")]
+        #[cfg(feature = "current_sensing")]
         if let Some(current_sensor) = &mut self.current_sensor {
             let mut read_current = false;
             if self.current_sensor_downsample > 1 {
@@ -160,6 +160,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
         }
 
+        #[cfg(feature = "thermal_throttling")]
         if let Some(thermals) = &mut self.motor.thermal_limits {
             if let Some(current_sensor) = &mut self.current_sensor {
                 if let Some(current) = current_sensor.prev_foc_currents() {
@@ -187,6 +188,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
         }
 
+        #[cfg(feature = "debug_logging")]
         if self.debug_us_interval() > 0 {
             if t_us - self.prev_debug_us >= self.debug_us_interval() {
                 self.debug = true;
@@ -368,6 +370,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     // shaft_angle,
                     voltage_bemf,
                     // electrical_angle,
+                    t_us,
                 );
                 self.motor.voltage.d = 0.0;
 
@@ -405,11 +408,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     // shaft_angle,
                     // voltage_bemf,
                     // electrical_angle,
+                    t_us,
                 );
                 self.motor.voltage.d = 0.0;
             }
         }
 
+        #[cfg(feature = "debug_logging")]
         if self.debug {
             let sensor_currents = if let Some(current_sensor) = &mut self.current_sensor {
                 // match current_sensor.prev_phase_currents() {
