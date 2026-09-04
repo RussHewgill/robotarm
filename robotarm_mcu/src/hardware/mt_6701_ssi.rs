@@ -7,7 +7,8 @@ use crate::{
 };
 
 /// number of samples to delay velocity calculation to reduce noise
-const VEL_DELAY: usize = 10;
+// const VEL_DELAY: usize = 10;
+const VEL_DELAY: usize = 1;
 
 // #[derive(defmt::Format)]
 pub struct MT6701<SPI> {

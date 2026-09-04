@@ -99,7 +99,7 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub(super) modulation: FOCModulation,
 
     pub(super) sensor_direction: SensorDirection,
-    pub(super) sensor_offset: f32,
+    // pub(super) sensor_offset: f32,
     pub(super) zero_electric_angle: f32,
 
     pub output_sensor_direction: SensorDirection,
@@ -296,7 +296,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             enabled: false,
 
             sensor_direction: SensorDirection::Unknown,
-            sensor_offset: 0.0,
+            // sensor_offset: 0.0,
             zero_electric_angle: NOT_SET,
 
             output_sensor_direction: SensorDirection::Unknown,

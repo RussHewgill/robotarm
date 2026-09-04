@@ -630,7 +630,7 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
-    let time_limit = 1.;
+    let time_limit = 0.2;
     let mut max_time =
         Instant::now() + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
 
@@ -640,6 +640,11 @@ async fn main(spawner: Spawner) {
     let mut n = 0;
     let mut angle_prev = 0;
     loop {
+        // encoder1.update(Instant::now().as_micros()).await.unwrap();
+        // let angle = encoder1.get_angle();
+        let angle = encoder1.read_raw_angle().await.unwrap();
+        // let angle = encoder.read_raw_angle().await.unwrap();
+
         let t1 = Instant::now();
         // #[cfg(feature = "nope")]
         if t1 > max_time {
@@ -653,15 +658,12 @@ async fn main(spawner: Spawner) {
             );
             t0 = t1;
             c = 0;
-            max_time = t1 + embassy_time::Duration::from_millis((time_limit * 2000.) as u64);
+            max_time = t1 + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
+
+            debug!("angle: {}", angle);
         } else {
             c += 1;
         }
-
-        // encoder1.update(Instant::now().as_micros()).await.unwrap();
-        // let angle = encoder1.get_angle();
-        let angle = encoder1.read_raw_angle().await.unwrap();
-        // let angle = encoder.read_raw_angle().await.unwrap();
 
         // let angle = encoder.read_raw_angle_debug().await.unwrap();
 

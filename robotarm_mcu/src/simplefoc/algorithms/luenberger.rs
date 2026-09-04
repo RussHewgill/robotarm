@@ -65,7 +65,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // let dt = (t_us - self.prev_t_us) as f32 * 1e-6; // Convert microseconds to seconds
         let dt_us = t_us.saturating_sub(self.prev_t_us);
         if dt_us == 0 || dt_us > 20_000 {
-            debug!("Invalid dt_us: {}. Resetting prev_t_us.", dt_us);
+            // debug!("Invalid dt_us: {}. Resetting prev_t_us.", dt_us);
             self.prev_t_us = t_us;
             return measured_angle;
         }
@@ -74,7 +74,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         let dt = dt_us as f32 * 1e-6;
         if !(dt > 0.0 && dt.is_finite()) {
-            debug!("Invalid dt: {}. Resetting prev_t_us.", dt);
+            // debug!("Invalid dt: {}. Resetting prev_t_us.", dt);
             self.prev_t_us = t_us;
             return measured_angle;
         }
@@ -129,13 +129,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         //     measured_angle, mech_angle, mech_velocity
         // );
 
-        if mech_velocity.abs() > 100.0 {
-            debug!(
-                "Unrealistic mech_velocity: {}. Resetting prev_t_us.",
-                mech_velocity
-            );
-            panic!()
-        }
+        // if mech_velocity.abs() > 100.0 {
+        //     debug!(
+        //         "Unrealistic mech_velocity: {}. Resetting prev_t_us.",
+        //         mech_velocity
+        //     );
+        //     panic!()
+        // }
 
         // Convert mechanical angle to electrical angle
         let elec_angle = (mech_angle * self.motor.pole_pairs as f32) % _2PI;

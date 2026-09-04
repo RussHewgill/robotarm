@@ -72,8 +72,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // state observer mech_angle should be the same as shaft angle (does not wrap)
 
         let e1 = self
-            // .update_luenberger_observer(t_us, self.motor.target_current)
-            .update_luenberger_observer(t_us, 0.)
+            .update_luenberger_observer(t_us, self.motor.target_current)
+            // .update_luenberger_observer(t_us, 0.)
             .await;
         // // let _ = self.encoder.update(t_us).await;
         // let e2 = self.get_electrical_angle();
@@ -500,12 +500,21 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 id: self.id,
                 timestamp: t_us,
                 motion_control: self.motion_control,
-                position: shaft_angle,
+                // position: shaft_angle,
+                position: {
+                    let angle =
+                        // self.sensor_direction.multiplier() * self.state_observer.get_angle_vel().0;
+                        self.state_observer.get_angle_vel().0;
+                    Self::normalize_angle(angle)
+                },
                 // angle: self.encoder.get_mechanical_angle(),
                 angle: self.get_mechanical_angle(),
                 velocity: self.shaft_velocity,
                 target_position: self.motor.target_shaft_angle,
                 target_velocity: self.motor.target_shaft_velocity,
+                // target_position: self.motor.target_shaft_angle * self.sensor_direction.multiplier(),
+                // target_velocity: self.motor.target_shaft_velocity
+                //     * self.sensor_direction.multiplier(),
                 motor_current: self.motor.current.q,
                 sensor_currents,
                 motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
