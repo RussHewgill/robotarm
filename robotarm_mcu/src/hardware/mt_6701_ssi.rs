@@ -64,7 +64,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
         self._get_angle()
     }
 
-    fn get_velocity(&mut self) -> f32 {
+    fn get_velocity(&self) -> f32 {
         self._get_velocity()
     }
 
@@ -513,7 +513,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
     //     unimplemented!()
     // }
 
-    fn _get_velocity(&mut self) -> f32 {
+    fn _get_velocity(&self) -> f32 {
         self.velocity
     }
 }

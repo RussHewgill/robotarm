@@ -508,8 +508,22 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     Self::normalize_angle(angle)
                 },
                 // angle: self.encoder.get_mechanical_angle(),
-                angle: self.get_mechanical_angle(),
+                // angle: self.get_mechanical_angle(),
+                angle: Self::normalize_angle(
+                    self.sensor_direction.multiplier() * self.encoder.get_mechanical_angle(),
+                ),
                 velocity: self.shaft_velocity,
+
+                motor_voltage: (
+                    { self.sensor_direction.multiplier() * self.encoder.get_velocity() },
+                    0.0,
+                ),
+
+                // motor_voltage: (
+                //     // { self.sensor_direction.multiplier() * self.state_observer.get_angle_vel().1 },
+                //     { self.state_observer.get_angle_vel().1 },
+                //     0.0,
+                // ),
                 target_position: self.motor.target_shaft_angle,
                 target_velocity: self.motor.target_shaft_velocity,
                 // target_position: self.motor.target_shaft_angle * self.sensor_direction.multiplier(),
@@ -517,7 +531,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 //     * self.sensor_direction.multiplier(),
                 motor_current: self.motor.current.q,
                 sensor_currents,
-                motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
+                // motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
                 feed_forward: self.feed_forward_torque,
                 pid_outputs: (
                     self.pid_velocity.prev_output(),

@@ -1007,11 +1007,11 @@ impl DataPlot {
 
             if self.draw_voltage {
                 chart
-                    .draw_series(LineSeries::new(
+                    .draw_secondary_series(LineSeries::new(
                         self.voltage
                             .iter()
                             .filter(|(t, _)| *t >= self.prev_time - self.window_time)
-                            .map(|(t, voltage)| (*t, *voltage / 12.)),
+                            .map(|(t, voltage)| (*t, *voltage)),
                         colors::ORANGE.stroke_width(self.stroke_width),
                     ))
                     .unwrap()

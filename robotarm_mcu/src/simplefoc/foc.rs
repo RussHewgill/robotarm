@@ -540,7 +540,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 }
 
 /// get position and velocity from encoder
-// #[cfg(feature = "nope")]
+#[cfg(feature = "nope")]
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     /// shaft velocity in rad/s
     pub(super) fn get_shaft_velocity(&mut self, t_us: u64) -> f32 {
@@ -576,13 +576,14 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 }
 
 /// get position and velocity from state observer
-#[cfg(feature = "nope")]
+// #[cfg(feature = "nope")]
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     /// skip LPF for use with state observer
     // #[cfg(feature = "nope")]
     pub(super) fn get_shaft_velocity(&mut self, t_us: u64) -> f32 {
         // self.sensor_direction.multiplier() * self.encoder.get_velocity()
-        self.sensor_direction.multiplier() * self.state_observer.get_angle_vel().1
+        // self.sensor_direction.multiplier() * self.state_observer.get_angle_vel().1
+        self.state_observer.get_angle_vel().1
     }
 
     pub(super) fn get_shaft_angle(&mut self) -> f32 {

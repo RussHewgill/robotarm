@@ -61,7 +61,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for As5048a<SPI> {
         unimplemented!()
     }
 
-    fn get_velocity(&mut self) -> f32 {
+    fn get_velocity(&self) -> f32 {
         unimplemented!()
     }
 

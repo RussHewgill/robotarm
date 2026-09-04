@@ -46,7 +46,7 @@ impl<I2C: embedded_hal_async::i2c::I2c> EncoderSensor for AS5600<I2C> {
         self._get_angle()
     }
 
-    fn get_velocity(&mut self) -> f32 {
+    fn get_velocity(&self) -> f32 {
         self._get_velocity()
     }
 

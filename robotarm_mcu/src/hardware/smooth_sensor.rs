@@ -40,7 +40,7 @@ impl<SENSOR: crate::hardware::encoder_sensor::EncoderSensor> EncoderSensor
         unimplemented!()
     }
 
-    fn get_velocity(&mut self) -> f32 {
+    fn get_velocity(&self) -> f32 {
         // EncoderSen
         unimplemented!()
     }

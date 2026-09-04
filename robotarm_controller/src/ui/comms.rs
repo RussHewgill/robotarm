@@ -214,7 +214,7 @@ impl App {
                             self.plots[id as usize].add_point_vel(t, velocity as f64);
                             self.plots[id as usize].add_point_target_vel(t, target_velocity as f64);
                             self.plots[id as usize].add_point_target_pos(t, target_position as f64);
-                            // self.plots[id as usize].add_point_voltage(t, motor_voltage.0 as f64);
+                            self.plots[id as usize].add_point_voltage(t, motor_voltage.0 as f64);
                             self.plots[id as usize]
                                 .add_point_pid_output_vel(t, pid_outputs.0 as f64);
                             self.plots[id as usize]
