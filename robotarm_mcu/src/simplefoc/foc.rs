@@ -591,24 +591,25 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         let angle = self.state_observer.get_angle_vel().0;
         let angle =
             // self.sensor_direction.multiplier() * self.lpf_angle.filter(angle) - self.sensor_offset;
-            self.sensor_direction.multiplier() * self.lpf_angle.filter(angle);
+            // self.sensor_direction.multiplier() * self.lpf_angle.filter(angle);
+            self.lpf_angle.filter(angle);
         angle
     }
 
     // angle in rad, normalized to [0, 2PI]
     pub(super) fn get_mechanical_angle(&self) -> f32 {
         // self.encoder.get_mechanical_angle()
-        let angle = self.sensor_direction.multiplier() * self.state_observer.get_angle_vel().0;
+        // let angle = self.sensor_direction.multiplier() * self.state_observer.get_angle_vel().0;
+        let angle = self.state_observer.get_angle_vel().0;
         // - self.sensor_offset;
         Self::normalize_angle(angle)
     }
 
-    // state observer
     pub(super) fn get_electrical_angle(&mut self) -> f32 {
         let shaft_angle = self.get_mechanical_angle();
-        // let shaft_angle = self.state_observer.get_angle_vel().0;
-        let angle = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * shaft_angle
-            - self.zero_electric_angle;
+        // let shaft_angle = self.encoder.get_mechanical_angle();
+        // let angle = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * shaft_angle
+        let angle = self.motor.pole_pairs as f32 * shaft_angle - self.zero_electric_angle;
 
         // (Self::normalize_angle(angle), shaft_angle)
         Self::normalize_angle(angle)

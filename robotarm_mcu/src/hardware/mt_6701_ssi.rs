@@ -17,7 +17,7 @@ pub struct MT6701<SPI> {
 
     buf: [u8; 4],
 
-    min_elapsed_time: f32, // minimum elapsed time between velocity updates in seconds
+    // min_elapsed_time: f32, // minimum elapsed time between velocity updates in seconds
 
     // angle: f32,
     velocity: f32, // velocity in radians per second
@@ -111,8 +111,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
 
             // min_elapsed_time: 0.0001, // 100 microseconds
             // min_elapsed_time: 0.00005, // 50 microseconds
-            min_elapsed_time: 0.005, // 5 milliseconds
-
+            // min_elapsed_time: 0.005, // 5 milliseconds
             velocity: 0.0,
 
             angles_prev: heapless::Deque::new(),
@@ -495,7 +494,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
         self.angle_prev = angle;
         // self.angle_prev_ts = ts_us;
 
-        self.calc_velocity(angle, ts_us);
+        // self.calc_velocity(angle, ts_us);
         // self.calc_velocity();
 
         Ok(())
@@ -514,6 +513,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
     // }
 
     fn _get_velocity(&self) -> f32 {
-        self.velocity
+        // self.velocity
+        unimplemented!()
     }
 }

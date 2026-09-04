@@ -93,6 +93,23 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         let electrical_angle = e2;
 
+        // let a1 = self.state_observer.get_angle_vel().0;
+        // let a1 = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * a1
+        //     - self.zero_electric_angle;
+        // let a1 = Self::normalize_angle(a1);
+
+        // let a2 = self.encoder.get_mechanical_angle();
+        // let a2 = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * a2
+        //     - self.zero_electric_angle;
+        // let a2 = Self::normalize_angle(a2);
+
+        // if (a2 - a1).abs() > 0.1 {
+        //     debug!(
+        //         "Mechanical angle from observer: {}, from encoder: {}",
+        //         a1, a2
+        //     );
+        // }
+
         // let e1 = (e1 * 100.) as i32;
         // let e2 = (e2 * 100.) as i32;
         // debug!(
@@ -496,6 +513,31 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 None
             };
 
+            self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
+                id: self.id,
+                timestamp: t_us,
+                motion_control: self.motion_control,
+                // position: shaft_angle,
+                position: self.encoder.get_angle(),
+                angle: self.get_mechanical_angle(),
+                velocity: self.shaft_velocity,
+                target_position: self.motor.target_shaft_angle,
+                target_velocity: self.motor.target_shaft_velocity,
+                motor_current: self.motor.current.q,
+                sensor_currents,
+                motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
+                feed_forward: self.feed_forward_torque,
+                pid_outputs: (
+                    self.pid_velocity.prev_output(),
+                    self.pid_angle.prev_output(),
+                ),
+                // pid_internals_vel: self.pid_velocity.prev_internals(),
+                // pid_internals_vel: (0., 0., 0., 0.),
+                // pid_internals_vel: None,
+            })
+            .await;
+
+            #[cfg(feature = "nope")]
             self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
                 id: self.id,
                 timestamp: t_us,

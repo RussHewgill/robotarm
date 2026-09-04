@@ -10,9 +10,9 @@ use crate::{
 /// https://github.com/JRL-CARI-CNR-UNIBS/state_observers
 
 const J: f32 = 0.000_035_5; // Rotor Moment of inertia (kg*m^2)
-// const KT: f32 = 0.45; // Torque constant (Nm/A)
-const KT: f32 = 0.0; // Torque constant (Nm/A)
-const W_0: f32 = 20.; // bandwidth of the observer (rad/s)
+const KT: f32 = 0.45; // Torque constant (Nm/A)
+// const KT: f32 = 0.0; // Torque constant (Nm/A)
+const W_0: f32 = 200.; // bandwidth of the observer (rad/s)
 const L1_CONTINUOUS: f32 = 2. * 1. * W_0; // Continuous gain for the first state
 const L2_CONTINUOUS: f32 = W_0 * W_0; // Continuous gain for the second state
 
@@ -49,6 +49,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     // #[cfg(feature = "nope")]
     pub async fn update_luenberger_observer(&mut self, t_us: u64, commanded_torque: f32) -> f32 {
         let dir = self.sensor_direction.multiplier();
+        // let dir = 1.;
 
         let _ = self.encoder.update(t_us).await;
 
@@ -67,7 +68,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         if dt_us == 0 || dt_us > 20_000 {
             // debug!("Invalid dt_us: {}. Resetting prev_t_us.", dt_us);
             self.prev_t_us = t_us;
-            return measured_angle;
+            // return measured_angle;
+            panic!()
         }
         let dt = dt_us as f32 * 1e-6; // Convert microseconds to seconds
         // debug!("dt: {} seconds", dt);
@@ -76,7 +78,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         if !(dt > 0.0 && dt.is_finite()) {
             // debug!("Invalid dt: {}. Resetting prev_t_us.", dt);
             self.prev_t_us = t_us;
-            return measured_angle;
+            // return measured_angle;
+            panic!()
         }
 
         self.prev_t_us = t_us;
@@ -88,6 +91,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // 2. Discretize the L gains. Continuous gain must be multiplied by dt
         let l = SMatrix::<f32, 2, 1>::new(L1_CONTINUOUS * dt, L2_CONTINUOUS * dt);
 
+        // let p = libm::expf(-W_0 * dt);
+        // let l1 = 2. * (1. - p);
+        // let l2 = ((1. - p) * (1. - p)) / dt;
+        // let l = SMatrix::<f32, 2, 1>::new(l1, l2);
+
         // C and D matrices remain constant
         let c = SMatrix::<f32, 1, 2>::new(1.0, 0.0);
         let d = SMatrix::<f32, 1, 1>::new(0.0);
@@ -97,7 +105,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             .set_params(LuenbergerParam::new(a, b, c, d, l));
 
         // 4. Run the observer step
-        let input = SVector::<f32, 1>::new(commanded_torque * dir);
+        let input = SVector::<f32, 1>::new(-commanded_torque * dir);
         // let input = SVector::<f32, 1>::new(commanded_torque);
         let measurement = SVector::<f32, 1>::new(measured_angle); // (Assume unwrapped)
 

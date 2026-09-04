@@ -981,8 +981,8 @@ impl DataPlot {
                             .iter()
                             .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                             .map(|(t, angle)| {
-                                // (*t, -(*angle - std::f64::consts::PI) / std::f64::consts::PI)
-                                (*t, *angle)
+                                (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)
+                                // (*t, *angle)
                             }),
                         RED.stroke_width(self.stroke_width),
                     ))
