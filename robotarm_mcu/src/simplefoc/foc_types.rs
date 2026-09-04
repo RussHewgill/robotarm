@@ -79,8 +79,10 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
 
     // sensor_us_interval: u64,
     // pub(super) prev_sensor_us: u64,
-    pub angle_sensor_downsample: u32,
-    pub(super) angle_sensor_downsample_counter: u32,
+    // pub angle_sensor_downsample: u32,
+    // pub(super) angle_sensor_downsample_counter: u32,
+    /// (sample_rate_hz, next_sample_us)
+    angle_sensor_sample_rate_hz: Option<(u32, u64)>,
 
     pub current_sensor_downsample: u32,
     pub(super) current_sensor_downsample_counter: u32,
@@ -183,8 +185,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         const PID_VELOCITY_LIMIT: f32 = 20.;
 
         // const VEL_LPF_TF: f32 = 0.;
-        // const VEL_LPF_TF: f32 = 0.01;
-        const VEL_LPF_TF: f32 = 0.05;
+        const VEL_LPF_TF: f32 = 0.01;
+        // const VEL_LPF_TF: f32 = 0.05;
         // const VEL_LPF_TF: f32 = 0.1;
 
         const PID_ANGLE_KP: f32 = 20.0;
@@ -235,8 +237,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
             // sensor_us_interval: 00,
             // prev_sensor_us: 0,
-            angle_sensor_downsample: 1,
-            angle_sensor_downsample_counter: 0,
+            // angle_sensor_downsample: 1,
+            // angle_sensor_downsample_counter: 0,
+            angle_sensor_sample_rate_hz: None,
 
             current_sensor_downsample: 1,
             current_sensor_downsample_counter: 0,
@@ -334,5 +337,26 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
     pub fn set_zero_electric_angle(&mut self, zero_electric_angle: f32) {
         self.zero_electric_angle = zero_electric_angle;
+    }
+
+    pub fn set_angle_sensor_sample_rate(&mut self, sample_rate_hz: Option<u32>) {
+        if let Some(rate) = sample_rate_hz {
+            let now_us = embassy_time::Instant::now().as_micros() as u64;
+            let next_sample_us = now_us + (1_000_000 / rate as u64);
+            self.angle_sensor_sample_rate_hz = Some((rate, next_sample_us));
+        } else {
+            self.angle_sensor_sample_rate_hz = None;
+        }
+    }
+
+    pub fn get_angle_sensor_next_sample_time(&self) -> Option<u64> {
+        self.angle_sensor_sample_rate_hz
+            .map(|(_, next_sample_us)| next_sample_us)
+    }
+
+    pub fn set_angle_sensor_next_sample_time(&mut self, t_us: u64) {
+        if let Some((rate, _)) = self.angle_sensor_sample_rate_hz {
+            self.angle_sensor_sample_rate_hz = Some((rate, t_us + (1_000_000 / rate as u64)));
+        }
     }
 }

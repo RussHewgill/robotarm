@@ -27,6 +27,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     pub async fn loop_foc(&mut self, t_us: u64) {
         // let mut read_current = false;
 
+        #[cfg(feature = "nope")]
         if self.angle_sensor_downsample > 1 {
             if self.angle_sensor_downsample_counter >= self.angle_sensor_downsample {
                 self.angle_sensor_downsample_counter = 0;
@@ -38,6 +39,12 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         } else {
             let _ = self.encoder.update(t_us).await;
             // read_current = true;
+        }
+
+        if let Some(next_angle_sample_time) = self.get_angle_sensor_next_sample_time() {
+            unimplemented!()
+        } else {
+            let _ = self.encoder.update(t_us).await;
         }
 
         let electrical_angle = self.get_electrical_angle();
@@ -274,6 +281,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                         self.pid_velocity_tuner = None;
                     }
                 } else {
+                    // self.motor.target_current = self.feed_forward_torque
                     self.motor.target_current = self.pid_velocity.update(
                         self.motor.target_shaft_velocity,
                         self.shaft_velocity,
@@ -281,12 +289,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     );
                 }
 
-                self.motor.target_current = self.feed_forward_torque
-                    + self.pid_velocity.update(
-                        self.motor.target_shaft_velocity,
-                        self.shaft_velocity,
-                        t_us,
-                    );
+                self.motor.target_current = self.pid_velocity.update(
+                    self.motor.target_shaft_velocity,
+                    self.shaft_velocity,
+                    t_us,
+                );
 
                 if self.torque_controller == TorqueControlType::Voltage {
                     match self.motor.phase_resistance {

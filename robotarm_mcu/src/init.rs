@@ -114,21 +114,9 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_debug_freq(500);
     // foc.set_debug_freq(0);
 
-    // foc.set_vel_pid_debug(0.);
-
-    // foc.set_target_torque(10.0);
-
-    // // let tgt = 1.64;
-    // let mut tgt = 1.0;
-    // foc.set_target_position(tgt);
-
     let mut x = 0;
 
-    // // foc.set_target_torque(0.);
-    // foc.set_target_torque(0.05);
-
     let v = 3.14;
-    // foc.set_target_velocity(v);
 
     info!("Starting main loop");
 
@@ -177,24 +165,13 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     let mut c = 0;
 
-    // foc.angle_sensor_downsample = 0;
-    // foc.angle_sensor_downsample = 1;
-    // foc.angle_sensor_downsample = 2;
-    // foc.angle_sensor_downsample = 5;
-    // foc.angle_sensor_downsample = 8;
-
     // foc.current_sensor_downsample = 10;
     foc.current_sensor_downsample = 2;
 
     // foc.angle_sensor_downsample = 1;
     // foc.current_sensor_downsample = 1;
 
-    // foc.torque_controller = crate::simplefoc::types::TorqueControlType::FOCCurrent;
-
-    // let output_encoder_downsample = 10;
-    // let mut output_encoder_counter = 0;
-
-    // foc.set_zero_electric_angle(0.);
+    // foc.set_angle_sensor_sample_rate(Some(20_000));
 
     foc.set_zero_electric_angle(1.55);
     // foc.set_zero_electric_angle(3.08);
@@ -232,6 +209,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     foc.encoder.enable_calibration(true);
 
     // foc.test_calibration().await;
+
+    // foc.set_velocity_tuner(2.0);
 
     // debug!("Finding angle limits");
     // foc.find_angle_limits().await;

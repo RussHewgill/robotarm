@@ -114,6 +114,14 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     pub fn get_phase_voltages(&self) -> &PhaseVoltages {
         &self.phase_v
     }
+
+    #[cfg(feature = "nope")]
+    pub fn set_velocity_tuner(&mut self, target: f32) {
+        self.pid_velocity_tuner = Some(crate::simplefoc::pid_tuning::PidTuner::new(
+            &self.pid_velocity,
+            target,
+        ));
+    }
 }
 
 /// internal

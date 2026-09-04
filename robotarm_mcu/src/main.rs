@@ -556,7 +556,7 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let mut encoder = {
         let miso = p.PIN_20;
         // let mosi = p.PIN_19;
@@ -602,16 +602,72 @@ async fn main(spawner: Spawner) {
         encoder
     };
 
+    let mut encoder1 = {
+        let cs = p.PIN_21; // Z, yellow, orange
+        let miso = p.PIN_20; // SDA, brown, brown
+        let sck = p.PIN_18; // SCL, blue, red
+
+        let mut config = embassy_rp::spi::Config::default();
+        config.frequency = 4_000_000;
+
+        config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+        config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+        // let mut spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, sck, mosi, miso, config);
+
+        let mut spi =
+            embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, Irqs, config);
+
+        // Configure CS
+        let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
+
+        // let mut buf: [u8; 4] = [0; 4];
+
+        let mut encoder = crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
+
+        // let mut encoder: hardware::mt_6701_ssi::MT6701<embassy_rp::spi::Spi<'static, _, _>> =
+        //     crate::hardware::mt_6701_ssi::MT6701::new(spi, cs);
+
+        encoder
+    };
+
+    let time_limit = 1.;
+    let mut max_time =
+        Instant::now() + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
+
+    let mut x = 0.;
+    let mut c = 0;
+    let mut t0 = Instant::now();
+    let mut n = 0;
+    let mut angle_prev = 0;
     loop {
-        encoder.update(Instant::now().as_micros()).await.unwrap();
-        let angle = encoder.get_angle();
+        let t1 = Instant::now();
+        // #[cfg(feature = "nope")]
+        if t1 > max_time {
+            let elapsed = t1 - t0;
+            let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
+            info!(
+                "Elapsed: {} s, Cycles: {}, Freq: {} Hz",
+                elapsed.as_millis() as f32 * 1e-3,
+                c,
+                freq
+            );
+            t0 = t1;
+            c = 0;
+            max_time = t1 + embassy_time::Duration::from_millis((time_limit * 2000.) as u64);
+        } else {
+            c += 1;
+        }
+
+        // encoder1.update(Instant::now().as_micros()).await.unwrap();
+        // let angle = encoder1.get_angle();
+        let angle = encoder1.read_raw_angle().await.unwrap();
         // let angle = encoder.read_raw_angle().await.unwrap();
 
         // let angle = encoder.read_raw_angle_debug().await.unwrap();
 
-        debug!("Angle: {}", angle);
+        // debug!("Angle: {}", angle);
 
-        Timer::after(embassy_time::Duration::from_millis(100)).await;
+        // Timer::after(embassy_time::Duration::from_millis(100)).await;
     }
 
     #[cfg(feature = "nope")]

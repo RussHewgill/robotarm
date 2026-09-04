@@ -103,8 +103,8 @@ where
             sp,
             out_range_min,
             out_range_max,
-            // d_low_pass: None,
-            d_low_pass: Some(LowPassFilter::new(T::from(0.005).unwrap(), T::zero())),
+            d_low_pass: None,
+            // d_low_pass: Some(LowPassFilter::new(T::from(0.0001).unwrap(), T::zero())),
             feed_forward: T::zero(),
         }
     }
