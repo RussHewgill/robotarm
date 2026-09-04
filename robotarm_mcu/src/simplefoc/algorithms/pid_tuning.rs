@@ -7,6 +7,7 @@ use crate::simplefoc::pid::PIDController;
 pub struct PidTuner {
     // pid: PIDController,
     done: bool,
+    warmup: Option<u64>,
 
     target_input: f32,
     hysteresis: f32,
@@ -37,6 +38,7 @@ impl PidTuner {
         Self {
             // pid,
             done: false,
+            warmup: Some(1_000_000), // 1 second warmup
             target_input,
             hysteresis: 1.0,
             output_low,
@@ -58,6 +60,14 @@ impl PidTuner {
     pub fn update(&mut self, input: f32, t_us: u64) -> f32 {
         if self.done {
             return 0.;
+        }
+
+        if let Some(warmup) = self.warmup {
+            if t_us < warmup {
+                return 0.;
+            }
+            debug!("Warmup complete");
+            self.warmup = None;
         }
 
         self.peak_max = self.peak_max.max(input);
@@ -94,10 +104,23 @@ impl PidTuner {
                 // let kp_c = 0.6;
                 // let ti_c = 0.5;
                 // let td_c = 0.125;
+                // debug!(
+                //     "Pessen Integral tuning:\nKp: {}\nTi: {}\nTd: {}",
+                //     kp_c, ti_c, td_c
+                // );
 
-                let kp_c = 0.05; // Very soft proportional gain
-                let ti_c = 1.0; // Relaxed integral time
-                let td_c = 0.0; // Disable derivative action to stop high-frequency vibrations
+                // some overshoot
+                let kp_c = 0.33;
+                let ti_c = 0.5;
+                let td_c = 0.33;
+                // debug!(
+                //     "Some overshoot tuning:\nKp: {}\nTi: {}\nTd: {}",
+                //     kp_c, ti_c, td_c
+                // );
+
+                // let kp_c = 0.05; // Very soft proportional gain
+                // let ti_c = 1.0; // Relaxed integral time
+                // let td_c = 0.0; // Disable derivative action to stop high-frequency vibrations
 
                 // // Tuning rules
                 // if (_mode == PESSEN_INTEGRAL_RULE)
@@ -147,7 +170,7 @@ impl PidTuner {
                     debug!("Done tune");
                     // _pid.setConstants(_kp_sum / _samples, _ki_sum / _samples, _kd_sum / _samples);
                     debug!(
-                        "PID Tuning complete: Kp: {}, Ki: {}, Kd: {}",
+                        "PID Tuning complete:\nKp: {}\nKi: {}\nKd: {}",
                         self.kp_sum / self.n_samples as f32,
                         self.ki_sum / self.n_samples as f32,
                         self.kd_sum / self.n_samples as f32

@@ -51,6 +51,8 @@ pub enum FOCModulation {
 pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub id: u8,
 
+    pub prev_t_us: u64,
+
     // pub(super) encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     // pub(super) encoder: MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
     // pub(super) encoder: MT6701<'a, DMA>,
@@ -120,6 +122,8 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub pid_velocity: PIDController<f32>,
     pub pid_angle: PIDController<f32>,
 
+    pub state_observer: crate::simplefoc::luenberger::LuenbergerObserver<f32, 2, 1, 1>,
+
     pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
     // pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning_vel::VelocityAutoTuner>,
     pub(super) pid_angle_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
@@ -142,7 +146,6 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     pub fn new(
         id: u8,
-
         // encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
         // encoder: MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
         encoder: ENCODER,
@@ -215,8 +218,53 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         );
         // pid_velocity.set_feed_forward(PID_VELOCITY_FEED_FORWARD);
 
+        let state_observer = {
+            use nalgebra::SMatrix;
+
+            // let ts = 0.0001;
+            // let rotor_inertia = 0.000_035_5;
+            // let kt = 0.0;
+            // let w0 = 10.0;
+            // let l1 = 2. * 1. * w0;
+            // let l2 = w0 * w0;
+
+            // let a = SMatrix::<f32, 2, 2>::new(1.0, ts, 0.0, 1.0);
+            // let b = SMatrix::<f32, 2, 1>::new(
+            //     (kt * ts * ts) / (2.0 * rotor_inertia),
+            //     (kt * ts) / rotor_inertia,
+            // );
+            // let c = SMatrix::<f32, 1, 2>::new(1.0, 0.0);
+            // let d = SMatrix::<f32, 1, 1>::new(0.0);
+            // let l = SMatrix::<f32, 2, 1>::new(l1, l2);
+
+            let a = SMatrix::<f32, 2, 2>::zeros();
+            let b = SMatrix::<f32, 2, 1>::zeros();
+            let c = SMatrix::<f32, 1, 2>::new(1.0, 0.0);
+            let d = SMatrix::<f32, 1, 1>::zeros();
+            let l = SMatrix::<f32, 2, 1>::zeros();
+
+            crate::simplefoc::luenberger::LuenbergerObserver::new(
+                crate::simplefoc::luenberger::LuenbergerParam {
+                    a,
+                    b,
+                    c,
+                    d,
+                    l,
+                    // a: nalgebra::SMatrix::<f32, 2, 2>::new(1.0, 0.005, 0.0, 1.0),
+                    // b: nalgebra::SMatrix::<f32, 2, 1>::new(0.0, 0.005),
+                    // c: nalgebra::SMatrix::<f32, 2, 2>::new(1.0, 0.0, 0.0, 1.0),
+                    // d: nalgebra::SMatrix::<f32, 2, 1>::new(0.0, 0.0),
+                    // l: nalgebra::SMatrix::<f32, 2, 2>::new(1.5, 0.0, 0.0, 1.5),
+                },
+                nalgebra::SVector::<f32, 2>::new(0.0, 0.0),
+            )
+        };
+
         SimpleFOC {
             id,
+
+            // prev_t_us: embassy_time::Instant::now().as_micros() as u64,
+            prev_t_us: 0,
 
             encoder,
             current_sensor,
@@ -276,6 +324,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 PID_ANGLE_LIMIT,
             ),
 
+            state_observer,
+
             pid_angle_tuner: None,
             pid_velocity_tuner: None,
 
@@ -328,12 +378,6 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     // pub fn sensor_update_us_interval(&self) -> u64 {
     //     self.sensor_us_interval
     // }
-
-    pub fn set_vel_pid_debug(&mut self, target_input: f32) {
-        // let tuner = crate::simplefoc::pid_tuning::PidTuner::new(&self.pid_velocity, target_input);
-        // self.pid_velocity_tuner = Some(tuner);
-        unimplemented!()
-    }
 
     pub fn set_zero_electric_angle(&mut self, zero_electric_angle: f32) {
         self.zero_electric_angle = zero_electric_angle;

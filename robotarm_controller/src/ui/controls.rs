@@ -1,8 +1,8 @@
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use egui_extras::Size;
 use tracing::{debug, error, info, trace, warn};
 
 use egui::{Color32, RichText, Sense, Stroke, Vec2};
+use egui_extras::Size;
 
 use crate::ui::{app::App, controls::scrollable::make_scrollable};
 use robotarm_protocol::SerialCommand;
@@ -12,6 +12,50 @@ mod pid_settings {
     use tracing::{debug, error, info, trace, warn};
 
     use robotarm_protocol::SerialCommand;
+
+    pub(super) fn pid_control_inc<F>(
+        ui: &mut egui::Ui,
+        label: &str,
+        value: &mut F,
+        inc_value: &mut F,
+        tx: &tokio::sync::mpsc::Sender<SerialCommand>,
+        // tx: &crossbeam_channel::Sender<SerialCommand>,
+        id: u8,
+        cmd_fn: impl Fn(u8, F) -> SerialCommand,
+    ) where
+        F: egui::emath::Numeric + Copy,
+    {
+        ui.label(label);
+
+        let resp = ui.add(egui::DragValue::new(value).fixed_decimals(5));
+
+        let but_inc = ui.button("+");
+        let amt = ui.add(egui::DragValue::new(inc_value).fixed_decimals(5));
+        let but_dec = ui.button("-");
+
+        // let send_resp = ui.button("Send");
+        // let zero_resp = ui.button("Zero");
+
+        // if (resp.lost_focus()
+        //     && resp
+        //         .ctx
+        //         .input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Tab)))
+        //     || send_resp.clicked()
+        // {
+        //     let cmd = cmd_fn(id, *value);
+        //     if let Err(e) = tx.try_send(cmd) {
+        //         error!("Failed to send command: {}", e);
+        //     }
+        // }
+
+        // if zero_resp.clicked() {
+        //     *value = F::from_f64(0.0);
+        //     let cmd = cmd_fn(id, *value);
+        //     if let Err(e) = tx.try_send(cmd) {
+        //         error!("Failed to send command: {}", e);
+        //     }
+        // }
+    }
 
     pub(super) fn pid_control<F>(
         ui: &mut egui::Ui,

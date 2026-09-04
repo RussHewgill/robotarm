@@ -87,9 +87,9 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // };
 
     // foc.set_motion_control(MotionControlType::Torque);
-    foc.set_motion_control(MotionControlType::Velocity);
+    // foc.set_motion_control(MotionControlType::Velocity);
     // foc.set_motion_control(MotionControlType::Angle);
-    // foc.set_motion_control(MotionControlType::VelocityOpenLoop);
+    foc.set_motion_control(MotionControlType::VelocityOpenLoop);
 
     // foc.set_torque_control(crate::simplefoc::types::TorqueControlType::Voltage);
     foc.set_torque_control(crate::simplefoc::types::TorqueControlType::EstimatedCurrent);
@@ -210,7 +210,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.test_calibration().await;
 
-    // foc.set_velocity_tuner(2.0);
+    // foc.set_velocity_tuner(10.0);
 
     // debug!("Finding angle limits");
     // foc.find_angle_limits().await;

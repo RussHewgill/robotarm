@@ -86,6 +86,7 @@ byteorder = { version = "1", default-features = false }
 bitvec = { version = "1.1.1", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = ["libm"] }
 
+nalgebra = { version = "0.35", default-features = false, features = ["libm"] }
 
 # ron = { version = "0.12.1", default-features = false, features = [] }
 

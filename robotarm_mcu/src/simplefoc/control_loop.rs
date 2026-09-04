@@ -14,7 +14,8 @@ use crate::{
         lowpass::LowPassFilter,
         pid::PIDController,
         types::{
-            DQCurrents, NOT_SET, PhaseCurrents, PhaseVoltages, SensorDirection, TorqueControlType,
+            _2PI, DQCurrents, NOT_SET, PhaseCurrents, PhaseVoltages, SensorDirection,
+            TorqueControlType,
         },
     },
 };
@@ -41,13 +42,69 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             // read_current = true;
         }
 
-        if let Some(next_angle_sample_time) = self.get_angle_sensor_next_sample_time() {
-            unimplemented!()
-        } else {
-            let _ = self.encoder.update(t_us).await;
-        }
+        // if let Some(next_angle_sample_time) = self.get_angle_sensor_next_sample_time() {
+        //     unimplemented!()
+        // } else {
+        //     let _ = self.encoder.update(t_us).await;
+        // }
 
-        let electrical_angle = self.get_electrical_angle();
+        #[cfg(feature = "nope")]
+        let electrical_angle = if self.enabled {
+            let e1 = self
+                .update_luenberger_observer(t_us, self.motor.target_current)
+                .await;
+            let e2 = self.get_electrical_angle();
+            if (e2 - e1).abs() > 0.1 {
+                debug!(
+                    "Electrical angle from observer: {}, from encoder: {}",
+                    e1, e2
+                );
+            }
+            if e1.is_nan() || e2.is_nan() {
+                self.disable();
+                panic!()
+            }
+            e2
+        } else {
+            self.get_electrical_angle()
+        };
+
+        // state observer mech_angle should be the same as shaft angle (does not wrap)
+
+        let e1 = self
+            // .update_luenberger_observer(t_us, self.motor.target_current)
+            .update_luenberger_observer(t_us, 0.)
+            .await;
+        // // let _ = self.encoder.update(t_us).await;
+        // let e2 = self.get_electrical_angle();
+        // if (e2 - e1).abs() > 0.1 {
+        //     debug!(
+        //         "Electrical angle from observer: {}, from encoder: {}",
+        //         e1, e2
+        //     );
+        // }
+        // if e1.is_nan() || e2.is_nan() {
+        //     self.disable();
+        //     panic!()
+        // }
+
+        // let _ = self.encoder.update(t_us).await;
+        let e2 = self.get_electrical_angle();
+
+        let electrical_angle = e2;
+
+        // let e1 = (e1 * 100.) as i32;
+        // let e2 = (e2 * 100.) as i32;
+        // debug!(
+        //     "Electrical angle from observer: {:04}, from encoder: {:04}",
+        //     e1, e2
+        // );
+
+        // self.set_phase_voltage(0., 0., 0.);
+        // return;
+
+        // let _ = self.encoder.update(t_us).await;
+        // let electrical_angle = self.get_electrical_angle();
 
         // if let Some(tx) = &mut self.current_sensor_elec_angle_tx {
         //     let _ = tx.try_send(electrical_angle);
@@ -257,6 +314,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     }
                 }
 
+                #[cfg(feature = "nope")]
                 if self.debug {
                     let rpm = self.shaft_velocity * 30.0 / core::f32::consts::PI;
 
@@ -281,7 +339,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                         self.pid_velocity_tuner = None;
                     }
                 } else {
-                    // self.motor.target_current = self.feed_forward_torque
+                    // self.motor.target_current = self.feed_forward_torque +
                     self.motor.target_current = self.pid_velocity.update(
                         self.motor.target_shaft_velocity,
                         self.shaft_velocity,
@@ -443,7 +501,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 timestamp: t_us,
                 motion_control: self.motion_control,
                 position: shaft_angle,
-                angle: self.encoder.get_mechanical_angle(),
+                // angle: self.encoder.get_mechanical_angle(),
+                angle: self.get_mechanical_angle(),
                 velocity: self.shaft_velocity,
                 target_position: self.motor.target_shaft_angle,
                 target_velocity: self.motor.target_shaft_velocity,

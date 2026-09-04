@@ -93,6 +93,11 @@ impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
     fn get_encoder_calibration_lut(&self) -> Option<[f32; N_LUT]> {
         Some(self.lut)
     }
+    fn debug_force_set_angle_velocity(&mut self, angle: f32, velocity: f32) {
+        let angle = angle % _2PI;
+        self.angle_prev = angle;
+        self.velocity = velocity;
+    }
 }
 
 impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {

@@ -16,7 +16,7 @@ use crate::{
         foc_types::{FOCModulation, SimpleFOC},
         lowpass::LowPassFilter,
         pid::PIDController,
-        types::{NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType},
+        types::{_2PI, NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType},
     },
 };
 
@@ -115,7 +115,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         &self.phase_v
     }
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     pub fn set_velocity_tuner(&mut self, target: f32) {
         self.pid_velocity_tuner = Some(crate::simplefoc::pid_tuning::PidTuner::new(
             &self.pid_velocity,
@@ -529,6 +529,17 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             .set_duty_cycles_f32(self.phase_v.a, self.phase_v.b, self.phase_v.c);
     }
 
+    pub fn set_zero_angle(&mut self) {
+        // self.sensor_offset = self.get_shaft_angle();
+    }
+
+    // pub fn get_mechanical_angle(&mut self) -> f32 {
+    // }
+}
+
+/// get position and velocity from state observer
+#[cfg(feature = "nope")]
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     /// shaft velocity in rad/s
     pub(super) fn get_shaft_velocity(&mut self, t_us: u64) -> f32 {
         self.sensor_direction.multiplier()
@@ -540,22 +551,55 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     /// shaft angle in rad
     pub(super) fn get_shaft_angle(&mut self) -> f32 {
         let angle = self.encoder.get_angle();
-
         let angle =
             self.sensor_direction.multiplier() * self.lpf_angle.filter(angle) - self.sensor_offset;
-
         angle
     }
 
-    pub fn set_zero_angle(&mut self) {
-        // self.sensor_offset = self.get_shaft_angle();
+    pub(super) fn get_mechanical_angle(&self) -> f32 {
+        self.encoder.get_mechanical_angle()
     }
-
-    // pub fn get_mechanical_angle(&mut self) -> f32 {
-    // }
 
     pub(super) fn get_electrical_angle(&mut self) -> f32 {
         let shaft_angle = self.encoder.get_mechanical_angle();
+        let angle = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * shaft_angle
+            - self.zero_electric_angle;
+
+        // (Self::normalize_angle(angle), shaft_angle)
+        Self::normalize_angle(angle)
+    }
+}
+
+/// get position and velocity from state observer
+// #[cfg(feature = "nope")]
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
+    /// skip LPF for use with state observer
+    // #[cfg(feature = "nope")]
+    pub(super) fn get_shaft_velocity(&mut self, t_us: u64) -> f32 {
+        // self.sensor_direction.multiplier() * self.encoder.get_velocity()
+        self.sensor_direction.multiplier() * self.state_observer.get_angle_vel().1
+    }
+
+    pub(super) fn get_shaft_angle(&mut self) -> f32 {
+        // let angle = self.encoder.get_angle();
+        let angle = self.state_observer.get_angle_vel().0;
+        let angle =
+            self.sensor_direction.multiplier() * self.lpf_angle.filter(angle) - self.sensor_offset;
+        angle
+    }
+
+    // angle in rad, normalized to [0, 2PI]
+    pub(super) fn get_mechanical_angle(&self) -> f32 {
+        // self.encoder.get_mechanical_angle()
+        let angle = self.sensor_direction.multiplier() * self.state_observer.get_angle_vel().0
+            - self.sensor_offset;
+        Self::normalize_angle(angle)
+    }
+
+    // state observer
+    pub(super) fn get_electrical_angle(&mut self) -> f32 {
+        // let shaft_angle = self.state_observer.get_angle_vel().0 % _2PI;
+        let shaft_angle = self.get_mechanical_angle();
         let angle = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * shaft_angle
             - self.zero_electric_angle;
 
