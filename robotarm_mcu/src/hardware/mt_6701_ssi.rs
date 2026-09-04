@@ -6,7 +6,10 @@ use crate::{
     simplefoc::types::_2PI,
 };
 
-#[derive(defmt::Format)]
+/// number of samples to delay velocity calculation to reduce noise
+const VEL_DELAY: usize = 5;
+
+// #[derive(defmt::Format)]
 pub struct MT6701<SPI> {
     spi: SPI,
     cs: Output<'static>,
@@ -18,15 +21,24 @@ pub struct MT6701<SPI> {
     // angle: f32,
     velocity: f32, // velocity in radians per second
 
-    angle_prev: f32, // result of last call to getSensorAngle(), used for full rotations and velocity
-    angle_prev_ts: u64, // timestamp of last call to getAngle, used for velocity
-    vel_angle_prev: f32, // angle at last call to getVelocity, used for velocity
-    vel_angle_prev_ts: u64, // last velocity calculation timestamp
-    full_rotations: i32, // full rotation tracking
-    vel_full_rotations: i32, // previous full rotation value for velocity calculation
+    // use angles
+    angles_prev: heapless::Deque<Sample, 10>,
 
+    angle_prev: f32, // result of last call to getSensorAngle(), used for full rotations and velocity
+    // angle_prev_ts: u64, // timestamp of last call to getAngle, used for velocity
+    // vel_angle_prev: f32, // angle at last call to getVelocity, used for velocity
+    // vel_angle_prev_ts: u64, // last velocity calculation timestamp
+    full_rotations: i32, // full rotation tracking
+    // vel_full_rotations: i32, // previous full rotation value for velocity calculation
     lut: [f32; N_LUT],        // lookup table for magnet correction
     enable_calibration: bool, // flag to enable/disable calibration
+}
+
+#[derive(Copy, Clone)]
+struct Sample {
+    sample_angle: f32,
+    sample_ts: u64,
+    sample_full_rotations: i32,
 }
 
 #[derive(defmt::Format, Debug)]
@@ -96,18 +108,21 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
             min_elapsed_time: 0.005, // 5 milliseconds
 
             velocity: 0.0,
-            angle_prev: 0.0,
-            angle_prev_ts: 0,
-            vel_angle_prev: 0.0,
-            vel_angle_prev_ts: 0,
-            full_rotations: 0,
-            vel_full_rotations: 0,
 
+            angles_prev: heapless::Deque::new(),
+
+            angle_prev: 0.0,
+            // angle_prev_ts: 0,
+            // vel_angle_prev: 0.0,
+            // vel_angle_prev_ts: 0,
+            full_rotations: 0,
+            // vel_full_rotations: 0,
             lut: [0.0; N_LUT],
             enable_calibration: false,
         }
     }
 
+    #[cfg(feature = "nope")]
     fn calc_velocity(&mut self) -> f32 {
         let dt_us = self.angle_prev_ts.wrapping_sub(self.vel_angle_prev_ts);
 
@@ -139,6 +154,78 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
         self.vel_full_rotations = self.full_rotations;
         self.vel_angle_prev_ts = self.angle_prev_ts;
         self.velocity
+    }
+
+    // #[cfg(feature = "nope")]
+    fn calc_velocity(&mut self, current_angle: f32, t_us: u64) -> f32 {
+        // let dt_us = self.angle_prev_ts.wrapping_sub(self.vel_angle_prev_ts);
+
+        // // first run
+        // if self.vel_angle_prev_ts == 0 {
+        //     self.vel_angle_prev = self.angle_prev;
+        //     self.vel_full_rotations = self.full_rotations;
+        //     self.vel_angle_prev_ts = self.angle_prev_ts;
+        //     return self.velocity;
+        // }
+
+        // if dt_us < (self.min_elapsed_time * 1e6) as u64 {
+        //     return self.velocity;
+        // }
+
+        // if dt_us > 300_000 {
+        //     self.vel_angle_prev = self.angle_prev;
+        //     self.vel_full_rotations = self.full_rotations;
+        //     self.vel_angle_prev_ts = self.angle_prev_ts;
+        //     return self.velocity;
+        // }
+
+        // let ts = dt_us as f32 * 1e-6;
+
+        if let Some(Sample {
+            sample_angle,
+            sample_ts,
+            sample_full_rotations,
+        }) = self.angles_prev.pop_front()
+        {
+            // let delta_angle = (self.full_rotations - vel_full_rotations) as f32 * _2PI
+            //     + (self.angle_prev - angle);
+            // self.velocity = delta_angle / ((t_us - timestamp) as f32 * 1e-6);
+
+            let delta_angle = (self.full_rotations - sample_full_rotations) as f32 * _2PI
+                + (current_angle - sample_angle);
+
+            self.velocity = delta_angle / ((t_us - sample_ts) as f32 * 1e-6);
+
+            let _ = self.angles_prev.push_back(Sample {
+                sample_angle: current_angle,
+                sample_ts: t_us,
+                sample_full_rotations: self.full_rotations,
+            });
+            // self.vel_full_rotations = self.full_rotations;
+            // self.vel_angle_prev = self.angle_prev;
+            // self.vel_angle_prev_ts = self.angle_prev_ts;
+
+            return self.velocity;
+        } else {
+            let _ = self.angles_prev.push_back(Sample {
+                sample_angle: current_angle,
+                sample_ts: t_us,
+                sample_full_rotations: self.full_rotations,
+            });
+            // self.vel_angle_prev = self.angle_prev;
+            // self.vel_full_rotations = self.full_rotations;
+            // self.vel_angle_prev_ts = self.angle_prev_ts;
+            return self.velocity;
+        }
+
+        // self.velocity = ((self.full_rotations - self.vel_full_rotations) as f32 * _2PI
+        //     + (self.angle_prev - self.vel_angle_prev))
+        //     / ts;
+
+        // self.vel_angle_prev = self.angle_prev;
+        // self.vel_full_rotations = self.full_rotations;
+        // self.vel_angle_prev_ts = self.angle_prev_ts;
+        // self.velocity
     }
 
     #[cfg(feature = "nope")]
@@ -295,11 +382,6 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
         crc
     }
 
-    // pub async fn read_raw_angle(&mut self) -> Result<u16, MT6701Error> {
-    //     self.read_raw_angle_debug().await
-    // }
-
-    // #[cfg(feature = "nope")]
     pub async fn read_raw_angle(&mut self) -> Result<u16, MT6701Error> {
         self.cs.set_low();
         self.spi
@@ -405,9 +487,10 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
         }
 
         self.angle_prev = angle;
-        self.angle_prev_ts = ts_us;
+        // self.angle_prev_ts = ts_us;
 
-        self.calc_velocity();
+        self.calc_velocity(angle, ts_us);
+        // self.calc_velocity();
 
         Ok(())
     }
