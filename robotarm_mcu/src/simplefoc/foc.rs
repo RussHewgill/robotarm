@@ -191,7 +191,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // self.motor.voltage_sensor_align = 0.5;
         // self.motor.voltage_sensor_align = 1.0;
         // self.motor.voltage_sensor_align = 2.0;
-        self.motor.voltage_sensor_align = 4.0;
+        // self.motor.voltage_sensor_align = 4.0;
         // self.motor.voltage_sensor_align = 6.0;
         // self.motor.voltage_sensor_align = 8.0;
 
@@ -351,7 +351,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 // let angle_left = self.encoder.get_mechanical_angle();
 
                 self.zero_electric_angle = 0.;
-                let angle_left = self.get_electrical_angle();
+                // let angle_left = self.get_electrical_angle();
+                let angle_left = self.get_encoder_electrical_angle();
                 debug!("Angle left: {}", angle_left);
                 left_angles.push(angle_left).unwrap();
 
@@ -368,7 +369,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 // let angle_right = self.encoder.get_mechanical_angle();
 
                 self.zero_electric_angle = 0.;
-                let angle_right = self.get_electrical_angle();
+                let angle_right = self.get_encoder_electrical_angle();
                 debug!("Angle right: {}", angle_right);
 
                 right_angles.push(angle_right).unwrap();
@@ -535,6 +536,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // self.sensor_offset = self.get_shaft_angle();
     }
 
+    pub fn set_alignment_voltage(&mut self, voltage: f32) {
+        self.motor.voltage_sensor_align = voltage;
+    }
+
     // pub fn get_mechanical_angle(&mut self) -> f32 {
     // }
 }
@@ -610,8 +615,17 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // let shaft_angle = self.encoder.get_mechanical_angle();
         // let angle = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * shaft_angle
         let angle = self.motor.pole_pairs as f32 * shaft_angle - self.zero_electric_angle;
+        let angle = self.sensor_direction.multiplier() * angle;
 
         // (Self::normalize_angle(angle), shaft_angle)
+        Self::normalize_angle(angle)
+    }
+
+    fn get_encoder_electrical_angle(&mut self) -> f32 {
+        let shaft_angle = self.encoder.get_mechanical_angle();
+        let angle = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * shaft_angle
+            - self.zero_electric_angle;
+
         Self::normalize_angle(angle)
     }
 }

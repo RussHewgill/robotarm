@@ -122,7 +122,7 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub pid_velocity: PIDController<f32>,
     pub pid_angle: PIDController<f32>,
 
-    pub state_observer: crate::simplefoc::luenberger::LuenbergerObserver<f32, 2, 1, 1>,
+    pub state_observer: crate::simplefoc::luenberger::LuenbergerObserver<f32, 3, 1, 1>,
 
     pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
     // pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning_vel::VelocityAutoTuner>,
@@ -221,24 +221,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         );
         // pid_velocity.set_feed_forward(PID_VELOCITY_FEED_FORWARD);
 
+        #[cfg(feature = "nope")]
         let state_observer = {
             use nalgebra::SMatrix;
-
-            // let ts = 0.0001;
-            // let rotor_inertia = 0.000_035_5;
-            // let kt = 0.0;
-            // let w0 = 10.0;
-            // let l1 = 2. * 1. * w0;
-            // let l2 = w0 * w0;
-
-            // let a = SMatrix::<f32, 2, 2>::new(1.0, ts, 0.0, 1.0);
-            // let b = SMatrix::<f32, 2, 1>::new(
-            //     (kt * ts * ts) / (2.0 * rotor_inertia),
-            //     (kt * ts) / rotor_inertia,
-            // );
-            // let c = SMatrix::<f32, 1, 2>::new(1.0, 0.0);
-            // let d = SMatrix::<f32, 1, 1>::new(0.0);
-            // let l = SMatrix::<f32, 2, 1>::new(l1, l2);
 
             let a = SMatrix::<f32, 2, 2>::zeros();
             let b = SMatrix::<f32, 2, 1>::zeros();
@@ -249,6 +234,30 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             crate::simplefoc::luenberger::LuenbergerObserver::new(
                 crate::simplefoc::luenberger::LuenbergerParam { a, b, c, d, l },
                 nalgebra::SVector::<f32, 2>::new(0.0, 0.0),
+                // 0.0,
+                // 0.0,
+                0.000_035_5,
+                // 0.45,
+                if let Some(kv) = motor.motor_kv {
+                    9.549 / kv
+                } else {
+                    0.0
+                },
+            )
+        };
+
+        let state_observer: crate::simplefoc::luenberger::LuenbergerObserver<f32, 3, 1, 1> = {
+            use nalgebra::SMatrix;
+
+            let a = SMatrix::<f32, 3, 3>::zeros();
+            let b = SMatrix::<f32, 3, 1>::zeros();
+            let c = SMatrix::<f32, 1, 3>::new(1.0, 0.0, 0.0);
+            let d = SMatrix::<f32, 1, 1>::zeros();
+            let l = SMatrix::<f32, 3, 1>::zeros();
+
+            crate::simplefoc::luenberger::LuenbergerObserver::new(
+                crate::simplefoc::luenberger::LuenbergerParam { a, b, c, d, l },
+                nalgebra::SVector::<f32, 3>::new(0.0, 0.0, 0.0),
                 // 0.0,
                 // 0.0,
                 0.000_035_5,
@@ -333,8 +342,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             lpf_velocity: LowPassFilter::new(VEL_LPF_TF),
             lpf_angle: LowPassFilter::new(ANGLE_LPF_TF),
 
-            lpf_current_q: LowPassFilter::new(0.05),
-            lpf_current_d: LowPassFilter::new(0.05),
+            lpf_current_q: LowPassFilter::new(0.0001),
+            lpf_current_d: LowPassFilter::new(0.0001),
 
             pid_current_q: PIDController::new(
                 PID_CURR_KP,

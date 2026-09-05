@@ -173,8 +173,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_angle_sensor_sample_rate(Some(20_000));
 
-    foc.set_zero_electric_angle(1.55);
-    // foc.set_zero_electric_angle(3.08);
+    // foc.set_zero_electric_angle(1.55);
+    foc.set_zero_electric_angle(1.51);
     // foc.set_zero_electric_angle(5.05);
 
     // match foc.id {
@@ -195,6 +195,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     let mut output_encoder_next_update =
         (Instant::now() + output_encoder_update_interval_us).as_micros();
 
+    foc.set_alignment_voltage(4.0);
+
     info!("Starting init");
     foc.init();
 
@@ -204,18 +206,24 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     foc.enable();
 
     // foc.calibrate_encoder().await;
+    // foc.encoder
+    //     .set_calibration_lut(crate::configs::ENCODER_LUT_GL60);
     foc.encoder
-        .set_calibration_lut(crate::configs::ENCODER_LUT_GL60);
+        .set_calibration_lut(crate::configs::ENCODER_LUT_GM5208_24);
     foc.encoder.enable_calibration(true);
 
     // foc.test_calibration().await;
 
     // foc.set_velocity_tuner(10.0);
 
-    foc.optimize_state_observer().await;
+    // foc.optimize_state_observer().await;
 
     // foc.state_observer.set_torque_constant(0.45);
     // foc.state_observer.set_rotor_inertia(355. * 1e-7);
+
+    // foc.state_observer.set_torque_constant(0.45);
+    // foc.state_observer.set_torque_constant(0.);
+    foc.state_observer.set_rotor_inertia(100. * 1e-7);
 
     // debug!("Finding angle limits");
     // foc.find_angle_limits().await;
@@ -251,7 +259,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     let commands_interval = embassy_time::Duration::from_micros(1_000_000 / commands_freq);
     let mut commands_next_update = (Instant::now() + commands_interval).as_micros();
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     loop {
         yield_now().await;
 

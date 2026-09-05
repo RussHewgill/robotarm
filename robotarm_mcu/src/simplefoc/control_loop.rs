@@ -71,10 +71,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // state observer mech_angle should be the same as shaft angle (does not wrap)
 
-        let e1 = self
-            .update_luenberger_observer(t_us, self.motor.target_current)
-            // .update_luenberger_observer(t_us, 0.)
+        // self.update_luenberger_observer(t_us, self.motor.target_current)
+        self.update_luenberger_observer(t_us, self.motor.current.q)
             .await;
+        // self.update_luenberger_observer(t_us, 0.).await;
+
         // // let _ = self.encoder.update(t_us).await;
         // let e2 = self.get_electrical_angle();
         // if (e2 - e1).abs() > 0.1 {
@@ -337,13 +338,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
                     let kv = rpm / self.motor.voltage.q;
 
-                    // debug!(
-                    //     "KV Calculation: voltage: {}, velocity (rad/s): {}, velocity (RPM), KV: {}",
-                    //     self.motor.voltage.q,
-                    //     shaft_velocity,
-                    //     //
-                    //     kv
-                    // )
+                    debug!(
+                        "KV Calculation: voltage: {}, velocity (rad/s): {}, velocity (RPM), KV: {}",
+                        self.motor.voltage.q,
+                        self.shaft_velocity,
+                        //
+                        kv
+                    )
                 }
             }
             MotionControlType::Velocity => {
@@ -513,6 +514,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 None
             };
 
+            let v = self.sensor_direction.multiplier()
+                * self
+                    .lpf_velocity
+                    .filter_with_timestamp(self.encoder.get_velocity(), t_us);
+
             self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
                 id: self.id,
                 timestamp: t_us,
@@ -526,7 +532,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 target_velocity: self.motor.target_shaft_velocity,
                 motor_current: self.motor.current.q,
                 sensor_currents,
-                motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
+                motor_voltage: (v, 0.),
+                // motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
                 feed_forward: self.feed_forward_torque,
                 pid_outputs: (
                     self.pid_velocity.prev_output(),

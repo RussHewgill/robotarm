@@ -7,8 +7,8 @@ use crate::{
 };
 
 /// number of samples to delay velocity calculation to reduce noise
-// const VEL_DELAY: usize = 10;
-const VEL_DELAY: usize = 1;
+const VEL_DELAY: usize = 10;
+// const VEL_DELAY: usize = 1;
 
 // #[derive(defmt::Format)]
 pub struct MT6701<SPI> {
@@ -496,7 +496,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
         self.angle_prev = angle;
         // self.angle_prev_ts = ts_us;
 
-        // self.calc_velocity(angle, ts_us);
+        self.calc_velocity(angle, ts_us);
         // self.calc_velocity();
 
         Ok(())
@@ -515,7 +515,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
     // }
 
     fn _get_velocity(&self) -> f32 {
-        // self.velocity
-        unimplemented!()
+        self.velocity
+        // unimplemented!()
     }
 }

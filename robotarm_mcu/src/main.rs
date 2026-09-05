@@ -1390,15 +1390,15 @@ fn main() -> ! {
     );
 
     // let voltage_limit = 2.0;
-    // let voltage_limit = 4.;
-    let voltage_limit = 8.;
+    let voltage_limit = 4.;
+    // let voltage_limit = 8.;
     // let voltage_limit = 8.;
     // let voltage_limit = 10.;
     // let voltage_limit = 12.;
     // let voltage_limit = 18.;
 
-    // let supply_voltage = 12.0;
-    let supply_voltage = 16.0;
+    let supply_voltage = 12.0;
+    // let supply_voltage = 16.0;
     // let supply_voltage = 20.0;
 
     // #[cfg(feature = "nope")]
@@ -1585,8 +1585,8 @@ fn main() -> ! {
 
     #[cfg(feature = "testing")]
     // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM4108, MOTOR_CONFIG_GM5208_24);
-    // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM5208_24, MOTOR_CONFIG_GM5208_24);
-    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GL60, MOTOR_CONFIG_GL60);
+    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM5208_24, MOTOR_CONFIG_GM5208_24);
+    // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GL60, MOTOR_CONFIG_GL60);
 
     #[cfg(feature = "picoA")]
     // let (output_encoder0, output_encoder1) = (None, Some(output_encoder0));

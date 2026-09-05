@@ -197,8 +197,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         let mut avg_uncalibrated = 0.0;
 
         for i in 0..measured_uncalibrated.len() {
-            // avg_uncalibrated += expected[i] - measured_uncalibrated[i];
-            // avg_calibrated += expected[i] - measured_calibrated[i];
+            avg_uncalibrated += expected[i] - measured_uncalibrated[i];
+            avg_calibrated += expected[i] - measured_calibrated[i];
 
             self.send_debug_message(robotarm_protocol::SerialLogMessage::LogData {
                 id: self.id,

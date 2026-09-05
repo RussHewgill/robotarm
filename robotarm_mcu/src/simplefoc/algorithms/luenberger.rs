@@ -239,9 +239,14 @@ pub mod luenberger_optimize {
 // const J: f32 = 0.000_035_5; // Rotor Moment of inertia (kg*m^2)
 // const KT: f32 = 0.45; // Torque constant (Nm/A)
 // const KT: f32 = 0.0; // Torque constant (Nm/A)
-const W_0: f32 = 200.; // bandwidth of the observer (rad/s)
-const L1_CONTINUOUS: f32 = 2. * 1. * W_0; // Continuous gain for the first state
-const L2_CONTINUOUS: f32 = W_0 * W_0; // Continuous gain for the second state
+const W_0: f32 = 100.; // bandwidth of the observer (rad/s)
+// const W_0: f32 = 1_000.; // bandwidth of the observer (rad/s)
+const L1_CONTINUOUS: f32 = 2. * 1. * W_0;
+const L2_CONTINUOUS: f32 = W_0 * W_0;
+
+const L1_ESO: f32 = 3. * W_0;
+const L2_ESO: f32 = 3. * W_0 * W_0;
+const L3_ESO: f32 = W_0 * W_0 * W_0;
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     pub async fn update_luenberger_observer(&mut self, t_us: u64, commanded_torque: f32) -> f32 {
@@ -284,25 +289,59 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         let j = self.state_observer.rotor_inertia();
         let kt = self.state_observer.torque_constant();
 
-        // 1. Dynamically calculate the A and B matrices based on actual elapsed time
-        let a = SMatrix::<f32, 2, 2>::new(1.0, dt, 0.0, 1.0);
-        let b = SMatrix::<f32, 2, 1>::new((kt * dt * dt) / (2.0 * j), (kt * dt) / j);
+        #[cfg(feature = "nope")]
+        {
+            // 1. Dynamically calculate the A and B matrices based on actual elapsed time
+            let a = SMatrix::<f32, 2, 2>::new(1.0, dt, 0.0, 1.0);
+            let b = SMatrix::<f32, 2, 1>::new((kt * dt * dt) / (2.0 * j), (kt * dt) / j);
+            // let b = SMatrix::<f32, 2, 1>::zeros();
 
-        // 2. Discretize the L gains. Continuous gain must be multiplied by dt
-        let l = SMatrix::<f32, 2, 1>::new(L1_CONTINUOUS * dt, L2_CONTINUOUS * dt);
+            // 2. Discretize the L gains. Continuous gain must be multiplied by dt
+            let l = SMatrix::<f32, 2, 1>::new(L1_CONTINUOUS * dt, L2_CONTINUOUS * dt);
 
-        // let p = libm::expf(-W_0 * dt);
-        // let l1 = 2. * (1. - p);
-        // let l2 = ((1. - p) * (1. - p)) / dt;
-        // let l = SMatrix::<f32, 2, 1>::new(l1, l2);
+            // let p = libm::expf(-W_0 * dt);
+            // let l1 = 2. * (1. - p);
+            // let l2 = ((1. - p) * (1. - p)) / dt;
+            // let l = SMatrix::<f32, 2, 1>::new(l1, l2);
 
-        // C and D matrices remain constant
-        let c = SMatrix::<f32, 1, 2>::new(1.0, 0.0);
-        let d = SMatrix::<f32, 1, 1>::new(0.0);
+            // C and D matrices remain constant
+            let c = SMatrix::<f32, 1, 2>::new(1.0, 0.0);
+            let d = SMatrix::<f32, 1, 1>::new(0.0);
 
-        // 3. Inject the new parameters into the observer
-        self.state_observer
-            .set_params(LuenbergerParam::new(a, b, c, d, l));
+            // 3. Inject the new parameters into the observer
+            self.state_observer
+                .set_params(LuenbergerParam::new(a, b, c, d, l));
+        }
+
+        {
+            // 1. Dynamically calculate the A and B matrices based on actual elapsed time
+            #[rustfmt::skip]
+            let a = SMatrix::<f32, 3, 3>::new(
+                1.0, dt, 0.5 * dt * dt,
+                0.0, 1.0, dt,
+                0.0, 0.0, 1.0
+            );
+
+            let b0 = self.state_observer.torque_constant
+                / (self.state_observer.rotor_inertia * self.motor.phase_resistance.unwrap());
+
+            #[rustfmt::skip]
+            let b = SMatrix::<f32, 3, 1>::new(
+                0.5 * b0 * dt * dt,
+                b0 * dt,
+                0.,
+            );
+
+            // C and D matrices remain constant
+            let c = SMatrix::<f32, 1, 3>::new(1.0, 0.0, 0.0);
+            let d = SMatrix::<f32, 1, 1>::new(0.0);
+
+            let l = SMatrix::<f32, 3, 1>::new(L1_ESO * dt, L2_ESO * dt, L3_ESO * dt);
+
+            // 3. Inject the new parameters into the observer
+            self.state_observer
+                .set_params(LuenbergerParam::new(a, b, c, d, l));
+        }
 
         // 4. Run the observer step
         // let input = SVector::<f32, 1>::new(-commanded_torque * dir);
