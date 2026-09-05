@@ -589,10 +589,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     pub(super) fn get_shaft_angle(&mut self) -> f32 {
         // let angle = self.encoder.get_angle();
         let angle = self.state_observer.get_angle_vel().0;
-        let angle =
-            // self.sensor_direction.multiplier() * self.lpf_angle.filter(angle) - self.sensor_offset;
-            // self.sensor_direction.multiplier() * self.lpf_angle.filter(angle);
-            self.lpf_angle.filter(angle);
+        // let angle =
+        //     // self.sensor_direction.multiplier() * self.lpf_angle.filter(angle) - self.sensor_offset;
+        //     // self.sensor_direction.multiplier() * self.lpf_angle.filter(angle);
+        //     self.lpf_angle.filter(angle);
         angle
     }
 

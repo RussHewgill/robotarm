@@ -90,6 +90,8 @@ pub struct DataPlot {
     #[serde(skip)]
     angle: VecDeque<(f64, f64)>,
 
+    angle_scale: f64,
+
     pub draw_vel: bool,
     #[serde(skip)]
     vel: VecDeque<(f64, f64)>,
@@ -187,6 +189,7 @@ impl Default for DataPlot {
             // vel_min_max: (-15., 15.),
             draw_angle: true,
             angle: VecDeque::new(),
+            angle_scale: 1.0,
             draw_pos: true,
             pos: VecDeque::new(),
             draw_vel: true,
@@ -312,6 +315,17 @@ impl App {
                 ui.label("Plot settings:");
                 ui.end_row();
                 ui.checkbox(&mut self.plots[self.current_plot].draw_angle, "Angle");
+
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].angle_scale,
+                        // log_min..=log_max,
+                        0.1..=20.0,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+
                 ui.end_row();
                 ui.checkbox(&mut self.plots[self.current_plot].draw_pos, "Position");
                 ui.end_row();
@@ -935,7 +949,8 @@ impl DataPlot {
                             .iter()
                             .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                             .map(|(t, angle)| {
-                                (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)
+                                // (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)
+                                (*t, *angle * self.angle_scale)
                             }),
                         GREEN.stroke_width(self.stroke_width),
                     ))
@@ -951,7 +966,8 @@ impl DataPlot {
                             .iter()
                             .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                             .map(|(t, pos)| {
-                                (*t, (*pos - std::f64::consts::PI) / std::f64::consts::PI)
+                                // (*t, (*pos - std::f64::consts::PI) / std::f64::consts::PI)
+                                (*t, *pos * self.angle_scale)
                             }),
                         TEAL.stroke_width(self.stroke_width),
                     ))
@@ -981,8 +997,8 @@ impl DataPlot {
                             .iter()
                             .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                             .map(|(t, angle)| {
-                                (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)
-                                // (*t, *angle)
+                                // (*t, (std::f64::consts::PI - *angle) / std::f64::consts::PI)
+                                (*t, *angle * self.angle_scale)
                             }),
                         RED.stroke_width(self.stroke_width),
                     ))

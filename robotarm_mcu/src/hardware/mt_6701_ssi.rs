@@ -406,6 +406,8 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
 
         // debug!("Angle: {}", angle);
 
+        let angle = 16384 - angle;
+
         Ok(angle)
     }
 

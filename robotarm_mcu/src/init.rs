@@ -76,8 +76,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     >,
 ) {
     debug!("Starting FOC task for ID: {}", foc.id);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // match foc.id {
@@ -87,9 +87,9 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // };
 
     // foc.set_motion_control(MotionControlType::Torque);
-    // foc.set_motion_control(MotionControlType::Velocity);
+    foc.set_motion_control(MotionControlType::Velocity);
     // foc.set_motion_control(MotionControlType::Angle);
-    foc.set_motion_control(MotionControlType::VelocityOpenLoop);
+    // foc.set_motion_control(MotionControlType::VelocityOpenLoop);
 
     // foc.set_torque_control(crate::simplefoc::types::TorqueControlType::Voltage);
     foc.set_torque_control(crate::simplefoc::types::TorqueControlType::EstimatedCurrent);

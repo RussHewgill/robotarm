@@ -185,20 +185,23 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         const PID_VELOCITY_RAMP: f32 = 1000.0;
         // const PID_VELOCITY_RAMP: f32 = 0.0;
         // const PID_VELOCITY_LIMIT: f32 = 100.;
-        const PID_VELOCITY_LIMIT: f32 = 20.;
+        const PID_VELOCITY_LIMIT: f32 = 30.;
 
         // const VEL_LPF_TF: f32 = 0.;
         const VEL_LPF_TF: f32 = 0.01;
         // const VEL_LPF_TF: f32 = 0.05;
         // const VEL_LPF_TF: f32 = 0.1;
 
-        const PID_ANGLE_KP: f32 = 20.0;
+        // const PID_ANGLE_KP: f32 = 20.0;
+        const PID_ANGLE_KP: f32 = 500.0;
         const PID_ANGLE_KI: f32 = 10_000.0;
         // const PID_ANGLE_KI: f32 = 0.0;
-        const PID_ANGLE_KD: f32 = 0.0;
+        // const PID_ANGLE_KD: f32 = 0.0;
+        const PID_ANGLE_KD: f32 = 0.005;
         // const PID_ANGLE_LIMIT: f32 = 20.0;
         // const PID_ANGLE_LIMIT: f32 = 10.0;
-        const PID_ANGLE_LIMIT: f32 = 5.0;
+        // const PID_ANGLE_LIMIT: f32 = 5.0;
+        const PID_ANGLE_LIMIT: f32 = 30.0;
 
         // const ANGLE_LPF_TF: f32 = 0.;
         const ANGLE_LPF_TF: f32 = 0.005;

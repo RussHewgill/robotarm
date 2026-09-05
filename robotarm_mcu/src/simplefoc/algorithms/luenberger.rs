@@ -105,8 +105,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             .set_params(LuenbergerParam::new(a, b, c, d, l));
 
         // 4. Run the observer step
-        let input = SVector::<f32, 1>::new(-commanded_torque * dir);
-        // let input = SVector::<f32, 1>::new(commanded_torque);
+        // let input = SVector::<f32, 1>::new(-commanded_torque * dir);
+        let input = SVector::<f32, 1>::new(commanded_torque);
         let measurement = SVector::<f32, 1>::new(measured_angle); // (Assume unwrapped)
 
         // debug!("input: {:?}", input.as_slice());
