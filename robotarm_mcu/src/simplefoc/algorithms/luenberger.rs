@@ -1,5 +1,6 @@
 use defmt::debug;
 
+use embassy_time::{Duration, Instant, Ticker, Timer};
 use nalgebra::{RealField, SMatrix, SVector};
 
 use crate::{
@@ -9,44 +10,240 @@ use crate::{
 
 /// https://github.com/JRL-CARI-CNR-UNIBS/state_observers
 
-const J: f32 = 0.000_035_5; // Rotor Moment of inertia (kg*m^2)
-const KT: f32 = 0.45; // Torque constant (Nm/A)
+pub mod luenberger_optimize {
+    use defmt::debug;
+
+    use embassy_time::{Duration, Instant, Ticker, Timer};
+    use nalgebra::{SMatrix, SVector};
+
+    use crate::{
+        hardware::{current_sensor::CurrentSensor, encoder_sensor::EncoderSensor},
+        simplefoc::foc_types::SimpleFOC,
+    };
+
+    const TIME_MS: f32 = 30.;
+    // const TIME_MS: f32 = 50.;
+    const LOOP_HZ: f32 = 10000.;
+    const N_SAMPLES: usize = ((TIME_MS / 1000.) * LOOP_HZ) as usize;
+
+    // use a window of samples to calculate velocity to reduce noise
+    const WINDOW: usize = 3;
+
+    impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
+        pub async fn optimize_state_observer(&mut self) {
+            self.enable();
+
+            const N: usize = 5;
+
+            let mut inertia_ccw: heapless::Vec<f32, N> = heapless::Vec::new();
+            let mut inertia_cw: heapless::Vec<f32, N> = heapless::Vec::new();
+
+            let voltage = self.motor.voltage_sensor_align;
+
+            for _ in 0..N {
+                let ((inertia, _), _) = self.optimize_state_observer_sweep(voltage, 1.0).await;
+                inertia_ccw.push(inertia).unwrap();
+            }
+
+            for _ in 0..N {
+                let ((inertia, _), _) = self.optimize_state_observer_sweep(voltage, -1.0).await;
+                inertia_cw.push(inertia).unwrap();
+            }
+
+            let avg_ccw = inertia_ccw.iter().sum::<f32>() / inertia_ccw.len() as f32;
+            let avg_cw = inertia_cw.iter().sum::<f32>() / inertia_cw.len() as f32;
+            let avg_ccw = avg_ccw * 10_000_000.; // convert from kg*m^2 to g*cm^2
+            let avg_cw = avg_cw * 10_000_000.; // convert from kg*m^2 to g*cm^2
+
+            let datasheet_inertia = 0.000_035_5 * 10_000_000.; // Rotor Moment of inertia (kg*m^2)
+            let error_ccw = avg_ccw - datasheet_inertia;
+            let error_cw = avg_cw - datasheet_inertia;
+
+            let avg = (avg_ccw + avg_cw) / 2.0;
+            let error_avg = avg - datasheet_inertia;
+
+            debug!("Average Inertia CCW: {}, error: {}", avg_ccw, error_ccw);
+            debug!("Average Inertia CW:  {}, error: {}", avg_cw, error_cw);
+            debug!("Average Inertia:     {}, error: {}", avg, error_avg);
+
+            //
+        }
+
+        async fn optimize_state_observer_sweep(
+            &mut self,
+            voltage: f32,
+            direction: f32,
+        ) -> ((f32, f32), heapless::Vec<(u64, f32, f32), N_SAMPLES>) {
+            let mut samples: heapless::Vec<(u64, f32, f32), N_SAMPLES> = heapless::Vec::new();
+
+            let mut shaft_angle = 0.0;
+
+            let vel = 5.; // rad/s
+            let angle = vel * (N_SAMPLES as f32 / LOOP_HZ);
+
+            // let motor settle
+            self.set_phase_voltage(voltage, 0., 0.);
+            Timer::after_millis(1000).await;
+            self.set_phase_voltage(0., 0., 0.);
+            Timer::after_millis(200).await;
+
+            let step = Duration::from_micros(1_000_000 / LOOP_HZ as u64).as_micros();
+            let mut next_t = Instant::now().as_micros() + step;
+
+            let t0 = Instant::now();
+            let _ = self.encoder.update(t0.as_micros()).await;
+
+            let angle0 = self.encoder.get_angle();
+
+            for i in 0..N_SAMPLES {
+                let now = loop {
+                    let now = Instant::now().as_micros();
+                    if now >= next_t {
+                        next_t = now + step;
+                        break Instant::now();
+                    }
+                    Timer::after_micros(1).await;
+                };
+
+                let t_us = now.as_micros();
+
+                let shaft_angle = angle * (i as f32 / N_SAMPLES as f32);
+                let mut electrical_angle =
+                    self.sensor_direction.multiplier() * shaft_angle * self.motor.pole_pairs as f32;
+
+                if direction < 0.0 {
+                    electrical_angle = crate::simplefoc::types::_2PI * self.motor.pole_pairs as f32
+                        - electrical_angle;
+                }
+
+                self.set_phase_voltage(voltage, 0., electrical_angle);
+
+                let _ = self.encoder.update(t_us).await;
+
+                let measured_angle = (self.encoder.get_angle() - angle0) * direction;
+                samples
+                    .push((t_us - t0.as_micros(), shaft_angle, measured_angle))
+                    .unwrap();
+            }
+            let duration = t0.elapsed();
+            self.set_phase_voltage(0., 0., 0.);
+
+            let i0 = self.identify_inertia(voltage, samples.clone()).unwrap();
+
+            debug!(
+                // "Estimated Inertia (identify_inertia):   {}",
+                "Estimated Inertia: {}",
+                i0 * 10_000_000.
+            );
+
+            ((i0, 0.), samples)
+        }
+
+        /// Equation: Kt * Iq = J * (d_omega/d_t) + B * omega
+        pub fn identify_inertia(
+            &self,
+            voltage: f32,
+            samples: heapless::Vec<(u64, f32, f32), N_SAMPLES>,
+            // samples: heapless::Vec<(u64, f32), N_SAMPLES>,
+        ) -> Option<f32> {
+            // if n < 2 {
+            //     return None;
+            // }
+
+            // We will build a system of equations: Y = X * Theta
+            // Y = Kt * Iq (Torque)
+            // X = [d_omega/d_t, omega]
+            // Theta = [J, B]^T (Inertia and Viscous Friction)
+
+            let mut vel = heapless::Vec::<(u64, f32), N_SAMPLES>::new();
+
+            // // convert position samples to velocity samples
+            // for i in WINDOW..N_SAMPLES {
+            //     let dt = (samples[i].0 - samples[i - WINDOW].0) as f32 * 1e-6; // Convert microseconds to seconds
+            //     let d_angle = samples[i].1 - samples[i - WINDOW].1;
+            //     let velocity = d_angle / dt;
+            //     vel.push((samples[i].0, velocity)).unwrap();
+            // }
+
+            let samples0 = samples;
+            let mut samples = heapless::Vec::<(f32, f32), N_SAMPLES>::new();
+
+            for i in WINDOW..N_SAMPLES {
+                let dt = (samples0[i].0 - samples0[i - WINDOW].0) as f32 * 1e-6; // Convert microseconds to seconds
+                let d_angle = samples0[i].2 - samples0[i - WINDOW].2;
+                let velocity = d_angle / dt;
+                // samples.push((samples0[i].0, velocity)).unwrap();
+                samples.push((dt, velocity)).unwrap();
+            }
+
+            let mut y_data = SVector::<f32, { N_SAMPLES - WINDOW - 1 }>::zeros();
+            let mut x_data = SMatrix::<f32, { N_SAMPLES - WINDOW - 1 }, 2>::zeros();
+
+            let t0 = samples[WINDOW].0;
+            // debug!("t0: {}", t0);
+
+            // Convert T to f64 for nalgebra DMatrix (or use T directly if supported by your nalgebra setup)
+            for i in WINDOW..N_SAMPLES - WINDOW {
+                // let dt = (samples[i].0 - samples[i - WINDOW].0) as f32 * 1e-6; // Convert microseconds to seconds
+                // let d_omega = vel[i].1 - vel[i - WINDOW].1;
+                let dt = samples[i].0;
+                let d_omega = samples[i].1 - samples[i - WINDOW].1;
+                let alpha = d_omega / dt;
+
+                // let omega_avg = (vel[i].1 + vel[i - WINDOW].1) / 2.0;
+                let omega_avg = (samples[i].1 + samples[i - WINDOW].1) / 2.0;
+
+                let torque = self.state_observer.torque_constant() * voltage;
+
+                // y_data.push(torque).unwrap();
+                // x_data.push((alpha, omega_avg)).unwrap();
+                y_data[i - WINDOW] = torque;
+                x_data[(i - WINDOW, 0)] = alpha;
+                x_data[(i - WINDOW, 1)] = omega_avg;
+            }
+
+            // debug!("y_data.shape(): {:?}", y_data.shape());
+            // debug!("x_data.shape(): {:?}", x_data.shape());
+
+            let y = y_data;
+            let x = x_data;
+
+            // // Solve Ordinary Least Squares
+
+            // Theta = (X^T X)^-1 X^T Y
+            let xt = x.transpose();
+            let xt_x = &xt * &x;
+
+            // debug!("x = {:?}", x.as_slice());
+            // debug!("xt = {:?}", xt.as_slice());
+
+            if let Some(xt_x_inv) = xt_x.try_inverse() {
+                let theta = xt_x_inv * xt * y;
+
+                let inertia = theta[0];
+                let _friction = theta[1]; // Useful if you want to include B in your observer!
+
+                // self.inertia = Some(inertia);
+                // debug!("Inertia: {}", inertia * 10_000_000.);
+                // debug!("Friction: {}", _friction);
+                return Some(inertia);
+            }
+
+            debug!("Failed to invert matrix for inertia identification.");
+
+            None
+        }
+    }
+}
+
+// const J: f32 = 0.000_035_5; // Rotor Moment of inertia (kg*m^2)
+// const KT: f32 = 0.45; // Torque constant (Nm/A)
 // const KT: f32 = 0.0; // Torque constant (Nm/A)
 const W_0: f32 = 200.; // bandwidth of the observer (rad/s)
 const L1_CONTINUOUS: f32 = 2. * 1. * W_0; // Continuous gain for the first state
 const L2_CONTINUOUS: f32 = W_0 * W_0; // Continuous gain for the second state
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
-    #[cfg(feature = "nope")]
-    pub async fn update_luenberger_observer(&mut self, t_us: u64, commanded_torque: f32) -> f32 {
-        let _ = self.encoder.update(t_us).await;
-        let measured_angle = self.encoder.get_angle();
-
-        let dt = (t_us - self.prev_t_us) as f32 * 1e-6; // Convert microseconds to seconds
-
-        let input = SVector::<f32, 1>::new(commanded_torque);
-
-        // Handle encoder wrapping (ensure shortest path for the error calculation)
-        // If the encoder rolls over from 2PI to 0, you must unwrap it before passing
-        // to the observer, or the observer will think the motor spun backwards instantly.
-        let measurement = SVector::<f32, 1>::new(measured_angle); // (Assume unwrapped here)
-
-        let state = self.state_observer.update(&input, &measurement);
-
-        let mech_angle = state[0];
-        let mech_velocity = state[1];
-
-        // Convert mechanical angle to electrical angle for the FOC Clarke/Park transforms
-        let elec_angle = (mech_angle * self.motor.pole_pairs as f32) % _2PI;
-
-        self.encoder
-            .debug_force_set_angle_velocity(mech_angle, mech_velocity);
-
-        // (elec_angle, mech_velocity)
-        elec_angle
-    }
-
-    // #[cfg(feature = "nope")]
     pub async fn update_luenberger_observer(&mut self, t_us: u64, commanded_torque: f32) -> f32 {
         let dir = self.sensor_direction.multiplier();
         // let dir = 1.;
@@ -84,9 +281,12 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         self.prev_t_us = t_us;
 
+        let j = self.state_observer.rotor_inertia();
+        let kt = self.state_observer.torque_constant();
+
         // 1. Dynamically calculate the A and B matrices based on actual elapsed time
         let a = SMatrix::<f32, 2, 2>::new(1.0, dt, 0.0, 1.0);
-        let b = SMatrix::<f32, 2, 1>::new((KT * dt * dt) / (2.0 * J), (KT * dt) / J);
+        let b = SMatrix::<f32, 2, 1>::new((kt * dt * dt) / (2.0 * j), (kt * dt) / j);
 
         // 2. Discretize the L gains. Continuous gain must be multiplied by dt
         let l = SMatrix::<f32, 2, 1>::new(L1_CONTINUOUS * dt, L2_CONTINUOUS * dt);
@@ -119,31 +319,6 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         let mech_angle = state[0] * dir;
         let mech_velocity = state[1] * dir;
-
-        // if measured_angle.signum() != mech_angle.signum() {
-        //     debug!(
-        //         "Sign mismatch: measured_angle: {}, mech_angle: {}",
-        //         measured_angle, mech_angle
-        //     );
-        // }
-
-        // debug!(
-        //     "dt: {}, mechanical angle: {}, mechanical velocity: {}",
-        //     dt, mech_angle, mech_velocity
-        // );
-
-        // debug!(
-        //     "measured_angle: {}, mech_angle: {}, mech_velocity: {}",
-        //     measured_angle, mech_angle, mech_velocity
-        // );
-
-        // if mech_velocity.abs() > 100.0 {
-        //     debug!(
-        //         "Unrealistic mech_velocity: {}. Resetting prev_t_us.",
-        //         mech_velocity
-        //     );
-        //     panic!()
-        // }
 
         // Convert mechanical angle to electrical angle
         let elec_angle = (mech_angle * self.motor.pole_pairs as f32) % _2PI;
@@ -208,14 +383,31 @@ pub struct LuenbergerObserver<T: RealField, const S: usize, const I: usize, cons
     params: LuenbergerParam<T, S, I, O>,
     /// Current state estimate (\hat{x})
     state: SVector<T, S>,
+
+    rotor_inertia: T,
+    torque_constant: T,
+    // pub l1_continuous: T,
+    // pub l2_continuous: T,
 }
 
 impl<T: RealField, const S: usize, const I: usize, const O: usize> LuenbergerObserver<T, S, I, O> {
     /// Initializes a new Luenberger observer with the given parameters and initial state.
-    pub fn new(params: LuenbergerParam<T, S, I, O>, initial_state: SVector<T, S>) -> Self {
+    pub fn new(
+        params: LuenbergerParam<T, S, I, O>,
+        initial_state: SVector<T, S>,
+
+        rotor_inertia: T,
+        torque_constant: T,
+        // l1_continuous: T,
+        // l2_continuous: T,
+    ) -> Self {
         Self {
             params,
             state: initial_state,
+            rotor_inertia,
+            torque_constant,
+            // l1_continuous,
+            // l2_continuous,
         }
     }
 
@@ -258,5 +450,21 @@ impl<T: RealField, const S: usize, const I: usize, const O: usize> LuenbergerObs
     /// Updates the observer parameters dynamically (e.g., for Gain Scheduling).
     pub fn set_params(&mut self, params: LuenbergerParam<T, S, I, O>) {
         self.params = params;
+    }
+
+    pub fn rotor_inertia(&self) -> &T {
+        &self.rotor_inertia
+    }
+
+    pub fn set_rotor_inertia(&mut self, rotor_inertia: T) {
+        self.rotor_inertia = rotor_inertia;
+    }
+
+    pub fn torque_constant(&self) -> &T {
+        &self.torque_constant
+    }
+
+    pub fn set_torque_constant(&mut self, torque_constant: T) {
+        self.torque_constant = torque_constant;
     }
 }

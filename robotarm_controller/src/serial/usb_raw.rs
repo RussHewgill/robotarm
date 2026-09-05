@@ -218,7 +218,7 @@ impl UsbRawHandler {
         // );
 
         self.reader
-            .set_read_timeout(std::time::Duration::from_micros(100));
+            .set_read_timeout(std::time::Duration::from_micros(10));
 
         self.writer
             .write(&postcard::to_stdvec_cobs(

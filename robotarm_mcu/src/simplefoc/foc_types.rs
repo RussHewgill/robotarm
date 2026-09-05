@@ -177,7 +177,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // const PID_VELOCITY_KD: f32 = 0.5;
         const PID_VELOCITY_KD: f32 = 0.0;
 
-        const PID_VELOCITY_KP: f32 = 0.2;
+        const PID_VELOCITY_KP: f32 = 0.4;
         // const PID_VELOCITY_KI: f32 = 0.1;
         // const PID_VELOCITY_KD: f32 = 0.025;
         // const PID_VELOCITY_FEED_FORWARD: f32 = 0.01;
@@ -185,7 +185,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         const PID_VELOCITY_RAMP: f32 = 1000.0;
         // const PID_VELOCITY_RAMP: f32 = 0.0;
         // const PID_VELOCITY_LIMIT: f32 = 100.;
-        const PID_VELOCITY_LIMIT: f32 = 30.;
+        const PID_VELOCITY_LIMIT: f32 = 10.;
 
         // const VEL_LPF_TF: f32 = 0.;
         const VEL_LPF_TF: f32 = 0.01;
@@ -201,7 +201,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // const PID_ANGLE_LIMIT: f32 = 20.0;
         // const PID_ANGLE_LIMIT: f32 = 10.0;
         // const PID_ANGLE_LIMIT: f32 = 5.0;
-        const PID_ANGLE_LIMIT: f32 = 30.0;
+        const PID_ANGLE_LIMIT: f32 = 15.0;
 
         // const ANGLE_LPF_TF: f32 = 0.;
         const ANGLE_LPF_TF: f32 = 0.005;
@@ -247,19 +247,17 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             let l = SMatrix::<f32, 2, 1>::zeros();
 
             crate::simplefoc::luenberger::LuenbergerObserver::new(
-                crate::simplefoc::luenberger::LuenbergerParam {
-                    a,
-                    b,
-                    c,
-                    d,
-                    l,
-                    // a: nalgebra::SMatrix::<f32, 2, 2>::new(1.0, 0.005, 0.0, 1.0),
-                    // b: nalgebra::SMatrix::<f32, 2, 1>::new(0.0, 0.005),
-                    // c: nalgebra::SMatrix::<f32, 2, 2>::new(1.0, 0.0, 0.0, 1.0),
-                    // d: nalgebra::SMatrix::<f32, 2, 1>::new(0.0, 0.0),
-                    // l: nalgebra::SMatrix::<f32, 2, 2>::new(1.5, 0.0, 0.0, 1.5),
-                },
+                crate::simplefoc::luenberger::LuenbergerParam { a, b, c, d, l },
                 nalgebra::SVector::<f32, 2>::new(0.0, 0.0),
+                // 0.0,
+                // 0.0,
+                0.000_035_5,
+                // 0.45,
+                if let Some(kv) = motor.motor_kv {
+                    9.549 / kv
+                } else {
+                    0.0
+                },
             )
         };
 

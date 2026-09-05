@@ -212,6 +212,11 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_velocity_tuner(10.0);
 
+    foc.optimize_state_observer().await;
+
+    // foc.state_observer.set_torque_constant(0.45);
+    // foc.state_observer.set_rotor_inertia(355. * 1e-7);
+
     // debug!("Finding angle limits");
     // foc.find_angle_limits().await;
     // debug!("Done");
@@ -246,7 +251,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     let commands_interval = embassy_time::Duration::from_micros(1_000_000 / commands_freq);
     let mut commands_next_update = (Instant::now() + commands_interval).as_micros();
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     loop {
         yield_now().await;
 

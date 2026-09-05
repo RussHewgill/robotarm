@@ -320,7 +320,7 @@ impl App {
                     egui::Slider::new(
                         &mut self.plots[self.current_plot].angle_scale,
                         // log_min..=log_max,
-                        0.1..=20.0,
+                        0.01..=20.0,
                     )
                     .logarithmic(true)
                     .max_decimals(log_decimals),
