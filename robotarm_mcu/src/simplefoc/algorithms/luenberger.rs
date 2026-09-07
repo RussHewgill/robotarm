@@ -10,7 +10,7 @@ use crate::{
 
 /// https://github.com/JRL-CARI-CNR-UNIBS/state_observers
 
-#[cfg(feature = "nope")]
+// #[cfg(feature = "nope")]
 pub mod luenberger_optimize {
     use defmt::debug;
 
@@ -194,7 +194,8 @@ pub mod luenberger_optimize {
                 // let omega_avg = (vel[i].1 + vel[i - WINDOW].1) / 2.0;
                 let omega_avg = (samples[i].1 + samples[i - WINDOW].1) / 2.0;
 
-                let torque = self.state_observer.torque_constant() * voltage;
+                // let torque = self.state_observer.torque_constant() * voltage;
+                let torque = self.state_observer.get_params().5;
 
                 // y_data.push(torque).unwrap();
                 // x_data.push((alpha, omega_avg)).unwrap();

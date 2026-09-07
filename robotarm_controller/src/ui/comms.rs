@@ -75,6 +75,42 @@ impl App {
                         //     .expect("Failed to write velocity");
                         wtr.write_record(None::<&[u8]>).unwrap();
                     }
+                    SerialLogMessage::ADRCDebugData {
+                        id,
+                        timestamp,
+                        vs,
+                        state,
+                        u,
+                    } => {
+                        if let Some(t0) = self.t0 {
+                            let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
+                            // debug!("State: {:?}", state);
+                            // debug!("vs: {:?}", vs);
+                            self.plots[id as usize].add_points_adrc(t, vs, state, u);
+                            self.status[id as usize].adrc_internals = (
+                                [vs[0] as f64, vs[1] as f64],
+                                [state[0] as f64, state[1] as f64, state[2] as f64],
+                                u as f64,
+                            );
+                            // } else {
+                            //     self.t0 = Some(timestamp as f64 * 1e-6);
+                        }
+                    }
+                    SerialLogMessage::MotorADRC {
+                        id,
+                        b0,
+                        speed_factor,
+                        observer_bandwidth,
+                        controller_bandwidth,
+                    } => {
+                        debug!("Got motor ADRC settings from motor {}", id);
+
+                        self.status[id as usize].adrc_b0 = b0;
+                        self.status[id as usize].adrc_speed_factor = speed_factor;
+                        self.status[id as usize].adrc_observer_bandwidth = observer_bandwidth;
+                        self.status[id as usize].adrc_controller_bandwidth = controller_bandwidth;
+                    }
+                    #[cfg(feature = "nope")]
                     SerialLogMessage::MotorPID {
                         id,
                         vel_p,
@@ -128,6 +164,7 @@ impl App {
                     } => {
                         debug!("TODO: Got encoder data {:#?}", id);
                     }
+                    #[cfg(feature = "nope")]
                     SerialLogMessage::PIDDebugData {
                         id,
                         timestamp,
@@ -209,16 +246,19 @@ impl App {
                         /// only plot data from motor 0 for now
                         if let Some(t0) = self.t0 {
                             let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
+
+                            // debug!("Got motor data, t = {:.6} s", t);
+
                             self.plots[id as usize].add_point_angle(t, angle as f64);
                             self.plots[id as usize].add_point_pos(t, position as f64);
                             self.plots[id as usize].add_point_vel(t, velocity as f64);
                             self.plots[id as usize].add_point_target_vel(t, target_velocity as f64);
                             self.plots[id as usize].add_point_target_pos(t, target_position as f64);
                             self.plots[id as usize].add_point_voltage(t, motor_voltage.0 as f64);
-                            self.plots[id as usize]
-                                .add_point_pid_output_vel(t, pid_outputs.0 as f64);
-                            self.plots[id as usize]
-                                .add_point_pid_output_pos(t, pid_outputs.1 as f64);
+                            // self.plots[id as usize]
+                            //     .add_point_pid_output_vel(t, pid_outputs.0 as f64);
+                            // self.plots[id as usize]
+                            //     .add_point_pid_output_pos(t, pid_outputs.1 as f64);
                             // self.plot.add_point_current(t, motor_current as f64);
                             if let Some((current_d, current_q)) = sensor_currents {
                                 self.plots[id as usize].add_point_current(

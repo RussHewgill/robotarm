@@ -629,13 +629,23 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             })
             .await;
 
-            self.send_debug_message(SerialLogMessage::PIDDebugData {
+            let (vs, state, u) = self.state_observer.get_internals();
+            self.send_debug_message(robotarm_protocol::SerialLogMessage::ADRCDebugData {
                 id: self.id,
                 timestamp: t_us,
-                pid_internals_vel: self.pid_velocity.prev_internals(),
-                pid_internals_pos: self.pid_angle.prev_internals(),
+                vs,
+                state,
+                u,
             })
             .await;
+
+            // self.send_debug_message(SerialLogMessage::PIDDebugData {
+            //     id: self.id,
+            //     timestamp: t_us,
+            //     pid_internals_vel: self.pid_velocity.prev_internals(),
+            //     pid_internals_pos: self.pid_angle.prev_internals(),
+            // })
+            // .await;
         }
 
         self.debug = false;

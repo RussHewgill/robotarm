@@ -690,16 +690,16 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         let angle = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * shaft_angle
             - self.zero_electric_angle;
 
-        // Self::normalize_angle(angle)
-        // let angle = angle % (2.0 * core::f32::consts::PI);
+        Self::normalize_angle(angle)
 
-        use num_traits::Euclid;
-        let angle = angle.rem_euclid(&_2PI);
-        if angle >= 0.0 {
-            angle
-        } else {
-            angle + 2.0 * core::f32::consts::PI
-        }
+        // let angle = angle % (2.0 * core::f32::consts::PI);
+        // use num_traits::Euclid;
+        // let angle = angle.rem_euclid(&_2PI);
+        // if angle >= 0.0 {
+        //     angle
+        // } else {
+        //     angle + 2.0 * core::f32::consts::PI
+        // }
     }
 
     pub(super) fn get_state_disturbance_rejection(&self) -> f32 {
@@ -727,6 +727,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         } else {
             angle + 2.0 * core::f32::consts::PI
         }
+
+        // use num_traits::Euclid;
+        // let angle = angle.rem_euclid(&(2.0 * core::f32::consts::PI));
     }
 
     pub(super) fn angle_openloop(&mut self, target: f32, now_us: u64) -> f32 {

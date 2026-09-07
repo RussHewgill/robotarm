@@ -153,8 +153,8 @@ impl ExtendedStateObserver {
     /// plant output `y` and the control `u` that was actually applied
     /// (during the *previous* step). Returns the updated state estimate.
     // #[cfg(feature = "nope")]
-    pub fn update(&mut self, y: f32, u: f32, dt: f32) -> SVector<f32, 3> {
-        let e = self.state[0] - y;
+    pub fn update(&mut self, measurement: f32, prev_output: f32, dt: f32) -> SVector<f32, 3> {
+        let e = self.state[0] - measurement;
 
         let (g2, g3) = match self.fal_alpha {
             None => (e, e),
@@ -165,7 +165,7 @@ impl ExtendedStateObserver {
         };
 
         let z1_dot = self.state[1] - self.beta[0] * e;
-        let z2_dot = self.state[2] + self.b0 * u - self.beta[1] * g2;
+        let z2_dot = self.state[2] + self.b0 * prev_output - self.beta[1] * g2;
         let z3_dot = -self.beta[2] * g3;
 
         self.state[0] += dt * z1_dot;

@@ -1,3 +1,5 @@
+use std::f64::consts::PI;
+
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use tracing::{debug, error, info, trace, warn};
 
@@ -55,6 +57,46 @@ mod pid_settings {
         //         error!("Failed to send command: {}", e);
         //     }
         // }
+    }
+
+    pub(super) fn pid_control_dec<F>(
+        ui: &mut egui::Ui,
+        label: &str,
+        value: &mut F,
+        tx: &tokio::sync::mpsc::Sender<SerialCommand>,
+        // tx: &crossbeam_channel::Sender<SerialCommand>,
+        id: u8,
+        decimals: usize,
+        cmd_fn: impl Fn(u8, F) -> SerialCommand,
+    ) where
+        F: egui::emath::Numeric + Copy,
+    {
+        ui.label(label);
+
+        let resp = ui.add(egui::DragValue::new(value).fixed_decimals(decimals));
+
+        let send_resp = ui.button("Send");
+        let zero_resp = ui.button("Zero");
+
+        if (resp.lost_focus()
+            && resp
+                .ctx
+                .input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Tab)))
+            || send_resp.clicked()
+        {
+            let cmd = cmd_fn(id, *value);
+            if let Err(e) = tx.try_send(cmd) {
+                error!("Failed to send command: {}", e);
+            }
+        }
+
+        if zero_resp.clicked() {
+            *value = F::from_f64(0.0);
+            let cmd = cmd_fn(id, *value);
+            if let Err(e) = tx.try_send(cmd) {
+                error!("Failed to send command: {}", e);
+            }
+        }
     }
 
     pub(super) fn pid_control<F>(
@@ -465,10 +507,12 @@ impl App {
     fn col_1(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("Motor Controls Grid {id}")).show(ui, |ui| {
             if ui.button("Enable Motor").clicked() {
+                self.status[id as usize].enabled = true;
                 let cmd = SerialCommand::SetEnabled { id, enabled: true };
                 self.send_command(cmd);
             }
             if ui.button("Disable Motor").clicked() {
+                self.status[id as usize].enabled = false;
                 let cmd = SerialCommand::SetEnabled { id, enabled: false };
                 self.send_command(cmd);
             }
@@ -489,6 +533,20 @@ impl App {
             }
             ui.end_row();
 
+            let but = egui::Button::new("Set Velocity");
+            let but = if matches!(
+                self.status[id as usize].motion_control,
+                Some(robotarm_protocol::MotionControlType::Velocity)
+            ) {
+                but.fill(egui::Color32::LIGHT_GREEN)
+            } else {
+                but
+            };
+            if ui.add(but).clicked() {
+                self.send_command(SerialCommand::SetModeVelocity { id });
+            }
+            // ui.end_row();
+
             let but = egui::Button::new("Set Velocity Open Loop");
             let but = if matches!(
                 self.status[id as usize].motion_control,
@@ -504,20 +562,6 @@ impl App {
             }
             ui.end_row();
 
-            let but = egui::Button::new("Set Velocity");
-            let but = if matches!(
-                self.status[id as usize].motion_control,
-                Some(robotarm_protocol::MotionControlType::Velocity)
-            ) {
-                but.fill(egui::Color32::LIGHT_GREEN)
-            } else {
-                but
-            };
-            if ui.add(but).clicked() {
-                self.send_command(SerialCommand::SetModeVelocity { id });
-            }
-            ui.end_row();
-
             let but = egui::Button::new("Set Angle");
             let but = if matches!(
                 self.status[id as usize].motion_control,
@@ -530,7 +574,7 @@ impl App {
             if ui.add(but).clicked() {
                 self.send_command(SerialCommand::SetModeAngle { id });
             }
-            ui.end_row();
+            // ui.end_row();
 
             let but = egui::Button::new("Set Angle Open Loop");
             let but = if matches!(
@@ -921,7 +965,226 @@ impl App {
         //
     }
 
+    fn col_2(&mut self, ui: &mut egui::Ui, id: u8) {
+        egui::Grid::new(format!("col_2_grid")).show(ui, |ui| {
+            self::pid_settings::pid_control_dec(
+                ui,
+                "b0",
+                &mut self.status[id as usize].adrc_b0,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                0,
+                |id, p| SerialCommand::SetADRCParam {
+                    id,
+                    adrc_settings: robotarm_protocol::ADRCSettings {
+                        b0: Some(p),
+                        ..Default::default()
+                    },
+                },
+            );
+            ui.end_row();
+
+            self::pid_settings::pid_control_dec(
+                ui,
+                "speed",
+                &mut self.status[id as usize].adrc_speed_factor,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                0,
+                |id, p| SerialCommand::SetADRCParam {
+                    id,
+                    adrc_settings: robotarm_protocol::ADRCSettings {
+                        speed_factor: Some(p),
+                        ..Default::default()
+                    },
+                },
+            );
+            ui.end_row();
+
+            self::pid_settings::pid_control_dec(
+                ui,
+                "observer bw",
+                &mut self.status[id as usize].adrc_observer_bandwidth,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                1,
+                |id, p| SerialCommand::SetADRCParam {
+                    id,
+                    adrc_settings: robotarm_protocol::ADRCSettings {
+                        observer_bandwidth: Some(p),
+                        ..Default::default()
+                    },
+                },
+            );
+            ui.end_row();
+
+            self::pid_settings::pid_control_dec(
+                ui,
+                "controller bw",
+                &mut self.status[id as usize].adrc_controller_bandwidth,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                1,
+                |id, p| SerialCommand::SetADRCParam {
+                    id,
+                    adrc_settings: robotarm_protocol::ADRCSettings {
+                        controller_bandwidth: Some(p),
+                        ..Default::default()
+                    },
+                },
+            );
+            ui.end_row();
+            ui.end_row();
+
+            ui.label(RichText::new("vs").monospace());
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3} rad",
+                    self.status[id as usize].adrc_internals.0[0]
+                ))
+                .monospace(),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3} rad",
+                    self.status[id as usize].adrc_internals.0[1]
+                ))
+                .monospace(),
+            );
+            ui.end_row();
+
+            ui.label(RichText::new(super::plot::LABEL_X1).monospace());
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3} rad",
+                    self.status[id as usize].adrc_internals.1[0]
+                ))
+                .monospace(),
+            );
+            ui.end_row();
+
+            ui.label(RichText::new(super::plot::LABEL_X2).monospace());
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3} rad/s",
+                    self.status[id as usize].adrc_internals.1[1]
+                ))
+                .monospace(),
+            );
+            ui.end_row();
+
+            ui.label(RichText::new(super::plot::LABEL_X3).monospace());
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3}",
+                    self.status[id as usize].adrc_internals.1[2]
+                ))
+                .monospace(),
+            );
+            ui.end_row();
+
+            ui.label(RichText::new("Output").monospace());
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3}",
+                    self.status[id as usize].adrc_internals.2,
+                ))
+                .monospace(),
+            );
+            ui.end_row();
+
+            //
+        });
+    }
+
+    fn col_3(&mut self, ui: &mut egui::Ui, id: u8) {
+        egui::Grid::new(format!("col_3_grid")).show(ui, |ui| {
+            // debug motion
+            ui.toggle_value(
+                &mut self.status[id as usize].debug_motion_sine,
+                "Debug Sine",
+            );
+
+            if self.status[id as usize].enabled && self.status[id as usize].debug_motion_sine {
+                self.status[id as usize].debug_motion_val += 0.01;
+
+                let scale_x = 0.5;
+                let scale_y = 0.25;
+
+                self.status[id as usize].target_pos =
+                    PI + (self.status[id as usize].debug_motion_val / scale_x).sin() * PI * scale_y;
+
+                let cmd = SerialCommand::SetMotorTarget {
+                    id,
+
+                    // target: ((self.status.target_pos + self.status.angle_offset)
+                    //     * self.status.gear_ratio) as f32,
+                    target: (self.status[id as usize].target_pos
+                        + self.status[id as usize].angle_offset) as f32,
+                };
+                self.send_command(cmd);
+            }
+
+            ui.toggle_value(
+                &mut self.status[id as usize].debug_motion_steps,
+                "Debug Steps",
+            );
+
+            if self.status[id as usize].enabled && self.status[id as usize].debug_motion_steps {
+                let dt = ui.input(|i| i.stable_dt);
+                self.status[id as usize].debug_motion_val += dt as f64;
+
+                // motion should wrap from 0-2 pi
+                // motion should jump by step_change, then wait for step_length
+
+                let n_steps = 2;
+                let step_length = 1.;
+                // let step_change = PI / n_steps as f64;
+                let step_change = PI / 16.0;
+
+                let center = PI / 2.;
+
+                // let time =
+                //     // self.status[id as usize].debug_motion_val % (n_steps as f64 * step_length);
+                //     self.status[id as usize].debug_motion_val;
+
+                let time = self.status[id as usize]
+                    .debug_motion_val
+                    .rem_euclid(n_steps as f64 * step_length);
+
+                let rem = self.status[id as usize].debug_motion_val - time;
+
+                // debug!("time: {}, rem: {}", time, rem);
+
+                let step_index = (time / step_length).floor();
+                let angle = step_index * step_change + center;
+
+                // let angle = rem *
+
+                // let angle = (angle / step_length).floor() * step_length;
+                // let angle = angle * step_change;
+
+                if (angle - self.status[id as usize].target_pos).abs() > 0.01 {
+                    self.status[id as usize].target_pos = angle;
+                    // self.status[id as usize].target_pos = angle;
+
+                    let cmd = SerialCommand::SetMotorTarget {
+                        id,
+
+                        // target: ((self.status.target_pos + self.status.angle_offset)
+                        //     * self.status.gear_ratio) as f32,
+                        target: (self.status[id as usize].target_pos
+                            + self.status[id as usize].angle_offset)
+                            as f32,
+                    };
+                    self.send_command(cmd);
+                }
+            }
+        });
+    }
+
     // velocity PID controls
+    #[cfg(feature = "nope")]
     fn col_2(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("velocity_pid_grid {id}")).show(ui, |ui| {
             self::pid_settings::pid_control(
@@ -1029,6 +1292,7 @@ impl App {
     }
 
     // position PID controls
+    #[cfg(feature = "nope")]
     fn col_3(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("position_pid_grid {id}")).show(ui, |ui| {
             self::pid_settings::pid_control(

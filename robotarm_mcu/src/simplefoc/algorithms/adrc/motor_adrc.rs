@@ -6,7 +6,7 @@ use nalgebra::{RealField, SMatrix, SVector};
 use crate::{
     hardware::{current_sensor::CurrentSensor, encoder_sensor::EncoderSensor},
     simplefoc::{
-        adrc::{Adrc, TrackingDifferentiator},
+        adrc::{Adrc, ExtendedStateObserver, NonlinearStateErrorFeedback, TrackingDifferentiator},
         foc_types::SimpleFOC,
         lowpass::LowPassFilter,
         types::_2PI,
@@ -20,6 +20,10 @@ pub struct MotorADRC {
     torque_constant: f32,
     phase_resistance: f32,
     b0: f32,
+
+    wo: f32,
+    wc: f32,
+
     disturbance_lpf: crate::simplefoc::lowpass::LowPassFilter,
     velocity_tracker: TrackingDifferentiator,
     prev_output: f32,
@@ -116,30 +120,35 @@ impl MotorADRC {
         torque_constant: f32,
         phase_resistance: f32,
         disturbance_lpf_time: f32,
+        speed_factor: f32,
+        b0: Option<f32>,
+        wo: f32,
+        wc: f32,
     ) -> Self {
-        use crate::simplefoc::algorithms::adrc::{
-            ExtendedStateObserver, NonlinearStateErrorFeedback, TrackingDifferentiator,
-        };
-
-        let speed_factor = 500.0;
+        // let speed_factor = 500.0;
         let step_size = 0.0001;
         let td = TrackingDifferentiator::new(speed_factor, step_size);
 
-        let w0 = 100.0;
-        let b0 = torque_constant / (rotor_inertia * phase_resistance);
-        debug!("b0: {}", b0);
+        // let wo = 100.0;
+        // let b0 = torque_constant / (rotor_inertia * phase_resistance);
+        // let b0 = torque_constant / rotor_inertia;
 
-        // let b0 = b0 * 3.0;
+        // let b0 = b0 * 0.5;
 
-        let eso = ExtendedStateObserver::from_bandwidth(w0, b0);
+        let b0 = if let Some(b0) = b0 {
+            b0
+        } else {
+            // torque_constant / rotor_inertia
+            1. / rotor_inertia
+        };
 
-        // let wc = w0 / 3.;
-        // let wc = w0 / 5.;
-        // let wc = w0 / 4.;
-        // let wc = w0 / 10.;
+        // let b0 = b0 * 0.5;
+        // let b0 = b0 * 2.0;
 
-        let wc = 100.;
+        let eso = ExtendedStateObserver::from_bandwidth(wo, b0);
 
+        // let wc = wo / 5.;
+        // let wc = 100.;
         let beta1 = wc * wc;
         let beta2 = 2.0 * wc;
         // let beta2 = beta2 * 1.2;
@@ -157,6 +166,58 @@ impl MotorADRC {
             torque_constant,
             phase_resistance,
             b0,
+            wo,
+            wc,
+            disturbance_lpf,
+            velocity_tracker,
+            prev_output: 0.0,
+            // test_luenberger,
+            next_debug: 0,
+        }
+    }
+
+    pub fn new_default(
+        // adrc: Adrc,
+        rotor_inertia: f32,
+        torque_constant: f32,
+        phase_resistance: f32,
+        disturbance_lpf_time: f32,
+    ) -> Self {
+        // let speed_factor = 500.0;
+        let speed_factor = 50.0;
+        let step_size = 0.0001;
+        let td = TrackingDifferentiator::new(speed_factor, step_size);
+
+        let wo = 20.0;
+        // let b0 = torque_constant / (rotor_inertia * phase_resistance);
+        let b0 = torque_constant / rotor_inertia;
+
+        // let b0 = b0 * 0.5;
+        // let b0 = b0 * 2.0;
+
+        let eso = ExtendedStateObserver::from_bandwidth(wo, b0);
+
+        let wc = wo / 5.;
+        // let wc = 100.;
+        let beta1 = wc * wc;
+        let beta2 = 2.0 * wc;
+        // let beta2 = beta2 * 1.2;
+        let nlsef = NonlinearStateErrorFeedback::linear(beta1, beta2);
+
+        let adrc = Adrc::new(td, eso, nlsef, b0);
+
+        let disturbance_lpf = LowPassFilter::new(disturbance_lpf_time);
+
+        let velocity_tracker = TrackingDifferentiator::new(100.0, 0.0001);
+
+        Self {
+            adrc,
+            rotor_inertia,
+            torque_constant,
+            phase_resistance,
+            b0,
+            wo,
+            wc,
             disturbance_lpf,
             velocity_tracker,
             prev_output: 0.0,
@@ -185,6 +246,53 @@ impl MotorADRC {
             self.torque_constant,
             self.phase_resistance,
             self.disturbance_lpf.tf,
+            self.adrc.td.r,
+            None,
+            self.wo,
+            self.wc,
+        );
+    }
+
+    pub fn set_b0(&mut self, b0: f32) {
+        *self = Self::new(
+            self.rotor_inertia,
+            self.torque_constant,
+            self.phase_resistance,
+            self.disturbance_lpf.tf,
+            self.adrc.td.r,
+            Some(b0),
+            self.wo,
+            self.wc,
+        );
+    }
+
+    pub fn set_speed_factor(&mut self, speed_factor: f32) {
+        self.adrc.td.r = speed_factor;
+    }
+
+    pub fn set_observer_bandwidth(&mut self, wo: f32) {
+        *self = Self::new(
+            self.rotor_inertia,
+            self.torque_constant,
+            self.phase_resistance,
+            self.disturbance_lpf.tf,
+            self.adrc.td.r,
+            Some(self.b0),
+            wo,
+            self.wc,
+        );
+    }
+
+    pub fn set_controller_bandwidth(&mut self, wc: f32) {
+        *self = Self::new(
+            self.rotor_inertia,
+            self.torque_constant,
+            self.phase_resistance,
+            self.disturbance_lpf.tf,
+            self.adrc.td.r,
+            Some(self.b0),
+            self.wo,
+            wc,
         );
     }
 
@@ -195,6 +303,28 @@ impl MotorADRC {
     pub fn reset(&mut self) {
         self.adrc.eso.reset(SVector::<f32, 3>::new(0.0, 0.0, 0.0));
         self.prev_output = 0.0;
+    }
+
+    pub fn get_params(&self) -> (f32, f32, f32, f32, f32, f32, f32) {
+        (
+            self.b0,
+            self.adrc.td.r,
+            self.wo,
+            self.wc,
+            self.rotor_inertia,
+            self.torque_constant,
+            self.phase_resistance,
+        )
+    }
+
+    pub fn get_internals(&self) -> ([f32; 2], [f32; 3], f32) {
+        let td_state = [self.adrc.td.v1, self.adrc.td.v2];
+        let eso_state = [
+            self.adrc.eso.state[0],
+            self.adrc.eso.state[1],
+            self.adrc.eso.state[2],
+        ];
+        (td_state, eso_state, self.prev_output)
     }
 }
 
@@ -252,7 +382,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // self.state_observer.adrc.eso.state[0] = pos;
         // self.state_observer.adrc.eso.state[1] = vel;
 
-        let dbg = self.enabled && t_us >= self.state_observer.next_debug;
+        // let dbg = self.enabled && t_us >= self.state_observer.next_debug;
+        let dbg = false;
 
         // self.state_observer.prev_output =
         //     self.state_observer
@@ -289,14 +420,17 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                         .adrc
                         .update(self.motor.target_shaft_velocity, vel, dt, dbg);
 
-                let k = 0.7;
-                self.state_observer.prev_output = -k
-                    * self
-                        .state_observer
-                        .disturbance_lpf
-                        .filter_with_timestamp(self.state_observer.prev_output, t_us);
+                // let k = 0.7;
+                // self.state_observer.prev_output = -k
+                //     * self
+                //         .state_observer
+                //         .disturbance_lpf
+                //         .filter_with_timestamp(self.state_observer.prev_output, t_us);
 
-                self.motor.target_current += self.state_observer.prev_output;
+                let u = self.state_observer.prev_output;
+                // let u = -self.state_observer.prev_output;
+
+                self.motor.target_current = u;
             }
             robotarm_protocol::MotionControlType::Angle => {
                 // let target = self.motor.target_shaft_angle;
@@ -317,6 +451,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 //         .filter_with_timestamp(self.state_observer.prev_output, t_us);
 
                 let u = self.state_observer.prev_output;
+                // let u = -self.state_observer.prev_output;
 
                 self.motor.target_current = u;
             }
@@ -340,7 +475,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             panic!()
         }
 
-        // #[cfg(feature = "nope")]
+        #[cfg(feature = "nope")]
         if self.enabled && t_us >= self.state_observer.next_debug {
             // debug!(
             //     "ADRC: commanded_torque: {}, measured_angle: {}, state: {:?}",
@@ -352,8 +487,41 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             // debug!("Shaft angle:  {}", measured_angle);
             // debug!("prev_output: {}", self.state_observer.prev_output);
 
+            // self.send_debug_message(robotarm_protocol::SerialLogMessage::ADRCDebugData {
+            //     id: self.id,
+            //     timestamp: t_us,
+            //     vs: [
+            //         self.state_observer.adrc.td.v1,
+            //         self.state_observer.adrc.td.v2,
+            //     ],
+            //     state: state.as_slice().try_into().unwrap_or([0.0, 0.0, 0.0]),
+            //     u: self.state_observer.prev_output,
+            // })
+            // .await;
+
+            // debug!(
+            //     "vs: v1: {}, v2: {}",
+            //     self.state_observer.adrc.td.v1, self.state_observer.adrc.td.v2
+            // );
+            // debug!(
+            //     "State: angle: {}, velocity: {}, disturbance: {}",
+            //     state[0], state[1], state[2]
+            // );
+            // debug!("prev_output: {}", self.state_observer.prev_output);
+
+            // let (vs, state, u) = self.state_observer.get_internals();
+            // self.send_debug_message(robotarm_protocol::SerialLogMessage::ADRCDebugData {
+            //     id: self.id,
+            //     timestamp: t_us,
+            //     vs,
+            //     state,
+            //     u,
+            // })
+            // .await;
+
             // debug!("");
-            self.state_observer.next_debug = t_us + 50_000;
+            // self.state_observer.next_debug = t_us + 500_000;
+            self.state_observer.next_debug = t_us + 1_000_000 / 10;
         }
     }
 }

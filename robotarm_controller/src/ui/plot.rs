@@ -72,6 +72,25 @@ pub mod colors {
     pub const GREY: RGBColor = RGBColor(0xa9, 0xa9, 0xa9);
 }
 
+// const LABEL_V1: &str = "v1";
+// const LABEL_V2: &str = "v2";
+// const LABEL_X1: &str = "x1";
+// const LABEL_X2: &str = "x2";
+// const LABEL_X3: &str = "x3";
+
+pub const LABEL_V1: &str = "Ref Angle";
+pub const LABEL_V2: &str = "Ref Vel";
+pub const LABEL_X1: &str = "State Angle";
+pub const LABEL_X2: &str = "State Vel";
+pub const LABEL_X3: &str = "Disturbance";
+
+const COLOR_V1: RGBColor = CYAN;
+const COLOR_V2: RGBColor = MAGENTA;
+const COLOR_X1: RGBColor = GREEN;
+const COLOR_X2: RGBColor = BLUE;
+const COLOR_X3: RGBColor = RED;
+const COLOR_U: RGBColor = BLACK;
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DataPlot {
     #[serde(default)]
@@ -124,53 +143,73 @@ pub struct DataPlot {
     current_q_lpf: Option<f64>,
     current_lpf_alpha: f64,
 
-    pub draw_pid_output_vel: bool,
-    #[serde(skip)]
-    pid_output_vel: VecDeque<(f64, f64)>,
+    // pub draw_pid_output_vel: bool,
+    // #[serde(skip)]
+    // pid_output_vel: VecDeque<(f64, f64)>,
 
-    pub draw_pid_output_pos: bool,
-    #[serde(skip)]
-    pid_output_pos: VecDeque<(f64, f64)>,
+    // pub draw_pid_output_pos: bool,
+    // #[serde(skip)]
+    // pid_output_pos: VecDeque<(f64, f64)>,
 
-    pub draw_pid_vel_internals_error: bool,
-    pub draw_pid_vel_internals_p: bool,
-    pub draw_pid_vel_internals_i: bool,
-    pub draw_pid_vel_internals_d: bool,
-    #[serde(skip)]
-    pid_vel_internals_error: VecDeque<(f64, f64)>,
-    #[serde(skip)]
-    pid_vel_internals_p: VecDeque<(f64, f64)>,
-    #[serde(skip)]
-    pid_vel_internals_i: VecDeque<(f64, f64)>,
-    #[serde(skip)]
-    pid_vel_internals_d: VecDeque<(f64, f64)>,
+    // pub draw_pid_vel_internals_error: bool,
+    // pub draw_pid_vel_internals_p: bool,
+    // pub draw_pid_vel_internals_i: bool,
+    // pub draw_pid_vel_internals_d: bool,
+    // #[serde(skip)]
+    // pid_vel_internals_error: VecDeque<(f64, f64)>,
+    // #[serde(skip)]
+    // pid_vel_internals_p: VecDeque<(f64, f64)>,
+    // #[serde(skip)]
+    // pid_vel_internals_i: VecDeque<(f64, f64)>,
+    // #[serde(skip)]
+    // pid_vel_internals_d: VecDeque<(f64, f64)>,
 
-    pid_vel_lock_scales: bool,
-    pid_vel_internals_scale_output: f64,
-    pid_vel_internals_scale_error: f64,
-    pid_vel_internals_scale_p: f64,
-    pid_vel_internals_scale_i: f64,
-    pid_vel_internals_scale_d: f64,
+    // pid_vel_lock_scales: bool,
+    // pid_vel_internals_scale_output: f64,
+    // pid_vel_internals_scale_error: f64,
+    // pid_vel_internals_scale_p: f64,
+    // pid_vel_internals_scale_i: f64,
+    // pid_vel_internals_scale_d: f64,
 
-    pub draw_pid_pos_internals_error: bool,
-    pub draw_pid_pos_internals_p: bool,
-    pub draw_pid_pos_internals_i: bool,
-    pub draw_pid_pos_internals_d: bool,
-    #[serde(skip)]
-    pid_pos_internals_error: VecDeque<(f64, f64)>,
-    #[serde(skip)]
-    pid_pos_internals_p: VecDeque<(f64, f64)>,
-    #[serde(skip)]
-    pid_pos_internals_i: VecDeque<(f64, f64)>,
-    #[serde(skip)]
-    pid_pos_internals_d: VecDeque<(f64, f64)>,
+    // pub draw_pid_pos_internals_error: bool,
+    // pub draw_pid_pos_internals_p: bool,
+    // pub draw_pid_pos_internals_i: bool,
+    // pub draw_pid_pos_internals_d: bool,
+    // #[serde(skip)]
+    // pid_pos_internals_error: VecDeque<(f64, f64)>,
+    // #[serde(skip)]
+    // pid_pos_internals_p: VecDeque<(f64, f64)>,
+    // #[serde(skip)]
+    // pid_pos_internals_i: VecDeque<(f64, f64)>,
+    // #[serde(skip)]
+    // pid_pos_internals_d: VecDeque<(f64, f64)>,
 
-    pid_pos_lock_scales: bool,
-    pid_pos_internals_scale_output: f64,
-    pid_pos_internals_scale_error: f64,
-    pid_pos_internals_scale_p: f64,
-    pid_pos_internals_scale_i: f64,
-    pid_pos_internals_scale_d: f64,
+    // pid_pos_lock_scales: bool,
+    // pid_pos_internals_scale_output: f64,
+    // pid_pos_internals_scale_error: f64,
+    // pid_pos_internals_scale_p: f64,
+    // pid_pos_internals_scale_i: f64,
+    // pid_pos_internals_scale_d: f64,
+    pub draw_adrc_v1: bool,
+    pub draw_adrc_v2: bool,
+    pub draw_adrc_x1: bool,
+    pub draw_adrc_x2: bool,
+    pub draw_adrc_x3: bool,
+    pub draw_adrc_u: bool,
+
+    adrc_v1_scale: f64,
+    adrc_v2_scale: f64,
+    adrc_x1_scale: f64,
+    adrc_x2_scale: f64,
+    adrc_x3_scale: f64,
+    adrc_u_scale: f64,
+
+    #[serde(skip)]
+    adrc_vs: VecDeque<(f64, [f64; 2])>,
+    #[serde(skip)]
+    adrc_state: VecDeque<(f64, [f64; 3])>,
+    #[serde(skip)]
+    adrc_u: VecDeque<(f64, f64)>,
 
     // scale_angle: f64,
     scale_vel: f64,
@@ -207,41 +246,59 @@ impl Default for DataPlot {
             current_d_lpf: None,
             current_q_lpf: None,
             current_lpf_alpha: 0.1,
-            draw_pid_output_vel: true,
-            pid_output_vel: VecDeque::new(),
-            draw_pid_output_pos: false,
-            pid_output_pos: VecDeque::new(),
-            draw_pid_vel_internals_error: true,
-            draw_pid_vel_internals_p: true,
-            draw_pid_vel_internals_i: true,
-            draw_pid_vel_internals_d: true,
-            pid_vel_internals_error: VecDeque::new(),
-            pid_vel_internals_p: VecDeque::new(),
-            pid_vel_internals_i: VecDeque::new(),
-            pid_vel_internals_d: VecDeque::new(),
 
-            pid_vel_lock_scales: false,
-            pid_vel_internals_scale_output: 0.1,
-            pid_vel_internals_scale_error: 0.1,
-            pid_vel_internals_scale_p: 0.1,
-            pid_vel_internals_scale_i: 0.1,
-            pid_vel_internals_scale_d: 0.1,
+            // draw_pid_output_vel: true,
+            // pid_output_vel: VecDeque::new(),
+            // draw_pid_output_pos: false,
+            // pid_output_pos: VecDeque::new(),
+            // draw_pid_vel_internals_error: true,
+            // draw_pid_vel_internals_p: true,
+            // draw_pid_vel_internals_i: true,
+            // draw_pid_vel_internals_d: true,
+            // pid_vel_internals_error: VecDeque::new(),
+            // pid_vel_internals_p: VecDeque::new(),
+            // pid_vel_internals_i: VecDeque::new(),
+            // pid_vel_internals_d: VecDeque::new(),
 
-            draw_pid_pos_internals_error: false,
-            draw_pid_pos_internals_p: false,
-            draw_pid_pos_internals_i: false,
-            draw_pid_pos_internals_d: false,
-            pid_pos_internals_error: VecDeque::new(),
-            pid_pos_internals_p: VecDeque::new(),
-            pid_pos_internals_i: VecDeque::new(),
-            pid_pos_internals_d: VecDeque::new(),
+            // pid_vel_lock_scales: false,
+            // pid_vel_internals_scale_output: 0.1,
+            // pid_vel_internals_scale_error: 0.1,
+            // pid_vel_internals_scale_p: 0.1,
+            // pid_vel_internals_scale_i: 0.1,
+            // pid_vel_internals_scale_d: 0.1,
 
-            pid_pos_lock_scales: false,
-            pid_pos_internals_scale_output: 0.1,
-            pid_pos_internals_scale_error: 0.1,
-            pid_pos_internals_scale_p: 0.1,
-            pid_pos_internals_scale_i: 0.1,
-            pid_pos_internals_scale_d: 0.1,
+            // draw_pid_pos_internals_error: false,
+            // draw_pid_pos_internals_p: false,
+            // draw_pid_pos_internals_i: false,
+            // draw_pid_pos_internals_d: false,
+            // pid_pos_internals_error: VecDeque::new(),
+            // pid_pos_internals_p: VecDeque::new(),
+            // pid_pos_internals_i: VecDeque::new(),
+            // pid_pos_internals_d: VecDeque::new(),
+
+            // pid_pos_lock_scales: false,
+            // pid_pos_internals_scale_output: 0.1,
+            // pid_pos_internals_scale_error: 0.1,
+            // pid_pos_internals_scale_p: 0.1,
+            // pid_pos_internals_scale_i: 0.1,
+            // pid_pos_internals_scale_d: 0.1,
+            draw_adrc_v1: true,
+            draw_adrc_v2: true,
+            draw_adrc_x1: true,
+            draw_adrc_x2: true,
+            draw_adrc_x3: true,
+            draw_adrc_u: true,
+
+            adrc_v1_scale: 0.5,
+            adrc_v2_scale: 0.5,
+            adrc_x1_scale: 0.5,
+            adrc_x2_scale: 0.5,
+            adrc_x3_scale: 0.0001,
+            adrc_u_scale: 3.0,
+
+            adrc_vs: VecDeque::new(),
+            adrc_state: VecDeque::new(),
+            adrc_u: VecDeque::new(),
 
             // scale_angle: std::f64::consts::PI * 2.,
             // scale_vel: 0.05,
@@ -259,6 +316,7 @@ impl App {
         egui::Grid::new(format!("Plot Controls Grid")).show(ui, |ui| {
             if ui.button("Clear Plot").clicked() {
                 self.plots[self.current_plot].reset();
+                self.t0 = None;
             }
             ui.end_row();
             ui.end_row();
@@ -349,7 +407,73 @@ impl App {
 
             ui.end_row();
 
+            // ADRC
+            {
+                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_v1, LABEL_V1);
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].adrc_v1_scale,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_v2, LABEL_V2);
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].adrc_v2_scale,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+
+                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_x1, LABEL_X1);
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].adrc_x1_scale,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_x2, LABEL_X2);
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].adrc_x2_scale,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_x3, LABEL_X3);
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].adrc_x3_scale,
+                        log_min / 100.0..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_u, "ADRC u");
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.plots[self.current_plot].adrc_u_scale,
+                        log_min..=log_max,
+                    )
+                    .logarithmic(true)
+                    .max_decimals(log_decimals),
+                );
+                ui.end_row();
+            }
+
             // vel PID
+            #[cfg(feature = "nope")]
             {
                 // ui.checkbox(
                 //     &mut self.plots[self.current_plot].pid_pos_lock_scales,
@@ -428,6 +552,7 @@ impl App {
             }
 
             // pos PID
+            #[cfg(feature = "nope")]
             {
                 ui.end_row();
                 ui.checkbox(
@@ -519,16 +644,16 @@ impl DataPlot {
             &self.voltage,
             &self.current_d,
             &self.current_q,
-            &self.pid_output_vel,
-            &self.pid_vel_internals_error,
-            &self.pid_vel_internals_p,
-            &self.pid_vel_internals_i,
-            &self.pid_pos_internals_d,
-            &self.pid_output_pos,
-            &self.pid_pos_internals_error,
-            &self.pid_pos_internals_p,
-            &self.pid_pos_internals_i,
-            &self.pid_pos_internals_d,
+            // &self.pid_output_vel,
+            // &self.pid_vel_internals_error,
+            // &self.pid_vel_internals_p,
+            // &self.pid_vel_internals_i,
+            // &self.pid_pos_internals_d,
+            // &self.pid_output_pos,
+            // &self.pid_pos_internals_error,
+            // &self.pid_pos_internals_p,
+            // &self.pid_pos_internals_i,
+            // &self.pid_pos_internals_d,
         ];
 
         let n = data.iter().map(|d| d.len()).max().unwrap_or(0);
@@ -543,16 +668,16 @@ impl DataPlot {
             wtr.write_field("Voltage").unwrap();
             wtr.write_field("Current D").unwrap();
             wtr.write_field("Current Q").unwrap();
-            wtr.write_field("PID Output Velocity").unwrap();
-            wtr.write_field("PID Velocity Internals Error").unwrap();
-            wtr.write_field("PID Velocity Internals P").unwrap();
-            wtr.write_field("PID Velocity Internals I").unwrap();
-            wtr.write_field("PID Velocity Internals D").unwrap();
-            wtr.write_field("PID Output Position").unwrap();
-            wtr.write_field("PID Position Internals Error").unwrap();
-            wtr.write_field("PID Position Internals P").unwrap();
-            wtr.write_field("PID Position Internals I").unwrap();
-            wtr.write_field("PID Position Internals D").unwrap();
+            // wtr.write_field("PID Output Velocity").unwrap();
+            // wtr.write_field("PID Velocity Internals Error").unwrap();
+            // wtr.write_field("PID Velocity Internals P").unwrap();
+            // wtr.write_field("PID Velocity Internals I").unwrap();
+            // wtr.write_field("PID Velocity Internals D").unwrap();
+            // wtr.write_field("PID Output Position").unwrap();
+            // wtr.write_field("PID Position Internals Error").unwrap();
+            // wtr.write_field("PID Position Internals P").unwrap();
+            // wtr.write_field("PID Position Internals I").unwrap();
+            // wtr.write_field("PID Position Internals D").unwrap();
             wtr.write_record(None::<&[u8]>).unwrap();
         }
 
@@ -602,17 +727,20 @@ impl DataPlot {
 
     pub fn add_point_angle(&mut self, t: f64, angle: f64) {
         self.angle.push_back((t, angle));
-        self.prev_time = t;
+        // self.prev_time = t;
+        self.prev_time = t.max(self.prev_time);
     }
 
     pub fn add_point_pos(&mut self, t: f64, pos: f64) {
         self.pos.push_back((t, pos));
-        self.prev_time = t;
+        // self.prev_time = t;
+        // self.prev_time = t.max(self.prev_time);
     }
 
     pub fn add_point_vel(&mut self, t: f64, vel: f64) {
         self.vel.push_back((t, vel));
-        self.prev_time = t;
+        // self.prev_time = t;
+        // self.prev_time = t.max(self.prev_time);
 
         self.vel_bounds.0 = self.vel_bounds.0.min(vel);
         self.vel_bounds.1 = self.vel_bounds.1.max(vel);
@@ -620,7 +748,8 @@ impl DataPlot {
 
     pub fn add_point_target_vel(&mut self, t: f64, target: f64) {
         self.target_vel.push_back((t, target));
-        self.prev_time = t;
+        // self.prev_time = t;
+        // self.prev_time = t.max(self.prev_time);
 
         self.vel_bounds.0 = self.vel_bounds.0.min(target);
         self.vel_bounds.1 = self.vel_bounds.1.max(target);
@@ -628,12 +757,14 @@ impl DataPlot {
 
     pub fn add_point_target_pos(&mut self, t: f64, target: f64) {
         self.target_pos.push_back((t, target));
-        self.prev_time = t;
+        // self.prev_time = t;
+        // self.prev_time = t.max(self.prev_time);
     }
 
     pub fn add_point_voltage(&mut self, t: f64, voltage: f64) {
         self.voltage.push_back((t, voltage as f64));
-        self.prev_time = t;
+        // self.prev_time = t;
+        // self.prev_time = t.max(self.prev_time);
     }
 
     pub fn add_point_current(&mut self, t: f64, current_d: f64, current_q: f64) {
@@ -653,33 +784,42 @@ impl DataPlot {
 
         self.current_d.push_back((t, filtered_d));
         self.current_q.push_back((t, filtered_q));
-        self.prev_time = t;
+        // self.prev_time = t;
+        // self.prev_time = t.max(self.prev_time);
     }
 
-    pub fn add_point_pid_output_vel(&mut self, t: f64, output: f64) {
-        self.pid_output_vel.push_back((t, output));
-        self.prev_time = t;
-    }
+    // pub fn add_point_pid_output_vel(&mut self, t: f64, output: f64) {
+    //     self.pid_output_vel.push_back((t, output));
+    //     self.prev_time = t;
+    // }
 
-    pub fn add_point_pid_output_pos(&mut self, t: f64, output: f64) {
-        self.pid_output_pos.push_back((t, output));
-        self.prev_time = t;
-    }
+    // pub fn add_point_pid_output_pos(&mut self, t: f64, output: f64) {
+    //     self.pid_output_pos.push_back((t, output));
+    //     self.prev_time = t;
+    // }
 
-    pub fn add_points_pid_vel_internals(&mut self, t: f64, error: f64, p: f64, i: f64, d: f64) {
-        self.pid_vel_internals_error.push_back((t, error));
-        self.pid_vel_internals_p.push_back((t, p));
-        self.pid_vel_internals_i.push_back((t, i));
-        self.pid_vel_internals_d.push_back((t, d));
-        self.prev_time = t;
-    }
+    // pub fn add_points_pid_vel_internals(&mut self, t: f64, error: f64, p: f64, i: f64, d: f64) {
+    //     self.pid_vel_internals_error.push_back((t, error));
+    //     self.pid_vel_internals_p.push_back((t, p));
+    //     self.pid_vel_internals_i.push_back((t, i));
+    //     self.pid_vel_internals_d.push_back((t, d));
+    //     self.prev_time = t;
+    // }
 
-    pub fn add_points_pid_pos_internals(&mut self, t: f64, error: f64, p: f64, i: f64, d: f64) {
-        self.pid_pos_internals_error.push_back((t, error));
-        self.pid_pos_internals_p.push_back((t, p));
-        self.pid_pos_internals_i.push_back((t, i));
-        self.pid_pos_internals_d.push_back((t, d));
-        self.prev_time = t;
+    // pub fn add_points_pid_pos_internals(&mut self, t: f64, error: f64, p: f64, i: f64, d: f64) {
+    //     self.pid_pos_internals_error.push_back((t, error));
+    //     self.pid_pos_internals_p.push_back((t, p));
+    //     self.pid_pos_internals_i.push_back((t, i));
+    //     self.pid_pos_internals_d.push_back((t, d));
+    //     self.prev_time = t;
+    // }
+
+    pub fn add_points_adrc(&mut self, t: f64, vs: [f32; 2], xs: [f32; 3], u: f32) {
+        self.adrc_vs.push_back((t, [vs[0] as f64, vs[1] as f64]));
+        self.adrc_state
+            .push_back((t, [xs[0] as f64, xs[1] as f64, xs[2] as f64]));
+        self.adrc_u.push_back((t, u as f64));
+        self.prev_time = t.max(self.prev_time);
     }
 
     fn clear_old_points(&mut self, current_time: f64) {
@@ -699,25 +839,32 @@ impl DataPlot {
             .retain(|(t, _)| *t >= current_time - self.window_time);
         self.current_q
             .retain(|(t, _)| *t >= current_time - self.window_time);
-        self.pid_output_vel
+        // self.pid_output_vel
+        //     .retain(|(t, _)| *t >= current_time - self.window_time);
+        // self.pid_output_pos
+        //     .retain(|(t, _)| *t >= current_time - self.window_time);
+        // self.pid_vel_internals_error
+        //     .retain(|(t, _)| *t >= current_time - self.window_time);
+        // self.pid_vel_internals_p
+        //     .retain(|(t, _)| *t >= current_time - self.window_time);
+        // self.pid_vel_internals_i
+        //     .retain(|(t, _)| *t >= current_time - self.window_time);
+        // self.pid_vel_internals_d
+        //     .retain(|(t, _)| *t >= current_time - self.window_time);
+        // self.pid_pos_internals_error
+        //     .retain(|(t, _)| *t >= current_time - self.window_time);
+        // self.pid_pos_internals_p
+        //     .retain(|(t, _)| *t >= current_time - self.window_time);
+        // self.pid_pos_internals_i
+        //     .retain(|(t, _)| *t >= current_time - self.window_time);
+        // self.pid_pos_internals_d
+        //     .retain(|(t, _)| *t >= current_time - self.window_time);
+
+        self.adrc_vs
             .retain(|(t, _)| *t >= current_time - self.window_time);
-        self.pid_output_pos
+        self.adrc_state
             .retain(|(t, _)| *t >= current_time - self.window_time);
-        self.pid_vel_internals_error
-            .retain(|(t, _)| *t >= current_time - self.window_time);
-        self.pid_vel_internals_p
-            .retain(|(t, _)| *t >= current_time - self.window_time);
-        self.pid_vel_internals_i
-            .retain(|(t, _)| *t >= current_time - self.window_time);
-        self.pid_vel_internals_d
-            .retain(|(t, _)| *t >= current_time - self.window_time);
-        self.pid_pos_internals_error
-            .retain(|(t, _)| *t >= current_time - self.window_time);
-        self.pid_pos_internals_p
-            .retain(|(t, _)| *t >= current_time - self.window_time);
-        self.pid_pos_internals_i
-            .retain(|(t, _)| *t >= current_time - self.window_time);
-        self.pid_pos_internals_d
+        self.adrc_u
             .retain(|(t, _)| *t >= current_time - self.window_time);
     }
 
@@ -883,22 +1030,27 @@ impl DataPlot {
         self.current_q.clear();
         self.current_d_lpf = None;
         self.current_q_lpf = None;
-        self.pid_output_vel.clear();
-        self.pid_output_pos.clear();
 
-        self.pid_vel_internals_error.clear();
-        self.pid_vel_internals_p.clear();
-        self.pid_vel_internals_i.clear();
-        self.pid_vel_internals_d.clear();
+        // self.pid_output_vel.clear();
+        // self.pid_output_pos.clear();
 
-        self.pid_pos_internals_error.clear();
-        self.pid_pos_internals_p.clear();
-        self.pid_pos_internals_i.clear();
-        self.pid_pos_internals_d.clear();
+        // self.pid_vel_internals_error.clear();
+        // self.pid_vel_internals_p.clear();
+        // self.pid_vel_internals_i.clear();
+        // self.pid_vel_internals_d.clear();
+
+        // self.pid_pos_internals_error.clear();
+        // self.pid_pos_internals_p.clear();
+        // self.pid_pos_internals_i.clear();
+        // self.pid_pos_internals_d.clear();
 
         self.prev_time = 0.;
 
         self.vel_bounds = (-6.28, 6.28);
+
+        self.adrc_state.clear();
+        self.adrc_vs.clear();
+        self.adrc_u.clear();
     }
 }
 
@@ -908,7 +1060,8 @@ impl DataPlot {
 
         let root = EguiBackend::new(ui).into_drawing_area();
 
-        let (upper, lower) = root.split_vertically(root.dim_in_pixel().1 as f64 * 0.7);
+        // let (upper, lower) = root.split_vertically(root.dim_in_pixel().1 as f64 * 0.7);
+        let (upper, lower) = root.split_vertically(root.dim_in_pixel().1 as f64 * 0.5);
 
         {
             let root = upper;
@@ -1142,7 +1295,92 @@ impl DataPlot {
 
             chart.configure_mesh().draw().unwrap();
 
+            // ADRC
+            {
+                if self.draw_adrc_v1 {
+                    chart
+                        .draw_series(LineSeries::new(
+                            self.adrc_vs
+                                .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                                .map(|(t, vs)| (*t, vs[0] * self.adrc_v1_scale)),
+                            COLOR_V1.stroke_width(self.stroke_width),
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &COLOR_V1))
+                        .label(LABEL_V1);
+                }
+
+                if self.draw_adrc_v2 {
+                    chart
+                        .draw_series(LineSeries::new(
+                            self.adrc_vs
+                                .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                                .map(|(t, vs)| (*t, vs[1] * self.adrc_v2_scale)),
+                            COLOR_V2.stroke_width(self.stroke_width),
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &COLOR_V2))
+                        .label(LABEL_V2);
+                }
+
+                if self.draw_adrc_x1 {
+                    chart
+                        .draw_series(LineSeries::new(
+                            self.adrc_state
+                                .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                                .map(|(t, xs)| (*t, xs[0] * self.adrc_x1_scale)),
+                            COLOR_X1.stroke_width(self.stroke_width),
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &COLOR_X1))
+                        .label(LABEL_X1);
+                }
+                if self.draw_adrc_x2 {
+                    chart
+                        .draw_series(LineSeries::new(
+                            self.adrc_state
+                                .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                                .map(|(t, xs)| (*t, xs[1] * self.adrc_x2_scale)),
+                            COLOR_X2.stroke_width(self.stroke_width),
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &COLOR_X2))
+                        .label(LABEL_X2);
+                }
+                if self.draw_adrc_x3 {
+                    chart
+                        .draw_series(LineSeries::new(
+                            self.adrc_state
+                                .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                                .map(|(t, xs)| (*t, xs[2] * self.adrc_x3_scale)),
+                            COLOR_X3.stroke_width(self.stroke_width),
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &COLOR_X3))
+                        .label(LABEL_X3);
+                }
+                if self.draw_adrc_u {
+                    chart
+                        .draw_series(LineSeries::new(
+                            self.adrc_u
+                                .iter()
+                                .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                                .map(|(t, u)| (*t, *u * self.adrc_u_scale)),
+                            COLOR_U.stroke_width(self.stroke_width),
+                        ))
+                        .unwrap()
+                        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &COLOR_U))
+                        .label("ADRC u");
+                }
+            }
+
             // vel
+            #[cfg(feature = "nope")]
             {
                 if self.draw_pid_output_vel {
                     chart
@@ -1254,6 +1492,7 @@ impl DataPlot {
             }
 
             // pos
+            #[cfg(feature = "nope")]
             {
                 if self.draw_pid_output_pos {
                     chart

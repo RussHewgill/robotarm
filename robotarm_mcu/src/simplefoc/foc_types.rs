@@ -281,7 +281,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 0.0
             };
 
-            let adrc = crate::simplefoc::algorithms::adrc::motor_adrc::MotorADRC::new(
+            let adrc = crate::simplefoc::algorithms::adrc::motor_adrc::MotorADRC::new_default(
                 // motor.rotor_inertia.unwrap_or(0.0),
                 0.0,
                 torque_constant,

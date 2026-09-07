@@ -32,3 +32,12 @@ pub struct PIDSettings {
     pub d_lpf: Option<f32>,
     pub feed_forward: Option<f32>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct ADRCSettings {
+    pub b0: Option<f32>,
+    pub speed_factor: Option<f32>,
+    pub observer_bandwidth: Option<f32>,
+    pub controller_bandwidth: Option<f32>,
+}

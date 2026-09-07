@@ -1,3 +1,4 @@
+use cortex_m::register::control;
 use defmt::{debug, error, trace};
 use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlType};
 
@@ -138,6 +139,17 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 self.feed_forward_torque = ff;
             }
             SerialCommand::RequestSettings { id } => {
+                let (b0, speed_factor, observer_bandwidth, controller_bandwidth, _, _, _) =
+                    self.state_observer.get_params();
+                self.usb_logger.send_log_msg(SerialLogMessage::MotorADRC {
+                    id,
+                    b0,
+                    speed_factor,
+                    observer_bandwidth,
+                    controller_bandwidth,
+                });
+
+                #[cfg(feature = "nope")]
                 self.usb_logger.send_log_msg(SerialLogMessage::MotorPID {
                     id: self.id,
                     vel_p: self.pid_velocity.get_p(),
@@ -254,6 +266,22 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 // if let Some(ramp) = pid_settings.ramp {
                 //     self.pid_angle.set_ramp(ramp);
                 // }
+            }
+            SerialCommand::SetADRCParam { id, adrc_settings } => {
+                if let Some(b0) = adrc_settings.b0 {
+                    self.state_observer.set_b0(b0);
+                }
+                if let Some(speed_factor) = adrc_settings.speed_factor {
+                    self.state_observer.set_speed_factor(speed_factor);
+                }
+                if let Some(observer_bandwidth) = adrc_settings.observer_bandwidth {
+                    self.state_observer
+                        .set_observer_bandwidth(observer_bandwidth);
+                }
+                if let Some(controller_bandwidth) = adrc_settings.controller_bandwidth {
+                    self.state_observer
+                        .set_controller_bandwidth(controller_bandwidth);
+                }
             }
             SerialCommand::SetZeroElectricalAngle { id, angle } => {
                 self.zero_electric_angle = angle;

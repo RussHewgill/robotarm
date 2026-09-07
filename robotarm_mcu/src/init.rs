@@ -109,8 +109,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_debug_freq(2);
     // foc.set_debug_freq(10);
-    // foc.set_debug_freq(100);
-    foc.set_debug_freq(200);
+    foc.set_debug_freq(100);
+    // foc.set_debug_freq(200);
     // foc.set_debug_freq(500);
     // foc.set_debug_freq(0);
 
@@ -224,7 +224,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.state_observer.set_torque_constant(0.45);
     // foc.state_observer.set_torque_constant(0.);
     // foc.state_observer.set_rotor_inertia(100. * 1e-7);
-    foc.state_observer.set_rotor_inertia(100. * 1e-7);
+    // foc.state_observer.set_rotor_inertia(100. * 1e-7);
+    foc.state_observer.set_rotor_inertia(50. * 1e-7);
 
     // debug!("Finding angle limits");
     // foc.find_angle_limits().await;

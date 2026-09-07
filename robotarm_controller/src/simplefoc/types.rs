@@ -8,6 +8,8 @@ use tracing::{debug, error, info, trace, warn};
 pub struct FocStatus {
     pub id: u8,
 
+    pub enabled: bool,
+
     pub target_pos: f64,
     pub target_vel: f64,
     pub target_voltage: f64,
@@ -55,7 +57,20 @@ pub struct FocStatus {
     pub lpf_angle: f32,
     pub lpf_vel: f32,
 
+    pub adrc_b0: f32,
+    pub adrc_speed_factor: f32,
+    pub adrc_inertia: f32,
+    pub adrc_kp: f32,
+    pub adrc_observer_bandwidth: f32,
+    pub adrc_controller_bandwidth: f32,
+
+    pub adrc_internals: ([f64; 2], [f64; 3], f64),
+
     pub zero_electrical_angle: f64,
 
     pub calibration_enabled: bool,
+
+    pub debug_motion_sine: bool,
+    pub debug_motion_steps: bool,
+    pub debug_motion_val: f64,
 }

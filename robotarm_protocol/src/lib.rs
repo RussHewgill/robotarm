@@ -34,13 +34,13 @@ pub enum SerialLogMessage {
         start_new: bool,
         data: [f32; 8],
     },
-    PIDDebugData {
-        id: u8,
-        timestamp: u64,
-        // (error, p_term, i_term, d_term)
-        pid_internals_vel: (f32, f32, f32, f32),
-        pid_internals_pos: (f32, f32, f32, f32),
-    },
+    // PIDDebugData {
+    //     id: u8,
+    //     timestamp: u64,
+    //     // (error, p_term, i_term, d_term)
+    //     pid_internals_vel: (f32, f32, f32, f32),
+    //     pid_internals_pos: (f32, f32, f32, f32),
+    // },
     DebugData {
         id: u8,
         timestamp: u64,
@@ -58,28 +58,42 @@ pub enum SerialLogMessage {
         position: f32,
         velocity: Option<f32>,
     },
-    MotorPID {
+    // MotorPID {
+    //     id: u8,
+    //     vel_p: f32,
+    //     vel_i: f32,
+    //     vel_d: f32,
+    //     // vel_ramp: f32,
+    //     vel_limit: f32,
+    //     angle_p: f32,
+    //     angle_i: f32,
+    //     angle_d: f32,
+    //     // angle_ramp: f32,
+    //     angle_limit: f32,
+    //     lpf_vel: f32,
+    //     lpf_angle: f32,
+
+    //     vel_feed_forward: f32,
+    //     vel_i_band: f32,
+    //     vel_d_lpf: f32,
+
+    //     // pos_feed_forward: f32,
+    //     pos_i_band: f32,
+    //     pos_d_lpf: f32,
+    // },
+    MotorADRC {
         id: u8,
-        vel_p: f32,
-        vel_i: f32,
-        vel_d: f32,
-        // vel_ramp: f32,
-        vel_limit: f32,
-        angle_p: f32,
-        angle_i: f32,
-        angle_d: f32,
-        // angle_ramp: f32,
-        angle_limit: f32,
-        lpf_vel: f32,
-        lpf_angle: f32,
-
-        vel_feed_forward: f32,
-        vel_i_band: f32,
-        vel_d_lpf: f32,
-
-        // pos_feed_forward: f32,
-        pos_i_band: f32,
-        pos_d_lpf: f32,
+        b0: f32,
+        speed_factor: f32,
+        observer_bandwidth: f32,
+        controller_bandwidth: f32,
+    },
+    ADRCDebugData {
+        id: u8,
+        timestamp: u64,
+        vs: [f32; 2],
+        state: [f32; 3],
+        u: f32,
     },
 }
 
@@ -89,10 +103,12 @@ impl SerialLogMessage {
             SerialLogMessage::MotorData { id, .. } => *id,
             SerialLogMessage::DebugData { id, .. } => *id,
             SerialLogMessage::EncoderData { id, .. } => *id,
-            SerialLogMessage::MotorPID { id, .. } => *id,
+            // SerialLogMessage::MotorPID { id, .. } => *id,
+            SerialLogMessage::MotorADRC { id, .. } => *id,
             SerialLogMessage::FocLoopRate { id, .. } => *id,
-            SerialLogMessage::PIDDebugData { id, .. } => *id,
+            // SerialLogMessage::PIDDebugData { id, .. } => *id,
             SerialLogMessage::LogData { id, .. } => *id,
+            SerialLogMessage::ADRCDebugData { id, .. } => *id,
         }
     }
 }
@@ -146,6 +162,10 @@ pub enum SerialCommand {
         id: u8,
         pid_settings: PIDSettings,
     },
+    SetADRCParam {
+        id: u8,
+        adrc_settings: ADRCSettings,
+    },
     SetLPF {
         id: u8,
         lpf_vel: Option<f32>,
@@ -193,6 +213,7 @@ impl SerialCommand {
             SerialCommand::ZeroPosition { id } => *id,
             SerialCommand::SetVoltageLimit { id, .. } => *id,
             SerialCommand::SetZeroElectricalAngle { id, .. } => *id,
+            SerialCommand::SetADRCParam { id, .. } => *id,
         }
     }
 }
