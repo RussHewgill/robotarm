@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use tracing::{debug, error, info, trace, warn};
 
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, f64::consts::PI};
 
 use eframe::egui::{self, Response};
 
@@ -949,8 +949,12 @@ impl DataPlot {
                             .iter()
                             .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                             .map(|(t, angle)| {
-                                // (*t, (*angle - std::f64::consts::PI) / std::f64::consts::PI)
-                                (*t, *angle * self.angle_scale)
+                                // (*t, self.angle_scale * (*angle - PI) / PI)
+                                // (*t, *angle * self.angle_scale)
+                                // let a = self.angle_scale * angle / PI;
+                                let a = self.angle_scale * (angle - PI) / PI;
+                                // (*t, self.angle_scale * (*pos - PI) / PI)
+                                (*t, a)
                             }),
                         GREEN.stroke_width(self.stroke_width),
                     ))
@@ -965,9 +969,11 @@ impl DataPlot {
                         self.pos
                             .iter()
                             .filter(|(t, _)| *t >= self.prev_time - self.window_time)
-                            .map(|(t, pos)| {
+                            .map(|(t, angle)| {
                                 // (*t, (*pos - std::f64::consts::PI) / std::f64::consts::PI)
-                                (*t, *pos * self.angle_scale)
+                                // let a = self.angle_scale * angle / PI;
+                                let a = self.angle_scale * (angle - PI) / PI;
+                                (*t, a)
                             }),
                         TEAL.stroke_width(self.stroke_width),
                     ))
@@ -998,7 +1004,12 @@ impl DataPlot {
                             .filter(|(t, _)| *t >= self.prev_time - self.window_time)
                             .map(|(t, angle)| {
                                 // (*t, (std::f64::consts::PI - *angle) / std::f64::consts::PI)
-                                (*t, *angle * self.angle_scale)
+                                // let a = angle % (2.0 * PI);
+                                // let a = if a >= 0.0 { a } else { a + 2.0 * PI };
+                                // let a = self.angle_scale * angle / PI;
+                                let a = self.angle_scale * (angle - PI) / PI;
+                                (*t, a)
+                                // (*t, *angle * self.angle_scale)
                             }),
                         RED.stroke_width(self.stroke_width),
                     ))
@@ -1022,17 +1033,36 @@ impl DataPlot {
             }
 
             if self.draw_voltage {
+                // chart
+                //     .draw_secondary_series(LineSeries::new(
+                //         self.voltage
+                //             .iter()
+                //             .filter(|(t, _)| *t >= self.prev_time - self.window_time)
+                //         .map(|(t, voltage)| (*t, *voltage)),
+                //         colors::ORANGE.stroke_width(self.stroke_width),
+                //     ))
+                //     .unwrap()
+                //     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors::ORANGE))
+                //     .label("Voltage");
+
                 chart
                     .draw_secondary_series(LineSeries::new(
                         self.voltage
                             .iter()
                             .filter(|(t, _)| *t >= self.prev_time - self.window_time)
-                            .map(|(t, voltage)| (*t, *voltage)),
+                            .map(|(t, angle)| {
+                                // (*t, (*pos - std::f64::consts::PI) / std::f64::consts::PI)
+                                // (*t, self.angle_scale * (*angle - PI) / PI)
+                                // let a = self.angle_scale * (angle - PI) / PI;
+                                let a = *angle * self.scale_vel;
+                                (*t, a)
+                            }),
+                        // .map(|(t, voltage)| (*t, *voltage)),
                         colors::ORANGE.stroke_width(self.stroke_width),
                     ))
                     .unwrap()
                     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &colors::ORANGE))
-                    .label("Voltage");
+                    .label("Raw Vel");
             }
 
             if self.draw_current {

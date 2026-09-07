@@ -589,6 +589,13 @@ impl App {
                 send_target = Some(tgt);
             }
 
+            if !matches!(
+                self.status[id as usize].motion_control,
+                Some(robotarm_protocol::MotionControlType::Torque)
+            ) {
+                send_target = None;
+            }
+
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetMotorTarget {
                     id,
@@ -649,6 +656,14 @@ impl App {
                 send_target = Some(tgt);
             }
 
+            if !matches!(
+                self.status[id as usize].motion_control,
+                Some(robotarm_protocol::MotionControlType::Angle)
+                    | Some(robotarm_protocol::MotionControlType::AngleOpenLoop)
+            ) {
+                send_target = None;
+            }
+
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetMotorTarget {
                     id,
@@ -701,6 +716,16 @@ impl App {
                 max,
             ) {
                 send_target = Some(tgt);
+            }
+
+            if !(matches!(
+                self.status[id as usize].motion_control,
+                Some(robotarm_protocol::MotionControlType::Velocity)
+            ) || matches!(
+                self.status[id as usize].motion_control,
+                Some(robotarm_protocol::MotionControlType::VelocityOpenLoop)
+            )) {
+                send_target = None;
             }
 
             if let Some(tgt) = send_target {

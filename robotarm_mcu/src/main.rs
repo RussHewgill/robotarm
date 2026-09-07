@@ -1278,7 +1278,7 @@ fn main() -> ! {
     // let mut builder = embassy_usb::Builder::new(
     //     driver,
     //     config,
-    //     &mut config_descriptor,
+    //     &mut config_descriptor,zM
     //     &mut bos_descriptor,
     //     &mut msos_descriptor,
     //     &mut control_buf,
@@ -1368,6 +1368,206 @@ fn main() -> ! {
     });
 }
 
+// ADRC test
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    use approx::assert_relative_eq;
+
+    use crate::simplefoc::algorithms::adrc::*;
+
+    debug!("Starting tests");
+
+    #[cfg(feature = "nope")]
+    {
+        {
+            fn fal_is_continuous_at_delta() {
+                let alpha = 0.5;
+                let delta = 0.1;
+                let just_above = fal(delta + 1e-4, alpha, delta);
+                let just_below = fal(delta - 1e-4, alpha, delta);
+                assert_relative_eq!(just_above, just_below, epsilon = 1e-3);
+            }
+
+            fn fal_is_odd() {
+                let alpha = 0.5;
+                let delta = 0.1;
+                for &e in &[0.02_f32, 0.2, 1.5] {
+                    assert_relative_eq!(
+                        fal(-e, alpha, delta),
+                        -fal(e, alpha, delta),
+                        epsilon = 1e-6
+                    );
+                }
+            }
+
+            fn fal_linear_region_matches_slope() {
+                // Inside |e| <= delta, fal(e) = e * delta^(alpha - 1)
+                let alpha = 0.5;
+                let delta = 0.1;
+                let e = 0.05;
+                let expected = e * libm::powf(delta, alpha - 1.0);
+                assert_relative_eq!(fal(e, alpha, delta), expected, epsilon = 1e-6);
+            }
+
+            fal_is_continuous_at_delta();
+            fal_is_odd();
+            fal_linear_region_matches_slope();
+        }
+        debug!("fal test passed");
+
+        {
+            assert_relative_eq!(fhan(0.0, 0.0, 10.0, 0.01), 0.0, epsilon = 1e-6);
+
+            let r = 5.0;
+            for &(x1, x2) in &[(10.0, 0.0), (-10.0, 3.0), (0.5, -20.0), (100.0, 100.0)] {
+                let u = fhan(x1, x2, r, 0.01);
+                assert!(u.abs() <= r + 1e-3, "u={u} exceeds r={r}");
+            }
+
+            // Positive error, zero velocity -> should command negative (decelerating/reversing) control.
+            assert!(fhan(5.0, 0.0, 1.0, 0.01) < 0.0);
+            // Negative error, zero velocity -> should command positive control.
+            assert!(fhan(-5.0, 0.0, 1.0, 0.01) > 0.0);
+
+            // linear_mode_matches_pd
+            let nlsef = NonlinearStateErrorFeedback::linear(3.0, 0.5);
+            let e1 = 0.4;
+            let e2 = -0.2;
+            assert_relative_eq!(nlsef.compute(e1, e2), 3.0 * e1 + 0.5 * e2, epsilon = 1e-6);
+
+            // zero_error_gives_zero_output
+            let nlsef = NonlinearStateErrorFeedback::new(10.0, 2.0, 0.5, 0.25, 0.01);
+            assert_relative_eq!(nlsef.compute(0.0, 0.0), 0.0, epsilon = 1e-6);
+        }
+        debug!("NLESF test passed");
+
+        {
+            fn tracks_a_step_input_without_overshoot_blowup() {
+                let mut td = TrackingDifferentiator::new(50.0, 0.01);
+                let dt = 0.01;
+                let mut last_v1 = 0.0;
+                for _ in 0..500 {
+                    let (v1, _v2) = td.update(1.0, dt);
+                    last_v1 = v1;
+                }
+                assert!(
+                    (last_v1 - 1.0).abs() < 0.01,
+                    "did not converge: v1={last_v1}"
+                );
+            }
+
+            fn derivative_of_ramp_converges_to_its_slope() {
+                let mut td = TrackingDifferentiator::new(200.0, 0.005);
+                let dt = 0.005;
+                let slope = 2.0;
+                let mut t = 0.0;
+                let mut v2 = 0.0;
+                for _ in 0..2000 {
+                    t += dt;
+                    let (_v1, v2_now) = td.update(slope * t, dt);
+                    v2 = v2_now;
+                }
+                assert!((v2 - slope).abs() < 0.05, "v2={v2}, expected ~{slope}");
+            }
+
+            tracks_a_step_input_without_overshoot_blowup();
+            derivative_of_ramp_converges_to_its_slope();
+        }
+        debug!("TD test passed");
+
+        {
+            fn leso_estimates_state_and_constant_disturbance() {
+                let b0 = 1.0;
+                let mut eso = ExtendedStateObserver::<3, 1, 1>::from_bandwidth(30.0, b0);
+
+                let dt = 0.001;
+                let u = 0.5;
+                let w = 2.0; // true constant disturbance
+                let mut x1 = 0.0_f32;
+                let mut x2 = 0.0_f32;
+
+                for _ in 0..20_000 {
+                    // True plant: x1' = x2, x2' = u + w
+                    x1 += dt * x2;
+                    x2 += dt * (u + w);
+                    eso.update(x1, u, dt);
+                }
+
+                assert!((eso.z[0] - x1).abs() < 0.05, "z1={}, x1={}", eso.z[0], x1);
+                assert!((eso.z[1] - x2).abs() < 0.2, "z2={}, x2={}", eso.z[1], x2);
+                assert!((eso.z[2] - w).abs() < 0.2, "z3={}, w={}", eso.z[2], w);
+            }
+
+            leso_estimates_state_and_constant_disturbance();
+        }
+        debug!("ESO test passed");
+
+        {
+            /// Closed-loop simulation: a double integrator plant with an unmodeled
+            /// constant disturbance and a gain error in `b0`. ADRC should still
+            /// track a step setpoint accurately despite both.
+            fn rejects_disturbance_and_tracks_step() {
+                let td = TrackingDifferentiator::new(20.0, 0.01);
+                let eso = ExtendedStateObserver::from_bandwidth(30.0, 1.0);
+                let nlsef = NonlinearStateErrorFeedback::new(25.0, 10.0, 0.5, 0.25, 0.05);
+                let mut controller = Adrc::new(td, eso, nlsef, 1.0).with_limits(-50.0, 50.0);
+
+                let dt = 0.001;
+                // Plant: x1' = x2, x2' = 0.8*u + w  (b0 mismatch: true gain is 0.8, not 1.0)
+                let true_b0 = 0.8;
+                let w = 3.0; // constant external disturbance
+                let mut x1 = 0.0_f32;
+                let mut x2 = 0.0_f32;
+
+                for _ in 0..5000 {
+                    let u = controller.update(1.0, x1, dt);
+                    x1 += dt * x2;
+                    x2 += dt * (true_b0 * u + w);
+                }
+
+                assert!(
+                    (x1 - 1.0).abs() < 0.02,
+                    "steady-state error too large: x1={x1}"
+                );
+            }
+
+            fn reset_clears_state() {
+                let td = TrackingDifferentiator::new(50.0, 0.01);
+                let eso = ExtendedStateObserver::from_bandwidth(20.0, 1.0);
+                let nlsef = NonlinearStateErrorFeedback::linear(5.0, 1.0);
+                let mut controller = Adrc::new(td, eso, nlsef, 1.0);
+
+                for _ in 0..100 {
+                    controller.update(1.0, 0.0, 0.01);
+                }
+                assert_ne!(
+                    controller.state_estimate(),
+                    nalgebra::SVector::<f32, 3>::zeros()
+                );
+
+                controller.reset();
+                assert_eq!(
+                    controller.state_estimate(),
+                    nalgebra::SVector::<f32, 3>::zeros()
+                );
+                assert_eq!(controller.last_control(), 0.0);
+            }
+        }
+        debug!("ADRC tests passed");
+    }
+
+    let mut adrc = motor_adrc::MotorADRC::new(100. * 1e-7, 0.45, 5.8, 0.01);
+
+    adrc.test_adrc();
+
+    debug!("Done");
+
+    //
+}
+
 /// MARK: Main
 // #[cfg(feature = "nope")]
 #[cortex_m_rt::entry]
@@ -1390,7 +1590,8 @@ fn main() -> ! {
     );
 
     // let voltage_limit = 2.0;
-    let voltage_limit = 4.;
+    // let voltage_limit = 4.;
+    let voltage_limit = 6.;
     // let voltage_limit = 8.;
     // let voltage_limit = 8.;
     // let voltage_limit = 10.;

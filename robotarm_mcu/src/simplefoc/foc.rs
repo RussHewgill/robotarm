@@ -53,6 +53,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         self.pid_angle.reset();
         // self.pid_current_q.reset();
         // self.pid_current_d.reset();
+        self.state_observer.reset();
     }
 
     pub fn disable(&mut self) {
@@ -581,7 +582,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 }
 
 /// get position and velocity from state observer
-// #[cfg(feature = "nope")]
+#[cfg(feature = "nope")]
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     /// skip LPF for use with state observer
     // #[cfg(feature = "nope")]
@@ -627,6 +628,85 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             - self.zero_electric_angle;
 
         Self::normalize_angle(angle)
+    }
+
+    pub(super) fn get_state_disturbance(&self) -> f32 {
+        self.state_observer.state()[2]
+    }
+}
+
+/// ADRC
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
+    /// skip LPF for use with state observer
+    // #[cfg(feature = "nope")]
+    pub(super) fn get_shaft_velocity(&mut self, t_us: u64) -> f32 {
+        // self.sensor_direction.multiplier() * self.encoder.get_velocity()
+        // self.sensor_direction.multiplier() * self.state_observer.get_angle_vel().1
+        // self.state_observer.get_angle_vel().1
+        // unimplemented!()
+        self.state_observer.get_state_velocity()
+        // self.sensor_direction.multiplier() * self.state_observer.get_state_velocity()
+    }
+
+    pub(super) fn get_shaft_angle(&mut self) -> f32 {
+        // let angle = self.encoder.get_angle();
+        // let angle = self.state_observer.get_angle_vel().0;
+        // let angle =
+        //     // self.sensor_direction.multiplier() * self.lpf_angle.filter(angle) - self.sensor_offset;
+        //     // self.sensor_direction.multiplier() * self.lpf_angle.filter(angle);
+        //     self.lpf_angle.filter(angle);
+        // angle
+        self.state_observer.get_state_angle()
+    }
+
+    // angle in rad, normalized to [0, 2PI]
+    pub(super) fn get_mechanical_angle(&self) -> f32 {
+        // self.encoder.get_mechanical_angle()
+        // let angle = self.sensor_direction.multiplier() * self.state_observer.get_angle_vel().0;
+        // let angle = self.state_observer.get_angle_vel().0;
+        // - self.sensor_offset;
+        // Self::normalize_angle(angle)
+        Self::normalize_angle(self.state_observer.get_state_angle())
+    }
+
+    pub(super) fn get_electrical_angle(&mut self) -> f32 {
+        // let shaft_angle = self.get_mechanical_angle();
+        // // let shaft_angle = self.encoder.get_mechanical_angle();
+        // // let angle = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * shaft_angle
+        // let angle = self.motor.pole_pairs as f32 * shaft_angle - self.zero_electric_angle;
+        // let angle = self.sensor_direction.multiplier() * angle;
+
+        // // (Self::normalize_angle(angle), shaft_angle)
+        // Self::normalize_angle(angle)
+
+        let shaft_angle = self.state_observer.get_state_angle();
+        let angle = self.motor.pole_pairs as f32 * shaft_angle - self.zero_electric_angle;
+        // let angle = self.sensor_direction.multiplier() * angle;
+        Self::normalize_angle(angle)
+    }
+
+    fn get_encoder_electrical_angle(&mut self) -> f32 {
+        let shaft_angle = self.encoder.get_mechanical_angle();
+        let angle = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * shaft_angle
+            - self.zero_electric_angle;
+
+        // Self::normalize_angle(angle)
+        // let angle = angle % (2.0 * core::f32::consts::PI);
+
+        use num_traits::Euclid;
+        let angle = angle.rem_euclid(&_2PI);
+        if angle >= 0.0 {
+            angle
+        } else {
+            angle + 2.0 * core::f32::consts::PI
+        }
+    }
+
+    pub(super) fn get_state_disturbance_rejection(&self) -> f32 {
+        // self.state_observer.state()[2]
+        // unimplemented!()
+        self.state_observer.get_prev_output()
+        // 0.0
     }
 }
 
@@ -758,5 +838,19 @@ pub fn normalize_angle(angle: f32) -> f32 {
         angle
     } else {
         angle + 2.0 * core::f32::consts::PI
+    }
+}
+
+/// Signed shortest angular delta from `current` to `target`, in radians.
+/// Values stay within [-pi, pi], so the controller does not jump across the
+/// 2π wrap when the target is near the same physical position from the other side.
+pub fn shortest_angular_delta(target: f32, current: f32) -> f32 {
+    let diff = target - current;
+    let wrapped =
+        ((diff + core::f32::consts::PI) % (2.0 * core::f32::consts::PI)) - core::f32::consts::PI;
+    if wrapped < -core::f32::consts::PI {
+        wrapped + 2.0 * core::f32::consts::PI
+    } else {
+        wrapped
     }
 }

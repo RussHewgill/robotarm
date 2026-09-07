@@ -196,12 +196,15 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
             SerialCommand::SetModeTorque { id } => {
                 self.set_motion_control(MotionControlType::Torque);
+                self.state_observer.reset();
             }
             SerialCommand::SetModeAngle { id } => {
                 self.set_motion_control(MotionControlType::Angle);
+                self.state_observer.reset();
             }
             SerialCommand::SetModeVelocity { id } => {
                 self.set_motion_control(MotionControlType::Velocity);
+                self.state_observer.reset();
             }
             SerialCommand::SetModeVelocityOpenLoop { id } => {
                 self.set_motion_control(MotionControlType::VelocityOpenLoop);

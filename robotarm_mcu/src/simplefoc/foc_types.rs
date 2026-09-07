@@ -122,7 +122,8 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub pid_velocity: PIDController<f32>,
     pub pid_angle: PIDController<f32>,
 
-    pub state_observer: crate::simplefoc::luenberger::LuenbergerObserver<f32, 3, 1, 1>,
+    // pub state_observer: crate::simplefoc::luenberger::LuenbergerObserver<f32, 3, 1, 1>,
+    pub state_observer: crate::simplefoc::algorithms::adrc::motor_adrc::MotorADRC,
 
     pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
     // pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning_vel::VelocityAutoTuner>,
@@ -246,6 +247,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             )
         };
 
+        #[cfg(feature = "nope")]
         let state_observer: crate::simplefoc::luenberger::LuenbergerObserver<f32, 3, 1, 1> = {
             use nalgebra::SMatrix;
 
@@ -267,7 +269,26 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 } else {
                     0.0
                 },
+                motor.phase_resistance.unwrap_or(0.0),
             )
+        };
+
+        let state_observer = {
+            // let kv = motor.motor_kv.unwrap_or(0.0);
+            let torque_constant = if let Some(kv) = motor.motor_kv {
+                9.549 / kv
+            } else {
+                0.0
+            };
+
+            let adrc = crate::simplefoc::algorithms::adrc::motor_adrc::MotorADRC::new(
+                // motor.rotor_inertia.unwrap_or(0.0),
+                0.0,
+                torque_constant,
+                motor.phase_resistance.unwrap_or(0.0),
+                0.01,
+            );
+            adrc
         };
 
         SimpleFOC {

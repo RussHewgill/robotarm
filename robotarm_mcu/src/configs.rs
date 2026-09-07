@@ -19,7 +19,6 @@ mod motor_configs {
         Some(4.8), // phase resistance
         Some(61.), // motor kv
         None,
-        None,
     );
 
     // GM3506
@@ -31,7 +30,6 @@ mod motor_configs {
         // None,
         // Some(0.0026), // phase inductance
         None,
-        None,
     );
 
     // GM4108
@@ -41,7 +39,6 @@ mod motor_configs {
         // Some(), // motor kv
         None,
         // Some(0.0026), // phase inductance
-        None,
         None,
     );
 
@@ -53,7 +50,6 @@ mod motor_configs {
         // None,
         // Some(0.0026), // phase inductance
         None,
-        None,
     );
 
     pub const MOTOR_CONFIG_GL60: BLDCMotor = BLDCMotor::new(
@@ -63,7 +59,6 @@ mod motor_configs {
         Some(25.), // motor kv, datasheet
         // None,
         // Some(), // phase inductance, 2720 uH, datasheet
-        None,
         None,
     );
 }

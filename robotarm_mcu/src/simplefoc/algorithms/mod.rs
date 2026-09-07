@@ -1,3 +1,4 @@
+pub mod adrc;
 pub mod lowpass;
 pub mod luenberger;
 pub mod pid;

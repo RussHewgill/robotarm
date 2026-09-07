@@ -72,9 +72,14 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // state observer mech_angle should be the same as shaft angle (does not wrap)
 
         // self.update_luenberger_observer(t_us, self.motor.target_current)
-        self.update_luenberger_observer(t_us, self.motor.current.q)
-            .await;
+        // self.update_luenberger_observer(t_us, self.motor.current.q)
+        //     .await;
         // self.update_luenberger_observer(t_us, 0.).await;
+
+        // self.update_adrc(t_us, self.motor.current.q).await;
+        // self.update_adrc(t_us, 0.0).await;
+
+        self.update_adrc(t_us, self.motor.current.q).await;
 
         // // let _ = self.encoder.update(t_us).await;
         // let e2 = self.get_electrical_angle();
@@ -347,6 +352,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     )
                 }
             }
+
+            // #[cfg(feature = "nope")]
+            MotionControlType::Velocity => {}
+
+            #[cfg(feature = "nope")]
             MotionControlType::Velocity => {
                 #[cfg(feature = "nope")]
                 if let Some(tuner) = &mut self.pid_velocity_tuner {
@@ -365,11 +375,25 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     );
                 }
 
-                self.motor.target_current = self.pid_velocity.update(
+                let vel_pid_output = self.pid_velocity.update(
                     self.motor.target_shaft_velocity,
                     self.shaft_velocity,
                     t_us,
                 );
+
+                // self.motor.target_current = vel_pid_output
+                //     + (self.get_state_disturbance() / self.state_observer.get_b0(t_us));
+
+                self.motor.target_current = vel_pid_output - self.get_state_disturbance_rejection();
+
+                // self.motor.target_current = vel_pid_output;
+
+                // self.motor.target_current = self.pid_velocity.update(
+                //     self.motor.target_shaft_velocity,
+                //     self.shaft_velocity,
+                //     t_us,
+                // ) - (self.get_state_disturbance()
+                //     / self.state_observer.get_b0());
 
                 if self.torque_controller == TorqueControlType::Voltage {
                     match self.motor.phase_resistance {
@@ -406,6 +430,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     // );
                 }
             }
+            // #[cfg(feature = "nope")]
+            MotionControlType::Angle => {
+                // self.motor.target_current = self.get_state_disturbance_rejection();
+            }
+            #[cfg(feature = "nope")]
             MotionControlType::Angle => {
                 // calculate velocity set point
                 self.motor.target_shaft_velocity =
@@ -518,6 +547,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 * self
                     .lpf_velocity
                     .filter_with_timestamp(self.encoder.get_velocity(), t_us);
+
+            // let v = Self::normalize_angle(
+            //     self.sensor_direction.multiplier()
+            //         * self
+            //             .lpf_angle
+            //             .filter_with_timestamp(self.encoder.get_angle(), t_us),
+            // );
 
             self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
                 id: self.id,

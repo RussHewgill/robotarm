@@ -10,6 +10,7 @@ use crate::{
 
 /// https://github.com/JRL-CARI-CNR-UNIBS/state_observers
 
+#[cfg(feature = "nope")]
 pub mod luenberger_optimize {
     use defmt::debug;
 
@@ -248,8 +249,14 @@ const L1_ESO: f32 = 3. * W_0;
 const L2_ESO: f32 = 3. * W_0 * W_0;
 const L3_ESO: f32 = W_0 * W_0 * W_0;
 
+#[cfg(feature = "nope")]
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
-    pub async fn update_luenberger_observer(&mut self, t_us: u64, commanded_torque: f32) -> f32 {
+    /// returns (electrical_angle, disturbance)
+    pub async fn update_luenberger_observer(
+        &mut self,
+        t_us: u64,
+        commanded_torque: f32,
+    ) -> (f32, f32) {
         let dir = self.sensor_direction.multiplier();
         // let dir = 1.;
 
@@ -261,7 +268,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         if self.prev_t_us == 0 {
             self.prev_t_us = t_us;
-            return measured_angle; // Return the measured angle on the first call
+            return (measured_angle, 0.0); // Return the measured angle on the first call
         }
 
         // debug!("measured_angle: {}", measured_angle);
@@ -322,13 +329,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 0.0, 0.0, 1.0
             );
 
-            let b0 = self.state_observer.torque_constant
-                / (self.state_observer.rotor_inertia * self.motor.phase_resistance.unwrap());
-
             #[rustfmt::skip]
             let b = SMatrix::<f32, 3, 1>::new(
-                0.5 * b0 * dt * dt,
-                b0 * dt,
+                0.5 * self.state_observer.b0 * dt * dt,
+                self.state_observer.b0 * dt,
                 0.,
             );
 
@@ -358,6 +362,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         let mech_angle = state[0] * dir;
         let mech_velocity = state[1] * dir;
+        let disturbance = state[2] * dir;
 
         // Convert mechanical angle to electrical angle
         let elec_angle = (mech_angle * self.motor.pole_pairs as f32) % _2PI;
@@ -369,7 +374,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         //     mech_velocity,
         // );
 
-        elec_angle
+        (elec_angle, disturbance)
     }
 }
 
@@ -381,7 +386,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 /// - `S`: State dimension.
 /// - `I`: Input dimension.
 /// - `O`: Output dimension.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct LuenbergerParam<T: RealField, const S: usize, const I: usize, const O: usize> {
     /// State transition matrix (A)
     pub a: SMatrix<T, S, S>,
@@ -416,8 +421,13 @@ impl<T: RealField, const S: usize, const I: usize, const O: usize> LuenbergerPar
 /// - `S`: State dimension.
 /// - `I`: Input dimension.
 /// - `O`: Output dimension.
-#[derive(Debug, Clone)]
-pub struct LuenbergerObserver<T: RealField, const S: usize, const I: usize, const O: usize> {
+// #[derive(Clone)]
+pub struct LuenbergerObserver<
+    T: RealField + num_traits::float::FloatCore,
+    const S: usize,
+    const I: usize,
+    const O: usize,
+> {
     /// Observer parameters (system matrices and gain)
     params: LuenbergerParam<T, S, I, O>,
     /// Current state estimate (\hat{x})
@@ -425,11 +435,19 @@ pub struct LuenbergerObserver<T: RealField, const S: usize, const I: usize, cons
 
     rotor_inertia: T,
     torque_constant: T,
+    b0: T,
     // pub l1_continuous: T,
     // pub l2_continuous: T,
+    disturbance_lpf: super::lowpass::LowPassFilter,
 }
 
-impl<T: RealField, const S: usize, const I: usize, const O: usize> LuenbergerObserver<T, S, I, O> {
+impl<
+    T: RealField + num_traits::float::FloatCore + Copy + defmt::Format,
+    const S: usize,
+    const I: usize,
+    const O: usize,
+> LuenbergerObserver<T, S, I, O>
+{
     /// Initializes a new Luenberger observer with the given parameters and initial state.
     pub fn new(
         params: LuenbergerParam<T, S, I, O>,
@@ -439,15 +457,30 @@ impl<T: RealField, const S: usize, const I: usize, const O: usize> LuenbergerObs
         torque_constant: T,
         // l1_continuous: T,
         // l2_continuous: T,
+        phase_resistance: T,
     ) -> Self {
+        let b0 = torque_constant / (rotor_inertia * phase_resistance);
+
         Self {
             params,
             state: initial_state,
             rotor_inertia,
             torque_constant,
+            b0,
             // l1_continuous,
             // l2_continuous,
+            disturbance_lpf: super::lowpass::LowPassFilter::new(0.01),
         }
+    }
+
+    pub fn get_b0(&mut self, t_us: u64) -> f32 {
+        use num_traits::float::FloatCore;
+        let k = 0.7;
+        k * self
+            .disturbance_lpf
+            .filter_with_timestamp(self.b0.to_f32().unwrap(), t_us)
+        // k * self.b0.to_f32().unwrap()
+        // &self.b0
     }
 
     /// Performs the predict-and-update step in a single iteration.
@@ -463,6 +496,16 @@ impl<T: RealField, const S: usize, const I: usize, const O: usize> LuenbergerObs
 
         // State update: \hat{x}_{new} = A * \hat{x} + B * u + L * e
         self.state = &self.params.a * &self.state + &self.params.b * input + &self.params.l * error;
+
+        // debug!("Input: {:?}", input.as_slice());
+        // debug!("Measurement: {:?}", measurement.as_slice());
+
+        // debug!("Estimated Output (y_hat): {:?}", y_hat.as_slice());
+        // debug!("Output Error (e): {:?}", error.as_slice());
+        // debug!(
+        //     "Updated State Estimate (x_hat): {:?}",
+        //     self.state.as_slice()
+        // );
 
         &self.state
     }

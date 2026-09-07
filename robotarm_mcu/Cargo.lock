@@ -1429,6 +1429,7 @@ checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
 name = "robotarm_mcu"
 version = "0.1.0"
 dependencies = [
+ "approx",
  "as5600",
  "bitflags 2.10.0",
  "bitvec",

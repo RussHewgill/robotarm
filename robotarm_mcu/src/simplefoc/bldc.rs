@@ -16,8 +16,7 @@ pub struct BLDCMotor {
     pub motor_kv: Option<f32>,
     pub phase_inductance: Option<f32>,
 
-    pub torque_constant: Option<f32>,
-
+    // pub torque_constant: Option<f32>,
     pub thermal_limits: Option<BLDCThermalLimits>,
 
     // pub(super) target: f32,
@@ -52,7 +51,7 @@ impl BLDCMotor {
         phase_resistance: Option<f32>,
         motor_kv: Option<f32>,
         phase_inductance: Option<f32>,
-        torque_constant: Option<f32>,
+        // torque_constant: Option<f32>,
     ) -> Self {
         Self {
             pole_pairs,
@@ -60,8 +59,7 @@ impl BLDCMotor {
             motor_kv,
             phase_inductance,
 
-            torque_constant,
-
+            // torque_constant,
             thermal_limits: None,
 
             // target: 0.0,
