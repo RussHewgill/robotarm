@@ -760,8 +760,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         let mut avg_elec_angle = 0.0;
         let mut elec_angle = 0.0;
 
-        // let align_voltage = self.motor.voltage_sensor_align;
-        let align_voltage = 3.0;
+        let align_voltage = self.motor.voltage_sensor_align;
+        // let align_voltage = 3.0;
 
         // Calibration parameters
         // The motor will take a n_pos samples per electrical cycle
@@ -846,7 +846,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         }
 
         // let settle_time_ms = 50;
-        let settle_time_us = 10_000;
+        let settle_time_us = 5_000;
 
         let mut expected_cw2 = [0f32; N_LUT];
         let mut measured_cw2 = [0f32; N_LUT];
@@ -973,7 +973,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // calculating the average zero electrical angle from the forward calibration.
         let zero_electric_angle = Self::normalize_angle(avg_elec_angle / 2.);
 
-        let errors2 = errors.clone();
+        // let errors2 = errors.clone();
         // Perform filtering to linearize position sensor eccentricity
         // FIR n-sample average, where n = number of samples in one electrical cycle
         // This filter has zero gain at electrical frequency and all integer multiples

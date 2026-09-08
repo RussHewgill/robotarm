@@ -51,6 +51,21 @@ use crate::ui::{self, app::App};
 //     RGBColor(0, 0, 128),
 // ];
 
+pub fn normalize_angle(angle: f64) -> f64 {
+    let angle = angle % (2.0 * PI);
+    let angle = if angle >= 0.0 {
+        angle
+    } else {
+        angle + 2.0 * PI
+    };
+
+    if (angle - 2. * PI).abs() < 1e-4 {
+        0.0
+    } else {
+        angle
+    }
+}
+
 pub mod colors {
     use plotters::style::RGBColor;
 
@@ -293,7 +308,7 @@ impl Default for DataPlot {
             adrc_v2_scale: 0.5,
             adrc_x1_scale: 0.5,
             adrc_x2_scale: 0.5,
-            adrc_x3_scale: 0.0001,
+            adrc_x3_scale: 0.000001,
             adrc_u_scale: 3.0,
 
             adrc_vs: VecDeque::new(),
@@ -454,10 +469,10 @@ impl App {
                 ui.add(
                     egui::Slider::new(
                         &mut self.plots[self.current_plot].adrc_x3_scale,
-                        log_min / 100.0..=log_max,
+                        log_min / 10000.0..=log_max,
                     )
                     .logarithmic(true)
-                    .max_decimals(log_decimals),
+                    .max_decimals(log_decimals + 4),
                 );
                 ui.end_row();
                 ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_u, "ADRC u");
@@ -726,18 +741,24 @@ impl DataPlot {
     }
 
     pub fn add_point_angle(&mut self, t: f64, angle: f64) {
+        // let angle = self.angle_scale * (angle - PI) / PI;
+        let angle = normalize_angle(angle);
         self.angle.push_back((t, angle));
         // self.prev_time = t;
         self.prev_time = t.max(self.prev_time);
     }
 
     pub fn add_point_pos(&mut self, t: f64, pos: f64) {
+        // let pos = self.angle_scale * (pos - PI) / PI;
+        let pos = normalize_angle(pos);
         self.pos.push_back((t, pos));
         // self.prev_time = t;
         // self.prev_time = t.max(self.prev_time);
     }
 
     pub fn add_point_vel(&mut self, t: f64, vel: f64) {
+        // let vel = self.angle_scale * (vel - PI) / PI;
+        // let vel = normalize_angle(vel);
         self.vel.push_back((t, vel));
         // self.prev_time = t;
         // self.prev_time = t.max(self.prev_time);
@@ -747,6 +768,8 @@ impl DataPlot {
     }
 
     pub fn add_point_target_vel(&mut self, t: f64, target: f64) {
+        // let target = self.angle_scale * (target - PI) / PI;
+        // let target = normalize_angle(target);
         self.target_vel.push_back((t, target));
         // self.prev_time = t;
         // self.prev_time = t.max(self.prev_time);
@@ -756,12 +779,17 @@ impl DataPlot {
     }
 
     pub fn add_point_target_pos(&mut self, t: f64, target: f64) {
+        // let target = self.angle_scale * (target - PI) / PI;
+        // let target = self.angle_scale * (target % (2.0 * PI));
+        let target = normalize_angle(target);
         self.target_pos.push_back((t, target));
         // self.prev_time = t;
         // self.prev_time = t.max(self.prev_time);
     }
 
     pub fn add_point_voltage(&mut self, t: f64, voltage: f64) {
+        // let voltage = self.angle_scale * (voltage - PI) / PI;
+        // let voltage = normalize_angle(voltage);
         self.voltage.push_back((t, voltage as f64));
         // self.prev_time = t;
         // self.prev_time = t.max(self.prev_time);
@@ -1074,7 +1102,8 @@ impl DataPlot {
                 .right_y_label_area_size(30)
                 .build_cartesian_2d(
                     self.prev_time - self.window_time..self.prev_time,
-                    -1f64..1f64,
+                    // -1f64..1f64,
+                    0.0..2. * PI,
                 )
                 .unwrap()
                 .set_secondary_coord(
@@ -1105,7 +1134,8 @@ impl DataPlot {
                                 // (*t, self.angle_scale * (*angle - PI) / PI)
                                 // (*t, *angle * self.angle_scale)
                                 // let a = self.angle_scale * angle / PI;
-                                let a = self.angle_scale * (angle - PI) / PI;
+                                // let a = self.angle_scale * (angle - PI) / PI;
+                                let a = self.angle_scale * angle;
                                 // (*t, self.angle_scale * (*pos - PI) / PI)
                                 (*t, a)
                             }),
@@ -1125,7 +1155,8 @@ impl DataPlot {
                             .map(|(t, angle)| {
                                 // (*t, (*pos - std::f64::consts::PI) / std::f64::consts::PI)
                                 // let a = self.angle_scale * angle / PI;
-                                let a = self.angle_scale * (angle - PI) / PI;
+                                // let a = self.angle_scale * (angle - PI) / PI;
+                                let a = self.angle_scale * angle;
                                 (*t, a)
                             }),
                         TEAL.stroke_width(self.stroke_width),
@@ -1160,7 +1191,8 @@ impl DataPlot {
                                 // let a = angle % (2.0 * PI);
                                 // let a = if a >= 0.0 { a } else { a + 2.0 * PI };
                                 // let a = self.angle_scale * angle / PI;
-                                let a = self.angle_scale * (angle - PI) / PI;
+                                // let a = self.angle_scale * (angle - PI) / PI;
+                                let a = self.angle_scale * angle;
                                 (*t, a)
                                 // (*t, *angle * self.angle_scale)
                             }),
@@ -1289,7 +1321,7 @@ impl DataPlot {
                 .right_y_label_area_size(30)
                 .build_cartesian_2d(
                     self.prev_time - self.window_time..self.prev_time,
-                    -1f64..1f64,
+                    -2f64..2f64,
                 )
                 .unwrap();
 

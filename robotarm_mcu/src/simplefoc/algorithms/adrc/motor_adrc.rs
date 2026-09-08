@@ -138,12 +138,14 @@ impl MotorADRC {
         let b0 = if let Some(b0) = b0 {
             b0
         } else {
-            // torque_constant / rotor_inertia
-            1. / rotor_inertia
+            torque_constant / rotor_inertia // possibly wrong, but seems to give better results
+            // 1. / rotor_inertia
         };
 
         // let b0 = b0 * 0.5;
         // let b0 = b0 * 2.0;
+        // let b0 = 10_000.0;
+        // let b0 = 20_000.0;
 
         let eso = ExtendedStateObserver::from_bandwidth(wo, b0);
 
@@ -154,7 +156,18 @@ impl MotorADRC {
         // let beta2 = beta2 * 1.2;
         let nlsef = NonlinearStateErrorFeedback::linear(beta1, beta2);
 
-        let adrc = Adrc::new(td, eso, nlsef, b0);
+        // let alpha1 = 0.5;
+        // let alpha2 = 0.25;
+        // let delta = 0.003;
+        // let nlsef = NonlinearStateErrorFeedback::new(beta1, beta2, alpha1, alpha2, delta);
+
+        // let limit = 0.0;
+        // let adrc = Adrc::new(td, eso, nlsef, b0).with_u_limits(-limit, limit);
+
+        // let limit = b0 * 10.0;
+        let limit = b0 * 1.0;
+        let adrc = Adrc::new(td, eso, nlsef, b0).with_disturbance_limits(-limit, limit);
+        // let adrc = Adrc::new(td, eso, nlsef, b0);
 
         let disturbance_lpf = LowPassFilter::new(disturbance_lpf_time);
 
@@ -183,12 +196,15 @@ impl MotorADRC {
         phase_resistance: f32,
         disturbance_lpf_time: f32,
     ) -> Self {
-        // let speed_factor = 500.0;
-        let speed_factor = 50.0;
+        let speed_factor = 100.0;
+        // let speed_factor = 50.0;
+        // let speed_factor = 10.0;
         let step_size = 0.0001;
         let td = TrackingDifferentiator::new(speed_factor, step_size);
 
-        let wo = 20.0;
+        // let wo = 50.0;
+        let wo = 1000.0;
+        // let wo = 1500.0;
         // let b0 = torque_constant / (rotor_inertia * phase_resistance);
         let b0 = torque_constant / rotor_inertia;
 
@@ -197,12 +213,20 @@ impl MotorADRC {
 
         let eso = ExtendedStateObserver::from_bandwidth(wo, b0);
 
-        let wc = wo / 5.;
-        // let wc = 100.;
+        // let wc = wo / 5.;
+        let wc = 200.;
+        // let wc = 10.;
+        // let wc = 50.;
         let beta1 = wc * wc;
         let beta2 = 2.0 * wc;
         // let beta2 = beta2 * 1.2;
         let nlsef = NonlinearStateErrorFeedback::linear(beta1, beta2);
+
+        // let alpha1 = 0.5;
+        // let alpha2 = 0.25;
+        // let delta = 0.01;
+
+        // let nlsef = NonlinearStateErrorFeedback::new(beta1, beta2, alpha1, alpha2, delta);
 
         let adrc = Adrc::new(td, eso, nlsef, b0);
 
@@ -271,29 +295,36 @@ impl MotorADRC {
     }
 
     pub fn set_observer_bandwidth(&mut self, wo: f32) {
-        *self = Self::new(
-            self.rotor_inertia,
-            self.torque_constant,
-            self.phase_resistance,
-            self.disturbance_lpf.tf,
-            self.adrc.td.r,
-            Some(self.b0),
-            wo,
-            self.wc,
-        );
+        // *self = Self::new(
+        //     self.rotor_inertia,
+        //     self.torque_constant,
+        //     self.phase_resistance,
+        //     self.disturbance_lpf.tf,
+        //     self.adrc.td.r,
+        //     Some(self.b0),
+        //     wo,
+        //     self.wc,
+        // );
+        self.adrc.eso.beta =
+            SVector::<f32, 3>::from_row_slice(&[3.0 * wo, 3.0 * wo * wo, wo * wo * wo]);
     }
 
     pub fn set_controller_bandwidth(&mut self, wc: f32) {
-        *self = Self::new(
-            self.rotor_inertia,
-            self.torque_constant,
-            self.phase_resistance,
-            self.disturbance_lpf.tf,
-            self.adrc.td.r,
-            Some(self.b0),
-            self.wo,
-            wc,
-        );
+        // *self = Self::new(
+        //     self.rotor_inertia,
+        //     self.torque_constant,
+        //     self.phase_resistance,
+        //     self.disturbance_lpf.tf,
+        //     self.adrc.td.r,
+        //     Some(self.b0),
+        //     self.wo,
+        //     wc,
+        // );
+        let beta1 = wc * wc;
+        let beta2 = 2.0 * wc;
+        // self.adrc.nlsef = NonlinearStateErrorFeedback::linear(beta1, beta2);
+        self.adrc.nlsef.beta1 = beta1;
+        self.adrc.nlsef.beta2 = beta2;
     }
 
     pub fn get_prev_output(&self) -> f32 {
@@ -317,14 +348,14 @@ impl MotorADRC {
         )
     }
 
-    pub fn get_internals(&self) -> ([f32; 2], [f32; 3], f32) {
+    pub fn get_internals(&self) -> ([f32; 2], [f32; 3], f32, f32) {
         let td_state = [self.adrc.td.v1, self.adrc.td.v2];
         let eso_state = [
             self.adrc.eso.state[0],
             self.adrc.eso.state[1],
             self.adrc.eso.state[2],
         ];
-        (td_state, eso_state, self.prev_output)
+        (td_state, eso_state, self.prev_output, self.adrc.last_u0)
     }
 }
 
@@ -344,6 +375,12 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         if self.prev_t_us == 0 {
             self.prev_t_us = t_us;
+
+            self.state_observer
+                .adrc
+                .eso
+                .reset(SMatrix::<f32, 3, 1>::new(measured_angle * dir, 0., 0.));
+
             // return (measured_angle, 0.0); // Return the measured angle on the first call
             return;
         }
@@ -398,16 +435,22 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // #[cfg(feature = "nope")]
         match self.motion_control {
             robotarm_protocol::MotionControlType::Torque => {
-                let (pos, vel) = self
-                    .state_observer
-                    .velocity_tracker
-                    .update(measured_angle, dt);
+                // let (pos, vel) = self
+                //     .state_observer
+                //     .velocity_tracker
+                //     .update(measured_angle, dt);
 
-                let state = self
-                    .state_observer
-                    .adrc
-                    .eso
-                    .update(pos, commanded_torque, dt);
+                let pos = measured_angle;
+                let vel = self.encoder.get_velocity();
+
+                // let state = self
+                //     .state_observer
+                //     .adrc
+                //     .eso
+                //     .update(pos, commanded_torque, dt);
+
+                self.state_observer.adrc.eso.state[0] = pos;
+                self.state_observer.adrc.eso.state[1] = vel;
             }
             robotarm_protocol::MotionControlType::Velocity => {
                 let (pos, vel) = self

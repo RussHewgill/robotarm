@@ -561,7 +561,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 motion_control: self.motion_control,
                 // position: shaft_angle,
                 // position: self.encoder.get_angle(),
-                position: self.encoder.get_mechanical_angle(),
+                position: self.encoder.get_mechanical_angle() * self.sensor_direction.multiplier(),
                 angle: self.get_mechanical_angle(),
                 velocity: self.shaft_velocity,
                 target_position: self.motor.target_shaft_angle,
@@ -629,13 +629,14 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             })
             .await;
 
-            let (vs, state, u) = self.state_observer.get_internals();
+            let (vs, state, u, u0) = self.state_observer.get_internals();
             self.send_debug_message(robotarm_protocol::SerialLogMessage::ADRCDebugData {
                 id: self.id,
                 timestamp: t_us,
                 vs,
                 state,
                 u,
+                u0,
             })
             .await;
 

@@ -85,6 +85,20 @@ impl ExtendedStateObserver {
         Self::new_linear(beta, b0)
     }
 
+    /// Construct a nonlinear ESO (NESO) with correction gains `beta`, input
+    /// gain `b0`, nonlinear exponents `(alpha2, alpha3)` (typically `0.5`
+    /// and `0.25`), and boundary layer `delta`.
+    pub fn new_nonlinear(wo: f32, b0: f32, alpha2: f32, alpha3: f32, delta: f32) -> Self {
+        let beta = SMatrix::<f32, 3, 1>::from_row_slice(&[3.0 * wo, 3.0 * wo * wo, wo * wo * wo]);
+        Self {
+            state: SVector::<f32, 3>::zeros(),
+            beta,
+            b0,
+            fal_alpha: Some((alpha2, alpha3)),
+            fal_delta: delta,
+        }
+    }
+
     /// Reset the internal state estimate.
     pub fn reset(&mut self, z: SVector<f32, 3>) {
         self.state = z;
@@ -156,13 +170,15 @@ impl ExtendedStateObserver {
     pub fn update(&mut self, measurement: f32, prev_output: f32, dt: f32) -> SVector<f32, 3> {
         let e = self.state[0] - measurement;
 
-        let (g2, g3) = match self.fal_alpha {
-            None => (e, e),
-            Some((alpha2, alpha3)) => (
-                fal(e, alpha2, self.fal_delta),
-                fal(e, alpha3, self.fal_delta),
-            ),
-        };
+        // let (g2, g3) = match self.fal_alpha {
+        //     None => (e, e),
+        //     Some((alpha2, alpha3)) => (
+        //         fal(e, alpha2, self.fal_delta),
+        //         fal(e, alpha3, self.fal_delta),
+        //     ),
+        // };
+
+        let (g2, g3) = (e, e);
 
         let z1_dot = self.state[1] - self.beta[0] * e;
         let z2_dot = self.state[2] + self.b0 * prev_output - self.beta[1] * g2;

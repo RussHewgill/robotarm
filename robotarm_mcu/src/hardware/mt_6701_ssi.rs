@@ -7,7 +7,8 @@ use crate::{
 };
 
 /// number of samples to delay velocity calculation to reduce noise
-const VEL_DELAY: usize = 10;
+// const VEL_DELAY: usize = 10;
+const VEL_DELAY: usize = 5;
 // const VEL_DELAY: usize = 1;
 
 // #[derive(defmt::Format)]
@@ -406,7 +407,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
 
         // debug!("Angle: {}", angle);
 
-        let angle = 16384 - angle;
+        // let angle = 16384 - angle;
 
         Ok(angle)
     }

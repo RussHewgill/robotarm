@@ -94,6 +94,7 @@ pub enum SerialLogMessage {
         vs: [f32; 2],
         state: [f32; 3],
         u: f32,
+        u0: f32,
     },
 }
 

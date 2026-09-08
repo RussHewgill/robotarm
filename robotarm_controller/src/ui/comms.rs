@@ -81,6 +81,7 @@ impl App {
                         vs,
                         state,
                         u,
+                        u0,
                     } => {
                         if let Some(t0) = self.t0 {
                             let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
@@ -91,6 +92,7 @@ impl App {
                                 [vs[0] as f64, vs[1] as f64],
                                 [state[0] as f64, state[1] as f64, state[2] as f64],
                                 u as f64,
+                                u0 as f64,
                             );
                             // } else {
                             //     self.t0 = Some(timestamp as f64 * 1e-6);

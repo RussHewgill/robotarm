@@ -599,9 +599,16 @@ impl App {
 
         // target torque
         ui.horizontal(|ui| {
+            let (min, max) = (
+                // -self.status[id as usize].vel_pid_limit,
+                // self.status[id as usize].vel_pid_limit,
+                -2., 2.,
+            );
+
             ui.label("Target Torque:");
             let range =
-                -self.status[id as usize].vel_pid_limit..=self.status[id as usize].vel_pid_limit;
+                // -self.status[id as usize].vel_pid_limit..=self.status[id as usize].vel_pid_limit;
+                min..=max;
             let resp = ui.add(egui::Slider::new(
                 &mut self.status[id as usize].target_voltage,
                 range,
@@ -617,10 +624,6 @@ impl App {
                 send_target = Some(self.status[id as usize].target_voltage);
             }
 
-            let (min, max) = (
-                -self.status[id as usize].vel_pid_limit,
-                self.status[id as usize].vel_pid_limit,
-            );
             if let Some(tgt) = make_scrollable(
                 ui,
                 resp,
@@ -726,7 +729,8 @@ impl App {
             ui.label("Target Vel:");
             // let resp = ui.add(egui::Slider::new(&mut self.target_vel, -20.0..=20.0));
             let range =
-                -self.status[id as usize].vel_pid_limit..=self.status[id as usize].vel_pid_limit;
+                // -self.status[id as usize].vel_pid_limit..=self.status[id as usize].vel_pid_limit;
+                -15.0..=15.0;
             let resp = ui.add(egui::Slider::new(
                 &mut self.status[id as usize].target_vel,
                 range,
@@ -1086,8 +1090,18 @@ impl App {
             ui.label(RichText::new("Output").monospace());
             ui.label(
                 RichText::new(format!(
-                    "{:>+0.3}",
+                    "{:>+0.5}",
                     self.status[id as usize].adrc_internals.2,
+                ))
+                .monospace(),
+            );
+            ui.end_row();
+
+            ui.label(RichText::new("Output (raw)").monospace());
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.5}",
+                    self.status[id as usize].adrc_internals.3,
                 ))
                 .monospace(),
             );
@@ -1180,6 +1194,35 @@ impl App {
                     self.send_command(cmd);
                 }
             }
+
+            let calibrated = self.status[id as usize].calibration_enabled;
+            if ui
+                .add(
+                    egui::Button::new("Calibrated")
+                        .selected(calibrated)
+                        .frame_when_inactive(!calibrated)
+                        .frame(true),
+                )
+                .clicked()
+            {
+                self.status[id as usize].calibration_enabled = !calibrated;
+                let cmd = SerialCommand::SetEncoderCalibration {
+                    id,
+                    enable: !calibrated,
+                };
+                self.send_command(cmd);
+            }
+            ui.end_row();
+
+            self::pid_settings::pid_control(
+                ui,
+                "Velocity LPF",
+                &mut self.status[id as usize].lpf_vel,
+                &self.serial_cmd_tx.as_ref().unwrap(),
+                id,
+                self::pid_settings::set_vel_lpf,
+            );
+            ui.end_row();
         });
     }
 
@@ -1286,7 +1329,6 @@ impl App {
                 };
                 self.send_command(cmd);
             }
-
             ui.end_row();
         });
     }

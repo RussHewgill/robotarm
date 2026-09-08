@@ -51,7 +51,8 @@ pub struct Adrc {
     pub b0: f32,
     /// Optional `(min, max)` clamp applied to the final control output.
     pub u_limits: Option<(f32, f32)>,
-    // last_u: f32,
+    pub disturbance_limits: Option<(f32, f32)>,
+    pub(super) last_u0: f32,
     last_u: f32,
 }
 
@@ -73,13 +74,20 @@ impl Adrc {
             nlsef,
             b0,
             u_limits: None,
+            disturbance_limits: None,
+            last_u0: 0.0,
             last_u: 0.0,
         }
     }
 
     /// Clamp the controller's output to `[min, max]`.
-    pub fn with_limits(mut self, min: f32, max: f32) -> Self {
+    pub fn with_u_limits(mut self, min: f32, max: f32) -> Self {
         self.u_limits = Some((min, max));
+        self
+    }
+
+    pub fn with_disturbance_limits(mut self, min: f32, max: f32) -> Self {
+        self.disturbance_limits = Some((min, max));
         self
     }
 
@@ -118,9 +126,19 @@ impl Adrc {
 
         // 4. Nonlinear error feedback gives a baseline control action.
         let u0 = self.nlsef.compute(e1, e2);
+        self.last_u0 = u0;
+
+        let z3 = if let Some((min, max)) = self.disturbance_limits {
+            let z3 = state[2].clamp(min, max);
+            self.eso.state[2] = z3;
+            z3
+        } else {
+            state[2]
+        };
 
         // 5. Cancel the estimated total disturbance and scale by the input gain.
-        let mut u = (u0 - state[2]) / self.b0;
+        let mut u = (u0 - z3) / self.b0;
+        // let mut u = u0 / self.b0;
 
         // 6. Respect actuator limits, if configured.
         if let Some((min, max)) = self.u_limits {

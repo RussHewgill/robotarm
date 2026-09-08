@@ -76,8 +76,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     >,
 ) {
     debug!("Starting FOC task for ID: {}", foc.id);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // match foc.id {
@@ -108,17 +108,13 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         Instant::now() + embassy_time::Duration::from_millis((time_limit * 1000.) as u64);
 
     // foc.set_debug_freq(2);
-    // foc.set_debug_freq(10);
+    // foc.set_debug_freq(50);
     foc.set_debug_freq(100);
     // foc.set_debug_freq(200);
     // foc.set_debug_freq(500);
     // foc.set_debug_freq(0);
 
-    let mut x = 0;
-
-    let v = 3.14;
-
-    info!("Starting main loop");
+    // info!("Starting main loop");
 
     #[cfg(feature = "nope")]
     loop {
@@ -174,8 +170,9 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_angle_sensor_sample_rate(Some(20_000));
 
     // foc.set_zero_electric_angle(1.55);
-    foc.set_zero_electric_angle(1.51);
-    // foc.set_zero_electric_angle(5.05);
+    // foc.set_zero_electric_angle(1.61);
+    // foc.set_zero_electric_angle(0.602);
+    foc.set_zero_electric_angle(3.76);
 
     // match foc.id {
     //     0 => foc.set_zero_electric_angle(2.6876297),
@@ -197,14 +194,6 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     foc.set_alignment_voltage(4.0);
 
-    info!("Starting init");
-    foc.init();
-
-    info!("Starting FOC init");
-    foc.init_foc().await;
-    // spawner.spawn(loop_foc(foc)).unwrap();
-    foc.enable();
-
     // foc.calibrate_encoder().await;
     // foc.encoder
     //     .set_calibration_lut(crate::configs::ENCODER_LUT_GL60);
@@ -213,6 +202,14 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     foc.encoder.enable_calibration(true);
 
     // foc.test_calibration().await;
+
+    info!("Starting init");
+    foc.init();
+
+    info!("Starting FOC init");
+    foc.init_foc().await;
+    // spawner.spawn(loop_foc(foc)).unwrap();
+    foc.enable();
 
     // foc.set_velocity_tuner(10.0);
 
