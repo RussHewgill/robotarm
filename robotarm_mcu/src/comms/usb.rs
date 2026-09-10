@@ -68,10 +68,7 @@ impl UsbLogger {
         Self { rx0, rx1, tx }
     }
 
-    pub async fn recv(
-        &mut self,
-        id: u8,
-    ) -> Result<robotarm_protocol::SerialCommand, TryReceiveError> {
+    pub fn recv(&mut self, id: u8) -> Result<robotarm_protocol::SerialCommand, TryReceiveError> {
         match id {
             MOTOR_ID_A => self.rx0.try_receive(),
             MOTOR_ID_B => self.rx1.try_receive(),

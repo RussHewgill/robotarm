@@ -11,17 +11,13 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     // #[inline(never)]
     // #[inline(always)]
     pub fn run_commands(&mut self) {
-        // if let Some(logger) = &mut self.usb_logger {
-        //     if let Ok(cmd) = logger.recv(self.id).await {
-        //         self.run_command(cmd);
-        //     }
+        // while let Ok(cmd) = self.usb_logger.recv(self.id) {
+        //     self.run_command(cmd);
         // }
+
         while let Ok(cmd) = self.usb_logger.recv(self.id) {
             self.run_command(cmd);
         }
-        // if let Ok(cmd) = self.usb_logger.recv(self.id) {
-        //     self.run_command(cmd);
-        // }
     }
 
     #[cfg(feature = "nope")]

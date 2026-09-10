@@ -449,7 +449,6 @@ fn main() -> eframe::Result<()> {
                     }
                 }
             };
-
             loop {
                 ui_cmd_tx.send(crate::ui::UiCommand::ClearPlot).unwrap();
                 if let Err(e) = usb
@@ -458,15 +457,15 @@ fn main() -> eframe::Result<()> {
                 {
                     error!("Error in usb handler: {}", e);
                 }
-
                 // sleep for 1 second
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
                 if let Err(e) = usb.reconnect().await {
                     error!("Error reconnecting USB handler: {}", e);
                 }
             }
         });
+
+        //
     });
 
     eframe::run_native(

@@ -27,6 +27,16 @@ use crate::hardware::encoder_sensor::EncoderSensor;
 
 // use crate::simplefoc::SimpleFOC;
 
+#[cfg(any(
+    all(feature = "picoA", feature = "picoB"),
+    all(feature = "picoA", feature = "picoC"),
+    all(feature = "picoA", feature = "testing"),
+    all(feature = "picoB", feature = "picoC"),
+    all(feature = "picoB", feature = "testing"),
+    all(feature = "picoC", feature = "testing"),
+))]
+compile_error!("More than one pico feature enabled.");
+
 #[cfg(feature = "testing")]
 pub const MOTOR_ID_A: u8 = 0;
 #[cfg(feature = "testing")]
@@ -1868,7 +1878,7 @@ fn main() -> ! {
                 // let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
                 // crate::comms::usb::UsbMonitor::init(&spawner, driver);
-                crate::comms::usb_raw::usb_init(&spawner, driver);
+                // crate::comms::usb_raw::usb_init(&spawner, driver);
 
                 // spawner.spawn(
                 //     crate::simplefoc::current_read_task::core1_task_current_sens(current_sensor)
@@ -1913,6 +1923,9 @@ fn main() -> ! {
         //     // .spawn(crate::init::core0_task0(foc0, output_encoder0))
         //     .spawn(crate::init::core0_task0(foc0, None))
         //     .unwrap();
+
+        // crate::comms::usb::UsbMonitor::init(&spawner, driver);
+        crate::comms::usb_raw::usb_init(&spawner, driver);
 
         // crate::comms::usb_raw::usb_init(&spawner, driver);
         spawner.spawn(crate::init::core0_task1(foc1, None).unwrap());

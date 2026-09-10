@@ -214,8 +214,8 @@ pub struct DataPlot {
 
     adrc_v1_scale: f64,
     adrc_v2_scale: f64,
-    adrc_x1_scale: f64,
-    adrc_x2_scale: f64,
+    // adrc_x1_scale: f64,
+    // adrc_x2_scale: f64,
     adrc_x3_scale: f64,
     adrc_u_scale: f64,
 
@@ -306,8 +306,8 @@ impl Default for DataPlot {
 
             adrc_v1_scale: 0.5,
             adrc_v2_scale: 0.5,
-            adrc_x1_scale: 0.5,
-            adrc_x2_scale: 0.5,
+            // adrc_x1_scale: 0.5,
+            // adrc_x2_scale: 0.5,
             adrc_x3_scale: 0.000001,
             adrc_u_scale: 3.0,
 
@@ -448,7 +448,7 @@ impl App {
                 ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_x1, LABEL_X1);
                 ui.add(
                     egui::Slider::new(
-                        &mut self.plots[self.current_plot].adrc_x1_scale,
+                        &mut self.plots[self.current_plot].adrc_v1_scale,
                         log_min..=log_max,
                     )
                     .logarithmic(true)
@@ -458,7 +458,7 @@ impl App {
                 ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_x2, LABEL_X2);
                 ui.add(
                     egui::Slider::new(
-                        &mut self.plots[self.current_plot].adrc_x2_scale,
+                        &mut self.plots[self.current_plot].adrc_v2_scale,
                         log_min..=log_max,
                     )
                     .logarithmic(true)
@@ -1363,7 +1363,7 @@ impl DataPlot {
                             self.adrc_state
                                 .iter()
                                 .filter(|(t, _)| *t >= self.prev_time - self.window_time)
-                                .map(|(t, xs)| (*t, xs[0] * self.adrc_x1_scale)),
+                                .map(|(t, xs)| (*t, xs[0] * self.adrc_v1_scale)),
                             COLOR_X1.stroke_width(self.stroke_width),
                         ))
                         .unwrap()
@@ -1376,7 +1376,7 @@ impl DataPlot {
                             self.adrc_state
                                 .iter()
                                 .filter(|(t, _)| *t >= self.prev_time - self.window_time)
-                                .map(|(t, xs)| (*t, xs[1] * self.adrc_x2_scale)),
+                                .map(|(t, xs)| (*t, xs[1] * self.adrc_v2_scale)),
                             COLOR_X2.stroke_width(self.stroke_width),
                         ))
                         .unwrap()

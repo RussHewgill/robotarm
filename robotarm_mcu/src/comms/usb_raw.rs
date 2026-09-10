@@ -88,8 +88,17 @@ pub fn usb_init(
 ) {
     debug!("Starting USB init");
 
+    #[cfg(feature = "picoA")]
+    let prod_id = 0xcaf0;
+    #[cfg(feature = "picoB")]
+    let prod_id = 0xcaf1;
+    #[cfg(feature = "picoC")]
+    let prod_id = 0xcaf2;
+    #[cfg(feature = "testing")]
+    let prod_id = 0xcaf3;
+
     // Create embassy-usb Config
-    let mut config = embassy_usb::Config::new(0xc0d0, 0xcaf0);
+    let mut config = embassy_usb::Config::new(0xc0d0, prod_id);
     config.manufacturer = Some("Embassy");
     config.product = Some("USB raw example");
     config.serial_number = Some("12345678");
@@ -136,9 +145,12 @@ pub fn usb_init(
     let mut function = builder.function(0xFF, 0, 0);
     let mut interface = function.interface();
     let mut alt = interface.alt_setting(0xFF, 0, 0, None);
-    let mut read_ep = alt.endpoint_bulk_out(None, 64);
+    // let mut read_ep = alt.endpoint_bulk_out(None, 64);
+    // let mut read_ep = alt.endpoint_interrupt_in(None, 64, 1);
+    let mut read_ep = alt.endpoint_interrupt_out(None, 64, 1);
     // let mut write_ep = alt.endpoint_bulk_in(None, 64);
     let mut write_ep = alt.endpoint_bulk_in(None, 64);
+
     drop(function);
 
     // debug!("bulk out address: {}", read_ep.info());
@@ -160,26 +172,6 @@ pub fn usb_init(
     let cmd_tx1 = CMD_CHAN1.sender();
 
     spawner.spawn(usb_logger_task(usb_monitor, cmd_tx0, cmd_tx1, log_rx).unwrap());
-
-    // // Do stuff with the class!
-    // let echo_fut = async {
-    //     loop {
-    //         read_ep.wait_enabled().await;
-    //         info!("Connected");
-    //         loop {
-    //             let mut data = [0; 64];
-    //             match read_ep.read(&mut data).await {
-    //                 Ok(n) => {
-    //                     info!("Got bulk: {:a}", data[..n]);
-    //                     // Echo back to the host:
-    //                     write_ep.write(&data[..n]).await.ok();
-    //                 }
-    //                 Err(_) => break,
-    //             }
-    //         }
-    //         info!("Disconnected");
-    //     }
-    // };
 
     // // Run everything concurrently.
     // // If we had made everything `'static` above instead, we could do this using separate tasks instead.
@@ -242,6 +234,15 @@ async fn usb_logger_task(
         //     }
         // }
 
+        // let msg = log_rx.receive().await;
+        // if let Ok(encoded) = postcard::to_slice_cobs(&msg, &mut usb_monitor.buf) {
+        //     // debug!("Encoded len = {}", encoded.len());
+        //     if let Err(e) = usb_monitor.write_ep.write(&encoded).await {
+        //         error!("Failed to write USB packet: {:?}", e);
+        //     }
+        // }
+
+        // #[cfg(feature = "nope")]
         match embassy_futures::select::select(
             log_rx.receive(),
             // usb_monitor.class.read_packet(&mut buf),

@@ -6,7 +6,7 @@ use futures::FutureExt;
 use nusb::{
     MaybeFuture,
     io::{EndpointRead, EndpointWrite},
-    transfer::{Bulk, In, Out},
+    transfer::{Bulk, In, Interrupt, Out},
 };
 use postcard::accumulator::FeedResult;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -14,7 +14,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use robotarm_protocol::{SerialCommand, SerialLogMessage};
 
 pub struct UsbRawHandler {
-    writer: EndpointWrite<Bulk>,
+    // writer: EndpointWrite<Bulk>,
+    writer: EndpointWrite<Interrupt>,
     reader: EndpointRead<Bulk>,
 
     // serial_log_tx: crossbeam_channel::Sender<SerialLogMessage>,
@@ -34,7 +35,7 @@ impl UsbRawHandler {
     ) -> Result<Self> {
         let di = nusb::list_devices()
             .await?
-            .find(|d| d.vendor_id() == 0xc0d0 && d.product_id() == 0xcaf0)
+            .find(|d| d.vendor_id() == 0xc0d0 && d.product_id() == 0xcaf3)
             .context("no device found")?;
         let device = di.open().await.context("error opening device")?;
         let interface = device.claim_interface(0).await?;
@@ -55,7 +56,8 @@ impl UsbRawHandler {
         const BULK_IN_EP: u8 = 0x81;
 
         let mut writer = interface
-            .endpoint::<Bulk, Out>(0x01)
+            // .endpoint::<Bulk, Out>(0x01)
+            .endpoint::<Interrupt, Out>(0x01)
             .context("error opening bulk out endpoint")?
             .writer(128)
             .with_num_transfers(8);
@@ -85,7 +87,7 @@ impl UsbRawHandler {
     pub async fn reconnect(&mut self) -> Result<()> {
         let di = nusb::list_devices()
             .await?
-            .find(|d| d.vendor_id() == 0xc0d0 && d.product_id() == 0xcaf0)
+            .find(|d| d.vendor_id() == 0xc0d0 && d.product_id() == 0xcaf3)
             .context("no device found")?;
         let device = di.open().await.context("error opening device")?;
         let interface = device.claim_interface(0).await?;
@@ -96,7 +98,8 @@ impl UsbRawHandler {
         const BULK_IN_EP: u8 = 0x81;
 
         self.writer = interface
-            .endpoint::<Bulk, Out>(0x01)
+            // .endpoint::<Bulk, Out>(0x01)
+            .endpoint::<Interrupt, Out>(0x01)
             .context("error opening bulk out endpoint")?
             .writer(128)
             .with_num_transfers(8);

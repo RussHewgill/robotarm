@@ -23,9 +23,9 @@ pub struct SerialHandler {
     rate: u32,
 
     // serial_log_tx: tokio::sync::mpsc::Sender<SerialLogMessage>,
-    // serial_cmd_rx: tokio::sync::mpsc::Receiver<SerialCommand>,
+    serial_cmd_rx: tokio::sync::mpsc::Receiver<SerialCommand>,
     serial_log_tx: crossbeam_channel::Sender<SerialLogMessage>,
-    serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
+    // serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
     ui_cmd_tx: crossbeam_channel::Sender<crate::ui::UiCommand>,
 
     cobs_buf: postcard::accumulator::CobsAccumulator<4096>,
@@ -40,7 +40,8 @@ impl SerialHandler {
         // port: Box<dyn serialport::SerialPort>,
         address: &str,
         serial_log_tx: crossbeam_channel::Sender<SerialLogMessage>,
-        serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
+        // serial_cmd_rx: crossbeam_channel::Receiver<SerialCommand>,
+        serial_cmd_rx: tokio::sync::mpsc::Receiver<SerialCommand>,
         ui_cmd_tx: crossbeam_channel::Sender<crate::ui::UiCommand>,
         rate: u32,
     ) -> Self {
@@ -200,11 +201,14 @@ impl SerialHandler {
                     let buf = postcard::to_stdvec_cobs(&cmd)?;
                     port.write(&buf).context("Failed to send command")?;
                 }
-                Err(crossbeam_channel::TryRecvError::Disconnected) => {
-                    // debug!("Command channel disconnected");
-                    // return Err(anyhow!("Command channel disconnected"));
+                // Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                //     // debug!("Command channel disconnected");
+                //     // return Err(anyhow!("Command channel disconnected"));
+                // }
+                // Err(crossbeam_channel::TryRecvError::Empty) => {}
+                Err(_) => {
+                    // debug!("Command channel error: {:?}", e);
                 }
-                Err(crossbeam_channel::TryRecvError::Empty) => {}
             }
 
             //
