@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow, bail, ensure};
+use egui_plot::{AxisHints, HPlacement, HoverPosition, Legend, Line, Plot};
 use tracing::{debug, error, info, trace, warn};
 
 use serde::{Deserialize, Serialize};
@@ -7,33 +8,33 @@ use std::{collections::VecDeque, f64::consts::PI};
 use eframe::egui::{self, Response};
 
 // use egui_plot::{Legend, Line, Plot, PlotPoint, PlotPoints};
-use egui_plotter::EguiBackend;
-use plotters::{
-    chart::{ChartBuilder, ChartContext, LabelAreaPosition, SeriesLabelPosition},
-    coord::{
-        CoordTranslate,
-        cartesian::Cartesian2d,
-        combinators::{
-            BindKeyPointMethod, BindKeyPoints, BuildNestedCoord, GroupBy, IntoLinspace,
-            IntoLogRange, IntoPartialAxis, Linspace, LogCoord, LogScalable, NestedRange,
-            NestedValue, ToGroupByRange, make_partial_axis,
-        },
-        ranged1d::{DiscreteRanged, IntoSegmentedCoord, Ranged, SegmentValue},
-        types::RangedCoordf64,
-    },
-    drawing::*,
-    element::{
-        Circle, Cross, Cubiod, DashedPathElement, DynElement, EmptyElement, IntoDynElement,
-        MultiLineText, PathElement, Pie, Pixel, Polygon, Rectangle, Text, TriangleMarker,
-    },
-    prelude::DrawResult,
-    series::{DashedLineSeries, DottedLineSeries, LineSeries},
-    style::{
-        AsRelative, Color, FontDesc, FontFamily, FontStyle, FontTransform, HSLColor, IntoFont,
-        IntoTextStyle, Palette, Palette99, Palette100, Palette9999, PaletteColor, RGBAColor,
-        RGBColor, ShapeStyle, TextStyle, colors::colormaps::*,
-    },
-};
+// use egui_plotter::EguiBackend;
+// use plotters::{
+//     chart::{ChartBuilder, ChartContext, LabelAreaPosition, SeriesLabelPosition},
+//     coord::{
+//         CoordTranslate,
+//         cartesian::Cartesian2d,
+//         combinators::{
+//             BindKeyPointMethod, BindKeyPoints, BuildNestedCoord, GroupBy, IntoLinspace,
+//             IntoLogRange, IntoPartialAxis, Linspace, LogCoord, LogScalable, NestedRange,
+//             NestedValue, ToGroupByRange, make_partial_axis,
+//         },
+//         ranged1d::{DiscreteRanged, IntoSegmentedCoord, Ranged, SegmentValue},
+//         types::RangedCoordf64,
+//     },
+//     drawing::*,
+//     element::{
+//         Circle, Cross, Cubiod, DashedPathElement, DynElement, EmptyElement, IntoDynElement,
+//         MultiLineText, PathElement, Pie, Pixel, Polygon, Rectangle, Text, TriangleMarker,
+//     },
+//     prelude::DrawResult,
+//     series::{DashedLineSeries, DottedLineSeries, LineSeries},
+//     style::{
+//         AsRelative, Color, FontDesc, FontFamily, FontStyle, FontTransform, HSLColor, IntoFont,
+//         IntoTextStyle, Palette, Palette99, Palette100, Palette9999, PaletteColor, RGBAColor,
+//         RGBColor, ShapeStyle, TextStyle, colors::colormaps::*,
+//     },
+// };
 
 use self::colors::*;
 use crate::ui::{self, app::App};
@@ -67,24 +68,38 @@ pub fn normalize_angle(angle: f64) -> f64 {
 }
 
 pub mod colors {
-    use plotters::style::RGBColor;
+    // use plotters::style::RGBColor;
+    // pub use plotters::prelude::WHITE;
 
-    pub use plotters::prelude::WHITE;
+    // pub const MAROON: RGBColor = RGBColor(0x80, 0, 0);
+    // pub const BROWN: RGBColor = RGBColor(0x9a, 0x63, 0x24);
+    // pub const TEAL: RGBColor = RGBColor(0x46, 0x99, 0x90);
+    // pub const NAVY: RGBColor = RGBColor(0, 0, 0x75);
+    // pub const BLACK: RGBColor = RGBColor(0, 0, 0);
+    // pub const RED: RGBColor = RGBColor(0xe6, 0x19, 0x4b);
+    // pub const ORANGE: RGBColor = RGBColor(0xf5, 0x82, 0x31);
+    // pub const YELLOW: RGBColor = RGBColor(0xff, 0xe1, 0x19);
+    // pub const GREEN: RGBColor = RGBColor(0x3c, 0xb4, 0x4b);
+    // pub const CYAN: RGBColor = RGBColor(0x42, 0xd4, 0xf4);
+    // pub const BLUE: RGBColor = RGBColor(0x43, 0x63, 0xd8);
+    // pub const PURPLE: RGBColor = RGBColor(0x91, 0x1e, 0xb4);
+    // pub const MAGENTA: RGBColor = RGBColor(0xf0, 0x32, 0xe6);
+    // pub const GREY: RGBColor = RGBColor(0xa9, 0xa9, 0xa9);
 
-    pub const MAROON: RGBColor = RGBColor(0x80, 0, 0);
-    pub const BROWN: RGBColor = RGBColor(0x9a, 0x63, 0x24);
-    pub const TEAL: RGBColor = RGBColor(0x46, 0x99, 0x90);
-    pub const NAVY: RGBColor = RGBColor(0, 0, 0x75);
-    pub const BLACK: RGBColor = RGBColor(0, 0, 0);
-    pub const RED: RGBColor = RGBColor(0xe6, 0x19, 0x4b);
-    pub const ORANGE: RGBColor = RGBColor(0xf5, 0x82, 0x31);
-    pub const YELLOW: RGBColor = RGBColor(0xff, 0xe1, 0x19);
-    pub const GREEN: RGBColor = RGBColor(0x3c, 0xb4, 0x4b);
-    pub const CYAN: RGBColor = RGBColor(0x42, 0xd4, 0xf4);
-    pub const BLUE: RGBColor = RGBColor(0x43, 0x63, 0xd8);
-    pub const PURPLE: RGBColor = RGBColor(0x91, 0x1e, 0xb4);
-    pub const MAGENTA: RGBColor = RGBColor(0xf0, 0x32, 0xe6);
-    pub const GREY: RGBColor = RGBColor(0xa9, 0xa9, 0xa9);
+    pub const MAROON: egui::Color32 = egui::Color32::from_rgb(0x80, 0, 0);
+    pub const BROWN: egui::Color32 = egui::Color32::from_rgb(0x9a, 0x63, 0x24);
+    pub const TEAL: egui::Color32 = egui::Color32::from_rgb(0x46, 0x99, 0x90);
+    pub const NAVY: egui::Color32 = egui::Color32::from_rgb(0, 0, 0x75);
+    pub const BLACK: egui::Color32 = egui::Color32::from_rgb(0, 0, 0);
+    pub const RED: egui::Color32 = egui::Color32::from_rgb(0xe6, 0x19, 0x4b);
+    pub const ORANGE: egui::Color32 = egui::Color32::from_rgb(0xf5, 0x82, 0x31);
+    pub const YELLOW: egui::Color32 = egui::Color32::from_rgb(0xff, 0xe1, 0x19);
+    pub const GREEN: egui::Color32 = egui::Color32::from_rgb(0x3c, 0xb4, 0x4b);
+    pub const CYAN: egui::Color32 = egui::Color32::from_rgb(0x42, 0xd4, 0xf4);
+    pub const BLUE: egui::Color32 = egui::Color32::from_rgb(0x43, 0x63, 0xd8);
+    pub const PURPLE: egui::Color32 = egui::Color32::from_rgb(0x91, 0x1e, 0xb4);
+    pub const MAGENTA: egui::Color32 = egui::Color32::from_rgb(0xf0, 0x32, 0xe6);
+    pub const GREY: egui::Color32 = egui::Color32::from_rgb(0xa9, 0xa9, 0xa9);
 }
 
 // const LABEL_V1: &str = "v1";
@@ -99,12 +114,12 @@ pub const LABEL_X1: &str = "State Angle";
 pub const LABEL_X2: &str = "State Vel";
 pub const LABEL_X3: &str = "Disturbance";
 
-const COLOR_V1: RGBColor = CYAN;
-const COLOR_V2: RGBColor = MAGENTA;
-const COLOR_X1: RGBColor = GREEN;
-const COLOR_X2: RGBColor = BLUE;
-const COLOR_X3: RGBColor = RED;
-const COLOR_U: RGBColor = BLACK;
+const COLOR_V1: egui::Color32 = CYAN;
+const COLOR_V2: egui::Color32 = MAGENTA;
+const COLOR_X1: egui::Color32 = GREEN;
+const COLOR_X2: egui::Color32 = BLUE;
+const COLOR_X3: egui::Color32 = RED;
+const COLOR_U: egui::Color32 = BLACK;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DataPlot {
@@ -238,7 +253,7 @@ impl Default for DataPlot {
             window_offset: 0.,
             prev_time: 0.,
 
-            stroke_width: 2,
+            stroke_width: 1,
 
             // vel_min_max: (-15., 15.),
             draw_angle: true,
@@ -1087,30 +1102,51 @@ impl DataPlot {
         let available = ui.available_size();
         let half_height = (available.y * 0.5).max(120.0);
 
-        // let mut plot = egui_plot::Plot::new("Motor Data Top")
-        //     .legend(egui_plot::Legend::default())
-        //     .data_aspect(1.0)
-        //     .allow_drag(false)
-        //     .allow_scroll(false)
-        //     .allow_zoom(false)
-        //     .show_axes([true, true])
-        //     .show_x(true)
-        //     .show_y(true)
-        //     .include_x(self.prev_time - self.window_time)
-        //     .include_x(self.prev_time);
-
         ui.allocate_ui(egui::vec2(available.x, half_height), |ui| {
             let x_min = self.prev_time - self.window_time;
             let x_max = self.prev_time;
 
             let mut plot = egui_plot::Plot::new("data_plot")
-                .legend(egui_plot::Legend::default())
+                .legend(egui_plot::Legend::default().position(egui_plot::Corner::LeftTop))
                 .height(ui.available_height())
                 .allow_scroll(false)
+                .allow_drag(false)
+                .allow_zoom(false)
+                .auto_bounds([true, false])
                 .include_x(x_min)
                 .include_x(x_max)
-                .include_y(0.0)
-                .include_y(2.0 * PI);
+                // .include_y(0.0)
+                // .include_y(2.0 * PI)
+                // .default_x_bounds(x_min, x_max)
+                // .default_y_bounds(0.0, 2.0 * PI)
+                .default_y_bounds(-2.0 * PI, 2.0 * PI)
+                // .invert_x(true)
+                // .x_axis_label(format!("{x_min}, {x_max}"))
+                // .x_axis_formatter(|gridmark, range| {
+                //     //
+                //     // format!("{:.0}", (gridmark.value - self.prev_time).abs().floor()).to_string()
+                //     format!("{:.0}", gridmark.value.floor()).to_string()
+                // })
+                .label_formatter(|pos| match pos {
+                    HoverPosition::NearDataPoint {
+                        plot_name,
+                        position,
+                        index,
+                    } => {
+                        //
+                        None
+                        // Some(format!("{}: {:.3}", plot_name, position.y))
+                    }
+                    HoverPosition::Elsewhere { position } => {
+                        //
+                        None
+                    }
+                })
+                .custom_y_axes(vec![
+                    AxisHints::new_x(),
+                    AxisHints::new_y().placement(HPlacement::Left),
+                    AxisHints::new_y().placement(HPlacement::Right),
+                ]);
 
             plot.show(ui, |plot_ui| {
                 if self.draw_angle {
@@ -1121,120 +1157,269 @@ impl DataPlot {
                         .map(|(t, angle)| [*t, self.angle_scale * *angle])
                         .collect();
                     plot_ui.line(
-                        egui_plot::Line::new("Angle", pts)
+                        Line::new("Angle", pts)
                             .name("Angle")
-                            // .color()
+                            .color(GREEN)
                             .width(self.stroke_width as f32),
                     );
                 }
 
-                // if self.draw_pos {
-                //     let pts: Vec<[f64; 2]> = self
-                //         .pos
-                //         .iter()
-                //         .filter(|(t, _)| *t >= x_min)
-                //         .map(|(t, angle)| [*t, self.angle_scale * *angle])
-                //         .collect();
-                //     plot_ui.line(
-                //         Line::new(pts)
-                //             .name("Position")
-                //             .color(COLOR_TEAL)
-                //             .width(plot_width),
-                //     );
-                // }
+                if self.draw_pos {
+                    let pts: Vec<[f64; 2]> = self
+                        .pos
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("Pos", pts)
+                            .name("Position")
+                            .color(TEAL)
+                            .width(self.stroke_width as f32),
+                    );
+                }
 
-                // if self.draw_vel {
-                //     let pts: Vec<[f64; 2]> = self
-                //         .vel
-                //         .iter()
-                //         .filter(|(t, _)| *t >= x_min)
-                //         .map(|(t, vel)| [*t, *vel * self.scale_vel])
-                //         .collect();
-                //     plot_ui.line(
-                //         Line::new(pts)
-                //             .name("Velocity")
-                //             .color(COLOR_BLUE)
-                //             .width(plot_width),
-                //     );
-                // }
+                if self.draw_vel {
+                    let pts: Vec<[f64; 2]> = self
+                        .vel
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, vel)| [*t, *vel * self.scale_vel])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("Vel", pts)
+                            .name("Velocity")
+                            .color(BLUE)
+                            .width(self.stroke_width as f32),
+                    );
+                }
 
-                // if self.draw_target_pos {
-                //     let pts: Vec<[f64; 2]> = self
-                //         .target_pos
-                //         .iter()
-                //         .filter(|(t, _)| *t >= x_min)
-                //         .map(|(t, angle)| [*t, self.angle_scale * *angle])
-                //         .collect();
-                //     plot_ui.line(
-                //         Line::new(pts)
-                //             .name("Target Pos")
-                //             .color(COLOR_RED)
-                //             .width(plot_width),
-                //     );
-                // }
+                if self.draw_target_pos {
+                    let pts: Vec<[f64; 2]> = self
+                        .target_pos
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("Target Pos", pts)
+                            .name("Target Pos")
+                            .color(RED)
+                            .width(self.stroke_width as f32),
+                    );
+                }
 
-                // if self.draw_target_vel {
-                //     let pts: Vec<[f64; 2]> = self
-                //         .target_vel
-                //         .iter()
-                //         .filter(|(t, _)| *t >= x_min)
-                //         .map(|(t, target)| [*t, *target * self.scale_vel])
-                //         .collect();
-                //     plot_ui.line(
-                //         Line::new(pts)
-                //             .name("Target Vel")
-                //             .color(COLOR_MAGENTA)
-                //             .width(plot_width),
-                //     );
-                // }
+                if self.draw_target_vel {
+                    let pts: Vec<[f64; 2]> = self
+                        .target_vel
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, target)| [*t, *target * self.scale_vel])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("", pts)
+                            .name("Target Vel")
+                            .color(MAGENTA)
+                            .width(self.stroke_width as f32),
+                    );
+                }
 
-                // if self.draw_voltage {
-                //     let pts: Vec<[f64; 2]> = self
-                //         .voltage
-                //         .iter()
-                //         .filter(|(t, _)| *t >= x_min)
-                //         .map(|(t, v)| [*t, *v * self.scale_vel])
-                //         .collect();
-                //     plot_ui.line(
-                //         Line::new(pts)
-                //             .name("Raw Vel")
-                //             .color(COLOR_ORANGE)
-                //             .width(plot_width),
-                //     );
-                // }
+                if self.draw_voltage {
+                    let pts: Vec<[f64; 2]> = self
+                        .voltage
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, v)| [*t, *v * self.scale_vel])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("", pts)
+                            .name("Raw Vel")
+                            .color(ORANGE)
+                            .width(self.stroke_width as f32),
+                    );
+                }
 
-                // if self.draw_current {
-                //     let current_scale = 10.0;
+                if self.draw_current {
+                    let current_scale = 10.0;
 
-                //     let pts_d: Vec<[f64; 2]> = self
-                //         .current_d
-                //         .iter()
-                //         .filter(|(t, _)| *t >= x_min)
-                //         .map(|(t, c)| [*t, *c * current_scale])
-                //         .collect();
-                //     plot_ui.line(
-                //         Line::new(pts_d)
-                //             .name("Current Id")
-                //             .color(COLOR_CYAN)
-                //             .width(plot_width),
-                //     );
+                    let pts_d: Vec<[f64; 2]> = self
+                        .current_d
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, c)| [*t, *c * current_scale])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("Current Id", pts_d)
+                            .name("Current Id")
+                            .color(CYAN)
+                            .width(self.stroke_width as f32),
+                    );
 
-                //     let pts_q: Vec<[f64; 2]> = self
-                //         .current_q
-                //         .iter()
-                //         .filter(|(t, _)| *t >= x_min)
-                //         .map(|(t, c)| [*t, *c * current_scale])
-                //         .collect();
-                //     plot_ui.line(
-                //         Line::new(pts_q)
-                //             .name("Current Iq")
-                //             .color(COLOR_YELLOW)
-                //             .width(plot_width),
-                //     );
-                // }
+                    let pts_q: Vec<[f64; 2]> = self
+                        .current_q
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, c)| [*t, *c * current_scale])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("Current Iq", pts_q)
+                            .name("Current Iq")
+                            .color(YELLOW)
+                            .width(self.stroke_width as f32),
+                    );
+                }
             });
 
             //
+        });
+
+        // ---- Bottom pane (ADRC / PID) -------------------------------------
+        ui.allocate_ui(egui::vec2(available.x, half_height), |ui| {
+            let x_min = self.prev_time - self.window_time;
+            let x_max = self.prev_time;
+
+            let plot = Plot::new("adrc_plot")
+                .legend(Legend::default().position(egui_plot::Corner::LeftTop))
+                .height(ui.available_height())
+                .allow_scroll(false)
+                .allow_drag(false)
+                .allow_zoom(false)
+                .auto_bounds([true, false])
+                .include_x(x_min)
+                .include_x(x_max)
+                // .include_y(-2.0)
+                // .include_y(2.0)
+                // .default_x_bounds(x_min, x_max)
+                .default_y_bounds(-2., 2.)
+                // .invert_x(true)
+                .label_formatter(|pos| match pos {
+                    HoverPosition::NearDataPoint {
+                        plot_name,
+                        position,
+                        index,
+                    } => {
+                        //
+                        // None
+                        let mult = match *plot_name {
+                            LABEL_V1 => self.adrc_v1_scale,
+                            LABEL_V2 => self.adrc_v2_scale,
+                            LABEL_X1 => self.adrc_v1_scale,
+                            LABEL_X2 => self.adrc_v2_scale,
+                            LABEL_X3 => self.adrc_x3_scale,
+                            "ADRC u" => self.adrc_u_scale,
+                            _ => 1.0,
+                        };
+
+                        Some(format!("{}: {:.3}", plot_name, position.y / mult))
+                    }
+                    HoverPosition::Elsewhere { position } => {
+                        //
+                        None
+                    }
+                })
+                // .x_axis_formatter(|gridmark, range| {
+                //     //
+                //     // format!("{:.0}", (gridmark.value - self.prev_time).abs().floor()).to_string()
+                //     format!("{:.0}", gridmark.value.abs().floor()).to_string()
+                // })
+                .custom_y_axes(vec![
+                    AxisHints::new_x(),
+                    AxisHints::new_y().placement(HPlacement::Left),
+                    AxisHints::new_y().placement(HPlacement::Right),
+                ]);
+
+            plot.show(ui, |plot_ui| {
+                // ---------------- ADRC ---------------------------------
+                if self.draw_adrc_v1 {
+                    let pts: Vec<[f64; 2]> = self
+                        .adrc_vs
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, vs)| [*t, vs[0] * self.adrc_v1_scale])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("", pts)
+                            .name(LABEL_V1)
+                            .color(COLOR_V1)
+                            .width(self.stroke_width as f32),
+                    );
+                }
+
+                if self.draw_adrc_v2 {
+                    let pts: Vec<[f64; 2]> = self
+                        .adrc_vs
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, vs)| [*t, vs[1] * self.adrc_v2_scale])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("", pts)
+                            .name(LABEL_V2)
+                            .color(COLOR_V2)
+                            .width(self.stroke_width as f32),
+                    );
+                }
+
+                if self.draw_adrc_x1 {
+                    let pts: Vec<[f64; 2]> = self
+                        .adrc_state
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, xs)| [*t, xs[0] * self.adrc_v1_scale])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("", pts)
+                            .name(LABEL_X1)
+                            .color(COLOR_X1)
+                            .width(self.stroke_width as f32),
+                    );
+                }
+
+                if self.draw_adrc_x2 {
+                    let pts: Vec<[f64; 2]> = self
+                        .adrc_state
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, xs)| [*t, xs[1] * self.adrc_v2_scale])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("", pts)
+                            .name(LABEL_X2)
+                            .color(COLOR_X2)
+                            .width(self.stroke_width as f32),
+                    );
+                }
+
+                if self.draw_adrc_x3 {
+                    let pts: Vec<[f64; 2]> = self
+                        .adrc_state
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, xs)| [*t, xs[2] * self.adrc_x3_scale])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("", pts)
+                            .name(LABEL_X3)
+                            .color(COLOR_X3)
+                            .width(self.stroke_width as f32),
+                    );
+                }
+
+                if self.draw_adrc_u {
+                    let pts: Vec<[f64; 2]> = self
+                        .adrc_u
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, u)| [*t, *u * self.adrc_u_scale])
+                        .collect();
+                    plot_ui.line(
+                        Line::new("", pts)
+                            .name("ADRC u")
+                            .color(COLOR_U)
+                            .width(self.stroke_width as f32),
+                    );
+                }
+            });
         });
 
         // unimplemented!()

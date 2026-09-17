@@ -88,8 +88,8 @@ impl App {
         out.status.push(FocStatus::default());
 
         out.status[0].gear_ratio = 30.;
-        // out.status[1].gear_ratio = 20.;
-        out.status[1].gear_ratio = 1.;
+        out.status[1].gear_ratio = 20.;
+        // out.status[1].gear_ratio = 1.;
 
         out.plots.clear();
         for _ in 0..6 {
@@ -105,8 +105,10 @@ impl eframe::App for App {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
 
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        ctx.request_repaint_after(std::time::Duration::from_millis(1_000 / 120));
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        ui.ctx()
+            // .request_repaint_after(std::time::Duration::from_millis(1_000 / 120));
+            .request_repaint_after(std::time::Duration::from_millis(1_000 / 200));
         // ctx.request_repaint_after(std::time::Duration::from_millis(1_000 / 60));
 
         // if cfg!(debug_assertions) && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -120,11 +122,11 @@ impl eframe::App for App {
         self.get_from_channels();
         // debug!("Done");
 
-        egui::SidePanel::left("Left").show(ctx, |ui| {
+        egui::Panel::left("Left Panel").show(ui, |ui| {
             self.plot_settings(ui);
         });
 
-        egui::TopBottomPanel::bottom("Bottom").show(ctx, |ui| {
+        egui::Panel::bottom("Bottom Panel").show(ui, |ui| {
             // self.controls(ui, self.current_foc_motor);
             // ui.horizontal(|ui| {
             //     self.controls(ui, 0);
@@ -135,7 +137,7 @@ impl eframe::App for App {
             });
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             // ui.heading("Hello World!");
             self.plots[self.current_plot].show_plot(ui);
         });
