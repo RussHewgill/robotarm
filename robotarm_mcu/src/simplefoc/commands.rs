@@ -114,6 +114,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
             SerialCommand::SetVoltageLimit { id, voltage_limit } => {
                 self.set_voltage_limit(voltage_limit);
+                self.state_observer.set_max_voltage(voltage_limit);
             }
             // SerialCommand::SetSensorOffset { id, offset } => {
             //     if id == self.id {

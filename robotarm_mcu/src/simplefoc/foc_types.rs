@@ -286,6 +286,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 0.0,
                 torque_constant,
                 motor.phase_resistance.unwrap_or(0.0),
+                driver.voltage_limit,
                 0.01,
             );
             adrc

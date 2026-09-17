@@ -20,6 +20,7 @@ pub struct MotorADRC {
     rotor_inertia: f32,
     torque_constant: f32,
     phase_resistance: f32,
+    max_voltage: f32,
     b0: f32,
 
     wo: f32,
@@ -33,94 +34,13 @@ pub struct MotorADRC {
 }
 
 impl MotorADRC {
-    pub fn test_adrc(&mut self) {
-        let mut eso = self.adrc.eso.clone();
-
-        let commanded_torque = 0.0;
-        let mut measured_angle = 0.0;
-
-        #[cfg(feature = "nope")]
-        for i in 0..10 {
-            let setpoint = 0.0;
-            let measurement = measured_angle + 0.01 * (i as f32); // Simulate a changing measurement
-            let dt = 0.001;
-
-            let _ = eso.update(measurement, commanded_torque, dt);
-
-            debug!(
-                "State 0: angle: {}, velocity: {}, disturbance: {}",
-                eso.state[0], eso.state[1], eso.state[2]
-            );
-
-            // let output = self.adrc.update(setpoint, measurement, dt);
-            // debug!(
-            //     "State: angle: {}, velocity: {}, disturbance: {}, output: {}",
-            //     self.adrc.eso.z[0], self.adrc.eso.z[1], self.adrc.eso.z[2], output
-            // );
-
-            let test_state = {
-                {
-                    // 1. Dynamically calculate the A and B matrices based on actual elapsed time
-                    #[rustfmt::skip]
-                    let a = SMatrix::<f32, 3, 3>::new(
-                        1.0, dt, 0.5 * dt * dt,
-                        0.0, 1.0, dt,
-                        0.0, 0.0, 1.0
-                    );
-
-                    #[rustfmt::skip]
-                    let b = SMatrix::<f32, 3, 1>::new(
-                        0.5 * self.b0 * dt * dt,
-                        self.b0 * dt,
-                        0.,
-                    );
-
-                    // C and D matrices remain constant
-                    let c = SMatrix::<f32, 1, 3>::new(1.0, 0.0, 0.0);
-                    let d = SMatrix::<f32, 1, 1>::new(0.0);
-
-                    // let l = SMatrix::<f32, 3, 1>::new(L1_ESO * dt, L2_ESO * dt, L3_ESO * dt);
-                    let l = SMatrix::<f32, 3, 1>::new(
-                        self.adrc.eso.beta[0] * dt,
-                        self.adrc.eso.beta[1] * dt,
-                        self.adrc.eso.beta[2] * dt,
-                    );
-
-                    // debug!("test A: {:?}", a.as_slice());
-                    // debug!("test B: {:?}", b.as_slice());
-                    // // debug!("test C: {:?}", c);
-                    // // debug!("test D: {:?}", d);
-                    // debug!("test L: {:?}", l.as_slice());
-
-                    // 3. Inject the new parameters into the observer
-                    self.test_luenberger.set_params(
-                        crate::simplefoc::luenberger::LuenbergerParam::new(a, b, c, d, l),
-                    );
-                }
-
-                let input = SVector::<f32, 1>::new(commanded_torque);
-                let measurement = SVector::<f32, 1>::new(measurement);
-
-                self.test_luenberger.update(&input, &measurement)
-            };
-            // self.state_observer.adrc.eso.state = *test_state;
-            debug!(
-                "State 1: angle: {}, velocity: {}, disturbance: {}",
-                test_state[0], test_state[1], test_state[2]
-            );
-        }
-
-        // unimplemented!()
-    }
-}
-
-impl MotorADRC {
     pub fn new(
         // adrc: Adrc,
         rotor_inertia: f32,
         torque_constant: f32,
         phase_resistance: f32,
         disturbance_lpf_time: f32,
+        max_voltage: f32,
         speed_factor: f32,
         b0: Option<f32>,
         wo: f32,
@@ -166,12 +86,14 @@ impl MotorADRC {
         // let adrc = Adrc::new(td, eso, nlsef, b0).with_u_limits(-limit, limit);
 
         // let u_limit = 10.0; // TODO: use estimated max current
+        // let u_limit = 0.5; // 0.5 A
+        let u_limit = max_voltage / phase_resistance;
 
         let dist_limit = b0 * 10.0;
         // let dist_limit = b0 * 1.0;
 
         let adrc = Adrc::new(td, eso, nlsef, b0)
-            // .with_u_limits(-u_limit, u_limit)
+            .with_u_limits(-u_limit, u_limit)
             // .with_disturbance_limits(-dist_limit, dist_limit);
             ;
         // let adrc = Adrc::new(td, eso, nlsef, b0);
@@ -185,6 +107,7 @@ impl MotorADRC {
             rotor_inertia,
             torque_constant,
             phase_resistance,
+            max_voltage,
             b0,
             wo,
             wc,
@@ -201,6 +124,7 @@ impl MotorADRC {
         rotor_inertia: f32,
         torque_constant: f32,
         phase_resistance: f32,
+        max_voltage: f32,
         disturbance_lpf_time: f32,
     ) -> Self {
         // let speed_factor = 100.0;
@@ -248,6 +172,7 @@ impl MotorADRC {
             rotor_inertia,
             torque_constant,
             phase_resistance,
+            max_voltage,
             b0,
             wo,
             wc,
@@ -279,6 +204,7 @@ impl MotorADRC {
             self.torque_constant,
             self.phase_resistance,
             self.disturbance_lpf.tf,
+            self.max_voltage,
             self.adrc.td.r,
             None,
             self.wo,
@@ -292,6 +218,7 @@ impl MotorADRC {
             self.torque_constant,
             self.phase_resistance,
             self.disturbance_lpf.tf,
+            self.max_voltage,
             self.adrc.td.r,
             Some(b0),
             self.wo,
@@ -309,6 +236,12 @@ impl MotorADRC {
 
     pub fn get_speed_factor(&self) -> f32 {
         self.adrc.td.r
+    }
+
+    pub fn set_max_voltage(&mut self, voltage_limit: f32) {
+        let u_limit = voltage_limit / self.phase_resistance;
+        self.adrc = self.adrc.with_u_limits(-u_limit, u_limit);
+        self.max_voltage = voltage_limit;
     }
 
     pub fn set_observer_bandwidth(&mut self, wo: f32) {
