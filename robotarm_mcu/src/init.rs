@@ -172,7 +172,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_zero_electric_angle(1.55);
     // foc.set_zero_electric_angle(1.61);
     // foc.set_zero_electric_angle(0.602);
-    foc.set_zero_electric_angle(3.76);
+    foc.set_zero_electric_angle(3.66);
 
     // match foc.id {
     //     0 => foc.set_zero_electric_angle(2.6876297),

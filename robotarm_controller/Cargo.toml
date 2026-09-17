@@ -33,7 +33,7 @@ egui_extras = { version = "0.32.3", features = [
     "svg",
     "http",
 ] }
-# egui_plot = "0.34.0"
+egui_plot = "0.33.0"
 egui-plotter = "0.6.0"
 plotters = { version = "0.3.7" }
 

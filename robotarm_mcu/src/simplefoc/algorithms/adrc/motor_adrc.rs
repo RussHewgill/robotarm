@@ -13,6 +13,7 @@ use crate::{
     },
 };
 
+#[derive(Clone, Copy, PartialEq)]
 pub struct MotorADRC {
     adrc: Adrc,
 
@@ -164,14 +165,20 @@ impl MotorADRC {
         // let limit = 0.0;
         // let adrc = Adrc::new(td, eso, nlsef, b0).with_u_limits(-limit, limit);
 
-        // let limit = b0 * 10.0;
-        let limit = b0 * 1.0;
-        let adrc = Adrc::new(td, eso, nlsef, b0).with_disturbance_limits(-limit, limit);
+        // let u_limit = 10.0; // TODO: use estimated max current
+
+        let dist_limit = b0 * 10.0;
+        // let dist_limit = b0 * 1.0;
+
+        let adrc = Adrc::new(td, eso, nlsef, b0)
+            // .with_u_limits(-u_limit, u_limit)
+            // .with_disturbance_limits(-dist_limit, dist_limit);
+            ;
         // let adrc = Adrc::new(td, eso, nlsef, b0);
 
         let disturbance_lpf = LowPassFilter::new(disturbance_lpf_time);
 
-        let velocity_tracker = TrackingDifferentiator::new(100.0, 0.0001);
+        let velocity_tracker = TrackingDifferentiator::new(50.0, 0.0001);
 
         Self {
             adrc,
@@ -196,9 +203,11 @@ impl MotorADRC {
         phase_resistance: f32,
         disturbance_lpf_time: f32,
     ) -> Self {
-        let speed_factor = 100.0;
+        // let speed_factor = 100.0;
         // let speed_factor = 50.0;
+        let speed_factor = 20.0;
         // let speed_factor = 10.0;
+        // let speed_factor = 1.0;
         let step_size = 0.0001;
         let td = TrackingDifferentiator::new(speed_factor, step_size);
 
@@ -232,7 +241,7 @@ impl MotorADRC {
 
         let disturbance_lpf = LowPassFilter::new(disturbance_lpf_time);
 
-        let velocity_tracker = TrackingDifferentiator::new(100.0, 0.0001);
+        let velocity_tracker = TrackingDifferentiator::new(50.0, 0.0001);
 
         Self {
             adrc,
@@ -290,8 +299,16 @@ impl MotorADRC {
         );
     }
 
+    pub fn get_b0(&self) -> f32 {
+        self.b0
+    }
+
     pub fn set_speed_factor(&mut self, speed_factor: f32) {
         self.adrc.td.r = speed_factor;
+    }
+
+    pub fn get_speed_factor(&self) -> f32 {
+        self.adrc.td.r
     }
 
     pub fn set_observer_bandwidth(&mut self, wo: f32) {
@@ -453,10 +470,16 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 self.state_observer.adrc.eso.state[1] = vel;
             }
             robotarm_protocol::MotionControlType::Velocity => {
-                let (pos, vel) = self
-                    .state_observer
-                    .velocity_tracker
-                    .update(measured_angle, dt);
+                // let (pos, vel) = self
+                //     .state_observer
+                //     .velocity_tracker
+                //     .update(measured_angle, dt);
+
+                let pos = measured_angle;
+                let vel = self.encoder.get_velocity();
+
+                // self.state_observer.adrc.eso.state[0] = pos;
+                // self.state_observer.adrc.eso.state[1] = vel;
 
                 self.state_observer.prev_output =
                     self.state_observer

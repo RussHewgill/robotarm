@@ -50,7 +50,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // self.enable_pin.set_high();
         self.pwm_driver.enable();
         self.pid_velocity.reset();
-        self.pid_angle.reset();
+        // self.pid_angle.reset();
         // self.pid_current_q.reset();
         // self.pid_current_d.reset();
         // self.state_observer.reset();
@@ -119,12 +119,12 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     }
 
     // #[cfg(feature = "nope")]
-    pub fn set_velocity_tuner(&mut self, target: f32) {
-        self.pid_velocity_tuner = Some(crate::simplefoc::pid_tuning::PidTuner::new(
-            &self.pid_velocity,
-            target,
-        ));
-    }
+    // pub fn set_velocity_tuner(&mut self, target: f32) {
+    //     self.pid_velocity_tuner = Some(crate::simplefoc::pid_tuning::PidTuner::new(
+    //         &self.pid_velocity,
+    //         target,
+    //     ));
+    // }
 }
 
 /// internal
@@ -402,6 +402,95 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // self.disable();
     }
 
+    pub async fn find_angle_limits(&mut self) -> (f32, f32) {
+        let commands_freq = 50;
+        let commands_interval = embassy_time::Duration::from_micros(1_000_000 / commands_freq);
+        let mut commands_next_update = (Instant::now() + commands_interval).as_micros();
+
+        let mut end_cw = 0.0;
+        let mut end_ccw = 0.0;
+
+        let mut ccw = false;
+
+        let vel_threshold = 0.05; // rad/s
+        let dist_threshold = self.state_observer.get_b0() * 0.5;
+
+        // let vel = 0.5;
+
+        // self.set_motion_control(MotionControlType::Velocity);
+        // self.set_target_velocity(vel);
+
+        self.set_motion_control(MotionControlType::Angle);
+        let mut target = self.get_mechanical_angle();
+        self.set_target_position(target);
+
+        let prev_speed_factor = self.state_observer.get_speed_factor();
+        self.state_observer.set_speed_factor(5.0);
+
+        // ADRC only works in angle mode, so increment the target position by a small amount each step to move the motor
+        let pos_freq = 10;
+        let pos_interval = embassy_time::Duration::from_micros(1_000_000 / pos_freq);
+        let mut pos_next_update = (Instant::now() + pos_interval).as_micros();
+
+        let vel = 3.0; // rad/s
+        let pos_increment = vel / pos_freq as f32;
+        debug!("pos_increment: {}", pos_increment);
+
+        let angle_buffer = 0.0175; // rad, buffer to avoid hitting the endstop too hard, ~1.0 deg
+
+        loop {
+            embassy_futures::yield_now().await;
+
+            let t_us = Instant::now().as_micros();
+
+            // let t_us = t_us + 400_000_000;
+
+            if t_us >= commands_next_update {
+                self.run_commands();
+                commands_next_update = (Instant::now() + commands_interval).as_micros();
+            }
+
+            if self.enabled && t_us >= pos_next_update {
+                target += pos_increment;
+                self.set_target_position(target);
+                pos_next_update = (Instant::now() + pos_interval).as_micros();
+            }
+
+            self.loop_foc(t_us).await;
+            self.update_foc(t_us).await;
+
+            let vel = self.state_observer.get_state_velocity();
+            let dist = self.state_observer.get_state_disturbance();
+
+            if vel.abs() < vel_threshold && dist.abs() > dist_threshold {
+                if ccw {
+                    // break (end_cw, self.get_mechanical_angle());
+                    end_ccw = self.get_mechanical_angle();
+                    break;
+                } else {
+                    debug!("Endstop found: {}", self.get_mechanical_angle());
+                    end_cw = self.get_mechanical_angle();
+
+                    self.set_target_velocity(-vel);
+                    // ccw = true;
+
+                    break;
+                }
+            }
+        }
+
+        self.state_observer.set_speed_factor(prev_speed_factor);
+
+        let end_cw2 = end_cw * (1. + (angle_buffer / _2PI));
+        let end_ccw2 = end_ccw * (1. - (angle_buffer / _2PI));
+
+        debug!("Angle limits found:  CW: {}, CCW: {}", end_cw, end_ccw);
+        debug!("Angle limits buffer: CW: {}, CCW: {}", end_cw2, end_ccw2);
+
+        (end_cw, end_ccw)
+    }
+
+    #[cfg(feature = "nope")]
     pub async fn find_angle_limits(&mut self) -> (f32, f32) {
         // start turning slowly in one direction until the encoder stops moving, then record the angle
 

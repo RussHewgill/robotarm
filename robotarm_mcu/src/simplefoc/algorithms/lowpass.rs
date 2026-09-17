@@ -1,5 +1,6 @@
 use embassy_time::Instant;
 
+#[derive(Clone, Copy, PartialEq)]
 pub struct LowPassFilter {
     /// Time constant
     pub tf: f32,

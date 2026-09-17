@@ -103,10 +103,21 @@ impl Adrc {
         // 1. Smooth reference trajectory and its derivative.
         let (v1, v2) = self.td.update(setpoint, dt);
 
+        // TODO: limits?
+
         // 2. Update the state/disturbance estimate using the control that
         //    was actually applied last step.
         let state = self.eso.update(measurement, self.last_u, dt);
         // let state = self.eso.update(measurement, setpoint, dt);
+
+        // let stall_disturbance_threshold = self.b0 * 0.9;
+        // let stall_velocity_threshold = 0.05;
+        // if state[2] > stall_disturbance_threshold && state[1].abs() < stall_velocity_threshold {
+        //     debug!(
+        //         "Stall detected: disturbance = {}, velocity = {}",
+        //         state[3], state[1]
+        //     );
+        // }
 
         // 3. Track the smooth reference with the estimated state, not the
         //    raw (possibly noisy) measurement.

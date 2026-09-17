@@ -214,7 +214,7 @@ impl App {
                         motor_voltage,
                         sensor_currents,
                         feed_forward,
-                        pid_outputs,
+                        // pid_outputs,
                         // pid_internals_vel,
                     } => {
                         // debug!("Got motor data {:#?}", msg);
@@ -313,8 +313,8 @@ impl App {
                                     }
                                 }
 
-                                self.status[id as usize].vel_pid_output = pid_outputs.0;
-                                self.status[id as usize].pos_pid_output = pid_outputs.1;
+                                // self.status[id as usize].vel_pid_output = pid_outputs.0;
+                                // self.status[id as usize].pos_pid_output = pid_outputs.1;
 
                                 // {
                                 //     let mult =

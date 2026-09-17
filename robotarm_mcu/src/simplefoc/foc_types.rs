@@ -116,18 +116,18 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     // pub(super) pid_current_q: PIDController,
     // pub(super) pid_current_d: PIDController,
 
-    // not used except with current sensor
-    // pub(super) lpf_current_q: LowPassFilter,
-    // pub(super) lpf_current_d: LowPassFilter,
+    // // not used except with current sensor
+    // // pub(super) lpf_current_q: LowPassFilter,
+    // // pub(super) lpf_current_d: LowPassFilter,
     pub pid_velocity: PIDController<f32>,
-    pub pid_angle: PIDController<f32>,
+    // pub pid_angle: PIDController<f32>,
 
     // pub state_observer: crate::simplefoc::luenberger::LuenbergerObserver<f32, 3, 1, 1>,
     pub state_observer: crate::simplefoc::algorithms::adrc::motor_adrc::MotorADRC,
 
-    pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
-    // pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning_vel::VelocityAutoTuner>,
-    pub(super) pid_angle_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
+    // pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
+    // // pub(super) pid_velocity_tuner: Option<crate::simplefoc::pid_tuning_vel::VelocityAutoTuner>,
+    // pub(super) pid_angle_tuner: Option<crate::simplefoc::pid_tuning::PidTuner>,
 
     // pub(super) lpf_velocity: LowPassFilter,
     pub(super) lpf_velocity: LowPassFilter,
@@ -347,19 +347,17 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             modulation: FOCModulation::SpaceVectorPWM,
             pid_velocity,
 
-            pid_angle: PIDController::new(
-                PID_ANGLE_KP,
-                PID_ANGLE_KI,
-                PID_ANGLE_KD,
-                0.0,
-                PID_ANGLE_LIMIT,
-            ),
-
+            // pid_angle: PIDController::new(
+            //     PID_ANGLE_KP,
+            //     PID_ANGLE_KI,
+            //     PID_ANGLE_KD,
+            //     0.0,
+            //     PID_ANGLE_LIMIT,
+            // ),
             state_observer,
 
-            pid_angle_tuner: None,
-            pid_velocity_tuner: None,
-
+            // pid_angle_tuner: None,
+            // pid_velocity_tuner: None,
             lpf_velocity: LowPassFilter::new(VEL_LPF_TF),
             lpf_angle: LowPassFilter::new(ANGLE_LPF_TF),
 
@@ -434,4 +432,66 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             self.angle_sensor_sample_rate_hz = Some((rate, t_us + (1_000_000 / rate as u64)));
         }
     }
+
+    // used to temporarily save and later restore state when it needs to be changed for calibration
+    pub fn save_config(&self) -> SavedFOCState {
+        super::foc_types::SavedFOCState {
+            id: self.id,
+            prev_t_us: self.prev_t_us,
+
+            debug: self.debug,
+            debug_us_interval: self.debug_us_interval,
+            motion_downsample: self.motion_downsample,
+            angle_sensor_sample_rate_hz: self.angle_sensor_sample_rate_hz,
+            current_sensor_downsample: self.current_sensor_downsample,
+            enabled: self.enabled,
+            motor: self.motor,
+            sensor_direction: self.sensor_direction,
+            zero_electric_angle: self.zero_electric_angle,
+            output_sensor_direction: self.output_sensor_direction,
+            output_sensor_offset: self.output_sensor_offset,
+            motion_control: self.motion_control,
+            torque_controller: self.torque_controller,
+            state_observer: self.state_observer,
+        }
+    }
+
+    pub fn restore_config(&mut self, saved: SavedFOCState) {
+        self.id = saved.id;
+        self.prev_t_us = saved.prev_t_us;
+
+        self.debug = saved.debug;
+        self.debug_us_interval = saved.debug_us_interval;
+        self.motion_downsample = saved.motion_downsample;
+        self.angle_sensor_sample_rate_hz = saved.angle_sensor_sample_rate_hz;
+        self.current_sensor_downsample = saved.current_sensor_downsample;
+        self.enabled = saved.enabled;
+        self.motor = saved.motor;
+        self.sensor_direction = saved.sensor_direction;
+        self.zero_electric_angle = saved.zero_electric_angle;
+        self.output_sensor_direction = saved.output_sensor_direction;
+        self.output_sensor_offset = saved.output_sensor_offset;
+        self.motion_control = saved.motion_control;
+        self.torque_controller = saved.torque_controller;
+        self.state_observer = saved.state_observer;
+    }
+}
+
+pub struct SavedFOCState {
+    pub id: u8,
+    pub prev_t_us: u64,
+    pub debug: bool,
+    pub debug_us_interval: u64,
+    pub motion_downsample: u32,
+    pub angle_sensor_sample_rate_hz: Option<(u32, u64)>,
+    pub current_sensor_downsample: u32,
+    pub enabled: bool,
+    pub motor: BLDCMotor,
+    pub sensor_direction: SensorDirection,
+    pub zero_electric_angle: f32,
+    pub output_sensor_direction: SensorDirection,
+    pub output_sensor_offset: f32,
+    pub motion_control: MotionControlType,
+    pub torque_controller: TorqueControlType,
+    pub state_observer: crate::simplefoc::algorithms::adrc::motor_adrc::MotorADRC,
 }

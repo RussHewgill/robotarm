@@ -216,35 +216,35 @@ mod pid_settings {
         }
     }
 
-    pub(super) fn set_pos_limit(id: u8, limit: f32) -> SerialCommand {
-        SerialCommand::SetAnglePID {
-            id,
-            pid_settings: robotarm_protocol::types::PIDSettings {
-                limit: Some(limit),
-                ..Default::default()
-            },
-        }
-    }
+    // pub(super) fn set_pos_limit(id: u8, limit: f32) -> SerialCommand {
+    //     SerialCommand::SetAnglePID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             limit: Some(limit),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 
-    pub(super) fn set_pos_i_band(id: u8, i_band: f64) -> SerialCommand {
-        SerialCommand::SetAnglePID {
-            id,
-            pid_settings: robotarm_protocol::types::PIDSettings {
-                i_band: Some(i_band as f32),
-                ..Default::default()
-            },
-        }
-    }
+    // pub(super) fn set_pos_i_band(id: u8, i_band: f64) -> SerialCommand {
+    //     SerialCommand::SetAnglePID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             i_band: Some(i_band as f32),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 
-    pub(super) fn set_pos_d_lpf(id: u8, d_lpf: f64) -> SerialCommand {
-        SerialCommand::SetAnglePID {
-            id,
-            pid_settings: robotarm_protocol::types::PIDSettings {
-                d_lpf: Some(d_lpf as f32),
-                ..Default::default()
-            },
-        }
-    }
+    // pub(super) fn set_pos_d_lpf(id: u8, d_lpf: f64) -> SerialCommand {
+    //     SerialCommand::SetAnglePID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             d_lpf: Some(d_lpf as f32),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 
     // pub(super) fn set_pos_feed_forward(id: u8, ff: f64) -> SerialCommand {
     //     SerialCommand::SetAnglePID {
@@ -514,6 +514,10 @@ impl App {
             if ui.button("Disable Motor").clicked() {
                 self.status[id as usize].enabled = false;
                 let cmd = SerialCommand::SetEnabled { id, enabled: false };
+                self.send_command(cmd);
+            }
+            if ui.button("Reset Motor").clicked() {
+                let cmd = SerialCommand::ResetADRC { id };
                 self.send_command(cmd);
             }
             ui.end_row();

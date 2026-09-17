@@ -469,7 +469,7 @@ impl App {
                 ui.add(
                     egui::Slider::new(
                         &mut self.plots[self.current_plot].adrc_x3_scale,
-                        log_min / 10000.0..=log_max,
+                        log_min / 1_000_000.0..=log_max / 1_000_000.0,
                     )
                     .logarithmic(true)
                     .max_decimals(log_decimals + 4),
@@ -1082,6 +1082,166 @@ impl DataPlot {
     }
 }
 
+impl DataPlot {
+    pub fn show_plot(&mut self, ui: &mut egui::Ui) {
+        let available = ui.available_size();
+        let half_height = (available.y * 0.5).max(120.0);
+
+        // let mut plot = egui_plot::Plot::new("Motor Data Top")
+        //     .legend(egui_plot::Legend::default())
+        //     .data_aspect(1.0)
+        //     .allow_drag(false)
+        //     .allow_scroll(false)
+        //     .allow_zoom(false)
+        //     .show_axes([true, true])
+        //     .show_x(true)
+        //     .show_y(true)
+        //     .include_x(self.prev_time - self.window_time)
+        //     .include_x(self.prev_time);
+
+        ui.allocate_ui(egui::vec2(available.x, half_height), |ui| {
+            let x_min = self.prev_time - self.window_time;
+            let x_max = self.prev_time;
+
+            let mut plot = egui_plot::Plot::new("data_plot")
+                .legend(egui_plot::Legend::default())
+                .height(ui.available_height())
+                .allow_scroll(false)
+                .include_x(x_min)
+                .include_x(x_max)
+                .include_y(0.0)
+                .include_y(2.0 * PI);
+
+            plot.show(ui, |plot_ui| {
+                if self.draw_angle {
+                    let pts: Vec<[f64; 2]> = self
+                        .angle
+                        .iter()
+                        .filter(|(t, _)| *t >= x_min)
+                        .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                        .collect();
+                    plot_ui.line(
+                        egui_plot::Line::new("Angle", pts)
+                            .name("Angle")
+                            // .color()
+                            .width(self.stroke_width as f32),
+                    );
+                }
+
+                // if self.draw_pos {
+                //     let pts: Vec<[f64; 2]> = self
+                //         .pos
+                //         .iter()
+                //         .filter(|(t, _)| *t >= x_min)
+                //         .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                //         .collect();
+                //     plot_ui.line(
+                //         Line::new(pts)
+                //             .name("Position")
+                //             .color(COLOR_TEAL)
+                //             .width(plot_width),
+                //     );
+                // }
+
+                // if self.draw_vel {
+                //     let pts: Vec<[f64; 2]> = self
+                //         .vel
+                //         .iter()
+                //         .filter(|(t, _)| *t >= x_min)
+                //         .map(|(t, vel)| [*t, *vel * self.scale_vel])
+                //         .collect();
+                //     plot_ui.line(
+                //         Line::new(pts)
+                //             .name("Velocity")
+                //             .color(COLOR_BLUE)
+                //             .width(plot_width),
+                //     );
+                // }
+
+                // if self.draw_target_pos {
+                //     let pts: Vec<[f64; 2]> = self
+                //         .target_pos
+                //         .iter()
+                //         .filter(|(t, _)| *t >= x_min)
+                //         .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                //         .collect();
+                //     plot_ui.line(
+                //         Line::new(pts)
+                //             .name("Target Pos")
+                //             .color(COLOR_RED)
+                //             .width(plot_width),
+                //     );
+                // }
+
+                // if self.draw_target_vel {
+                //     let pts: Vec<[f64; 2]> = self
+                //         .target_vel
+                //         .iter()
+                //         .filter(|(t, _)| *t >= x_min)
+                //         .map(|(t, target)| [*t, *target * self.scale_vel])
+                //         .collect();
+                //     plot_ui.line(
+                //         Line::new(pts)
+                //             .name("Target Vel")
+                //             .color(COLOR_MAGENTA)
+                //             .width(plot_width),
+                //     );
+                // }
+
+                // if self.draw_voltage {
+                //     let pts: Vec<[f64; 2]> = self
+                //         .voltage
+                //         .iter()
+                //         .filter(|(t, _)| *t >= x_min)
+                //         .map(|(t, v)| [*t, *v * self.scale_vel])
+                //         .collect();
+                //     plot_ui.line(
+                //         Line::new(pts)
+                //             .name("Raw Vel")
+                //             .color(COLOR_ORANGE)
+                //             .width(plot_width),
+                //     );
+                // }
+
+                // if self.draw_current {
+                //     let current_scale = 10.0;
+
+                //     let pts_d: Vec<[f64; 2]> = self
+                //         .current_d
+                //         .iter()
+                //         .filter(|(t, _)| *t >= x_min)
+                //         .map(|(t, c)| [*t, *c * current_scale])
+                //         .collect();
+                //     plot_ui.line(
+                //         Line::new(pts_d)
+                //             .name("Current Id")
+                //             .color(COLOR_CYAN)
+                //             .width(plot_width),
+                //     );
+
+                //     let pts_q: Vec<[f64; 2]> = self
+                //         .current_q
+                //         .iter()
+                //         .filter(|(t, _)| *t >= x_min)
+                //         .map(|(t, c)| [*t, *c * current_scale])
+                //         .collect();
+                //     plot_ui.line(
+                //         Line::new(pts_q)
+                //             .name("Current Iq")
+                //             .color(COLOR_YELLOW)
+                //             .width(plot_width),
+                //     );
+                // }
+            });
+
+            //
+        });
+
+        // unimplemented!()
+    }
+}
+
+#[cfg(feature = "nope")]
 impl DataPlot {
     pub fn show_plot(&mut self, ui: &mut egui::Ui) {
         // self.clear_old_points(self.prev_time);

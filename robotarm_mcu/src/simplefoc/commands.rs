@@ -246,6 +246,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     self.pid_velocity.set_feed_forward(feed_forward);
                 }
             }
+            #[cfg(feature = "nope")]
             SerialCommand::SetAnglePID { id, pid_settings } => {
                 if let Some(p) = pid_settings.p {
                     self.pid_angle.set_p(p);
@@ -281,6 +282,23 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
             SerialCommand::SetZeroElectricalAngle { id, angle } => {
                 self.zero_electric_angle = angle;
+            }
+            SerialCommand::SetMotorConfig {
+                id,
+                pole_pairs,
+                phase_resistance,
+                motor_kv,
+            } => {
+                unimplemented!("SetMotorConfig command is not implemented yet");
+            }
+            SerialCommand::SetThermalConfig { id } => {
+                unimplemented!("SetThermalConfig command is not implemented yet");
+            }
+            SerialCommand::ToggleDebugLogging { id } => {
+                unimplemented!("ToggleDebugLogging command is not implemented yet");
+            }
+            SerialCommand::ResetADRC { id } => {
+                self.state_observer.reset();
             }
         }
 

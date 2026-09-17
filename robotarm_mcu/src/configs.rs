@@ -43,7 +43,7 @@ mod motor_configs {
     );
 
     // GM5208-24
-    /// ADRC: speed 60, wo: 1000, wc: 200
+    /// ADRC unloaded: speed 60, wo: 1000, wc: 200
     pub const MOTOR_CONFIG_GM5208_24: BLDCMotor = BLDCMotor::new(
         11,        // pole pairs
         Some(10.), // phase resistance
@@ -53,7 +53,7 @@ mod motor_configs {
         None,
     );
 
-    /// ADRC: speed 200-300, wo: 1500, wc: 300
+    /// ADRC unloaded: speed 200-300, wo: 1500, wc: 300
     pub const MOTOR_CONFIG_GL60: BLDCMotor = BLDCMotor::new(
         14, // pole pairs
         // Some(5.5), // phase resistance, datasheet

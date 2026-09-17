@@ -24,7 +24,7 @@ pub enum SerialLogMessage {
         sensor_currents: Option<(f32, f32)>,
         motor_voltage: (f32, f32),
         feed_forward: f32,
-        pid_outputs: (f32, f32),
+        // pid_outputs: (f32, f32),
         // pid_internals_vel: (f32, f32, f32, f32),
         // pid_internals_pos: (f32, f32, f32, f32),
     },
@@ -159,10 +159,10 @@ pub enum SerialCommand {
         id: u8,
         pid_settings: PIDSettings,
     },
-    SetAnglePID {
-        id: u8,
-        pid_settings: PIDSettings,
-    },
+    // SetAnglePID {
+    //     id: u8,
+    //     pid_settings: PIDSettings,
+    // },
     SetADRCParam {
         id: u8,
         adrc_settings: ADRCSettings,
@@ -191,6 +191,22 @@ pub enum SerialCommand {
         id: u8,
         angle: f32,
     },
+    SetMotorConfig {
+        id: u8,
+        pole_pairs: u8,
+        phase_resistance: f32,
+        motor_kv: f32,
+    },
+    ToggleDebugLogging {
+        id: u8,
+    },
+    SetThermalConfig {
+        id: u8,
+        // TODO
+    },
+    ResetADRC {
+        id: u8,
+    },
 }
 
 impl SerialCommand {
@@ -207,7 +223,7 @@ impl SerialCommand {
             SerialCommand::SetModeAngle { id } => *id,
             SerialCommand::SetModeAngleOpenLoop { id } => *id,
             SerialCommand::SetVelocityPID { id, .. } => *id,
-            SerialCommand::SetAnglePID { id, .. } => *id,
+            // SerialCommand::SetAnglePID { id, .. } => *id,
             SerialCommand::SetLPF { id, .. } => *id,
             SerialCommand::SetFeedForward { id, .. } => *id,
             SerialCommand::SetMotorTarget { id, .. } => *id,
@@ -215,6 +231,10 @@ impl SerialCommand {
             SerialCommand::SetVoltageLimit { id, .. } => *id,
             SerialCommand::SetZeroElectricalAngle { id, .. } => *id,
             SerialCommand::SetADRCParam { id, .. } => *id,
+            SerialCommand::SetMotorConfig { id, .. } => *id,
+            SerialCommand::ToggleDebugLogging { id } => *id,
+            SerialCommand::SetThermalConfig { id } => *id,
+            SerialCommand::ResetADRC { id } => *id,
         }
     }
 }
