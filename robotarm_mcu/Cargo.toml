@@ -15,7 +15,8 @@ debug = true
 
 [features]
 # default = ["picoA"]
-default = ["debug_logging", "testing"]
+# default = ["debug_logging", "testing"]
+default = ["debug_logging", "testing", "current_sensing"]
 testing = []
 picoA = []
 picoB = []
@@ -29,18 +30,26 @@ debug_logging = []
 robotarm_protocol = { path = "../robotarm_protocol", features = ["defmt"] }
 
 embassy-executor = { version = "0.10.0", features = [
-  "platform-cortex-m",
-  "executor-thread",
-  "defmt",
+    "platform-cortex-m",
+    "executor-thread",
+    # "executor-interrupt",
+    "defmt",
+    "nightly",
 ] }
 panic-probe = { version = "1.0", features = ["print-defmt"] }
 embassy-time = { version = "0.5.0" }
 embassy-rp = { version = "0.10.0", features = [
-  "defmt",
-  "time-driver",
-  "critical-section-impl",
-  "rp235xa",
-  "binary-info",
+    "defmt",
+    "time-driver",
+    "critical-section-impl",
+    "rp235xa",
+    "binary-info",
+    "unstable-pac", # possibly breaking
+    "intrinsics",
+    # "rom-func-cache",
+    # "rom-v2-intrinsics",
+    # "executor-thread", 
+    # "executor-interrupt",
 ] }
 # embassy-usb = { version = "0.5.1", features = ["defmt"] }
 embassy-usb = { version = "0.6.0", features = [] }
@@ -70,17 +79,17 @@ log = "0.4"
 postcard = { version = "1.1.3", default-features = false }
 serde = { version = "1.0.228", default-features = false }
 
-ryu = "1.0.23"
+# ryu = "1.0.23"
 heapless = { version = "0.9.2", default-features = false, features = [] }
 
-discrete_pid = { version = "0.3.0", default-features = false }
+# discrete_pid = { version = "0.3.0", default-features = false }
 # pidgeon = { version = "0.3.1", default-features = false }
 # standard-pid = { version = "0.1.0" }
 
 # max485-async = "0.2.0"
 # embedded-io-async = "0.7"
 # embedded-io-async = "0.6.1"
-micromath = { version = "2.1.0", features = ["vector", "quaternion"] }
+# micromath = { version = "2.1.0", features = ["vector", "quaternion"] }
 
 bitflags = "2.4"
 byteorder = { version = "1", default-features = false }

@@ -24,9 +24,9 @@ pub trait EncoderSensor {
         unimplemented!()
     }
 
-    fn debug_force_set_angle_velocity(&mut self, angle: f32, velocity: f32) {
-        unimplemented!()
-    }
+    // fn debug_force_set_angle_velocity(&mut self, angle: f32, velocity: f32) {
+    //     unimplemented!()
+    // }
 
     fn set_calibration_lut(&mut self, calibration: [f32; N_LUT]) {}
     fn enable_calibration(&mut self, enable: bool) {}

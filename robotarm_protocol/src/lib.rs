@@ -22,6 +22,7 @@ pub enum SerialLogMessage {
         target_velocity: f32,
         motor_current: f32,
         sensor_currents: Option<(f32, f32)>,
+        // raw_currents: Option<(f32, f32)>,
         motor_voltage: (f32, f32),
         feed_forward: f32,
         // pid_outputs: (f32, f32),

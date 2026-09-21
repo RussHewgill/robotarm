@@ -31,6 +31,7 @@ pub struct ACS712 {
 
     prev_phase_currents: Option<crate::simplefoc::types::PhaseCurrents>,
     prev_foc_currents: Option<crate::simplefoc::types::DQCurrents>,
+    prev_raw: (f32, f32),
 
     lowpass0: crate::simplefoc::lowpass::LowPassFixed,
     lowpass1: crate::simplefoc::lowpass::LowPassFixed,
@@ -76,6 +77,7 @@ impl ACS712 {
 
             prev_phase_currents: None,
             prev_foc_currents: None,
+            prev_raw: (0.0, 0.0),
 
             vref,
             div,
@@ -402,6 +404,10 @@ impl CurrentSensor for ACS712 {
 
     fn set_prev_foc_currents(&mut self, currents: crate::simplefoc::types::DQCurrents) {
         self.prev_foc_currents = Some(currents);
+    }
+
+    fn prev_raw_currents(&self) -> (f32, f32) {
+        self.prev_raw
     }
 
     async fn get_phase_currents(

@@ -3,15 +3,15 @@ use embassy_rp::{
     Peri, PeripheralType,
     adc::{Adc, Channel},
 };
+use embassy_time::Timer;
 
 use crate::hardware::current_sensor::CurrentSensor;
 
 // const BLOCK_SIZE: usize = 64;
-const BLOCK_SIZE: usize = 128;
+// const BLOCK_SIZE: usize = 128;
+const BLOCK_SIZE: usize = 16;
 
-pub struct INA240<CHANNEL: embassy_rp::dma::Channel + 'static> {
-    bus_voltage: f32,
-
+pub struct INA240 {
     buffer: [u16; BLOCK_SIZE],
 
     // pin0: Channel<'static>,
@@ -19,22 +19,27 @@ pub struct INA240<CHANNEL: embassy_rp::dma::Channel + 'static> {
     pins: [Channel<'static>; 2],
 
     adc: Adc<'static, embassy_rp::adc::Async>,
-    dma: Peri<'static, CHANNEL>,
+    // dma: Peri<'static, CHANNEL>,
+    dma: embassy_rp::dma::Channel<'static>,
 
+    prev_raw: (f32, f32),
     prev_phase_currents: Option<crate::simplefoc::types::PhaseCurrents>,
     prev_foc_currents: Option<crate::simplefoc::types::DQCurrents>,
+
+    vref: f32,
+    offset: (f32, f32),
 }
 
-impl<CHANNEL: embassy_rp::dma::Channel + 'static> INA240<CHANNEL> {
+impl INA240 {
     pub fn new(
         pin0: Channel<'static>,
         pin1: Channel<'static>,
         // pin_1: Channel<'static>,
         adc: Adc<'static, embassy_rp::adc::Async>,
-        dma: Peri<'static, CHANNEL>,
+        // dma: Peri<'static, CHANNEL>,
+        dma: embassy_rp::dma::Channel<'static>,
     ) -> Self {
         Self {
-            bus_voltage: 0.0,
             buffer: [0; BLOCK_SIZE],
 
             pins: [pin0, pin1],
@@ -42,11 +47,116 @@ impl<CHANNEL: embassy_rp::dma::Channel + 'static> INA240<CHANNEL> {
             adc,
             dma,
 
+            prev_raw: (0.0, 0.0),
             prev_phase_currents: None,
             prev_foc_currents: None,
+
+            vref: 3.3 / 2.,
+            offset: (0.0, 0.0),
         }
     }
 
+    // doesn't work?
+    #[cfg(feature = "nope")]
+    pub async fn calibrate(&mut self) {
+        const N: usize = 1024;
+
+        let mut averages0 = [0f32; N];
+        let mut averages1 = [0f32; N];
+
+        for i in 0..N {
+            let _ = self.read_voltage().await;
+            let (v0, v1) = self.prev_raw;
+            averages0[i] = v0;
+            averages1[i] = v1;
+
+            Timer::after_millis(1).await;
+        }
+
+        let sum0 = averages0.iter().sum::<f32>();
+        let sum1 = averages1.iter().sum::<f32>();
+
+        let avg0 = sum0 / (N as f32);
+        let avg1 = sum1 / (N as f32);
+
+        debug!("avg0: {}", avg0);
+        debug!("avg1: {}", avg1);
+
+        let (c0, c1) = self.read_voltage().await;
+        debug!("Current 0: {} A", c0);
+        debug!("Current 1: {} A", c1);
+
+        self.offset = (avg0, avg1);
+
+        let (c0, c1) = self.read_voltage().await;
+        debug!("Current 0: {} A", c0);
+        debug!("Current 1: {} A", c1);
+    }
+
+    pub async fn calibrate(&mut self) {}
+
+    pub async fn read_voltage(&mut self) -> (f32, f32) {
+        // let div = 479; // 100kHz sample rate (48Mhz / 100kHz - 1)
+        // let div = 95; // 500kHz sample rate (48Mhz / 500kHz - 1)
+
+        // self.adc
+        //     .read_many(&mut self.pins[0], &mut self.buffer, div, &mut self.dma)
+        //     .await
+        //     .unwrap();
+
+        let sample0 = match self.adc.blocking_read(&mut self.pins[0]) {
+            Ok(sample) => sample as f32,
+            Err(e) => {
+                // error!("ADC read error: {:?}", e);
+                0.0
+            }
+        };
+
+        let sample1 = match self.adc.blocking_read(&mut self.pins[1]) {
+            Ok(sample) => sample as f32,
+            Err(e) => {
+                // error!("ADC read error: {:?}", e);
+                0.0
+            }
+        };
+
+        // let sample0 = 0.0;
+        // let sample1 = 0.0;
+
+        let current0 = self.raw_to_amps(sample0, self.offset.0);
+        let current1 = self.raw_to_amps(sample1, self.offset.1);
+
+        self.prev_raw = (sample0, sample1);
+        // self.prev_raw = (current0, current1);
+
+        // (sample0, sample1)
+        // self.prev_raw
+        (current0, current1)
+        // (-0.5, 0.5)
+    }
+
+    fn raw_to_amps(&self, raw: f32, offset: f32) -> f32 {
+        let adc_max = 4095.0;
+
+        // let offset = -56.;
+
+        let gain = 100.0;
+        let shunt = 0.1;
+
+        let voltage0 = (raw - offset) * (self.vref / adc_max);
+        let current = -(voltage0 - self.vref / 2.) / (gain * shunt);
+
+        current
+    }
+
+    // fn raw_to_amps(raw: f32) -> f32 {
+    //     let voltage = (raw / ADC_MAX) * V_REF;
+    //     let voltage_centered = voltage - (V_REF / 2.0); // Remove 1.65V offset
+    //     // I = V_shunt / R_shunt -> V_shunt = V_out / Gain
+    //     (voltage_centered / INA240_GAIN) / SHUNT_RESISTOR
+    // }
+
+    #[cfg(feature = "nope")]
     pub async fn read_voltage(&mut self) -> (f32, f32) {
         let div = 479; // 100kHz sample rate (48Mhz / 100kHz - 1)
         // let div = 95; // 500kHz sample rate (48Mhz / 500kHz - 1)
@@ -108,7 +218,7 @@ impl<CHANNEL: embassy_rp::dma::Channel + 'static> INA240<CHANNEL> {
     }
 }
 
-impl<CHANNEL: embassy_rp::dma::Channel + 'static> CurrentSensor for INA240<CHANNEL> {
+impl CurrentSensor for INA240 {
     type Error = ();
 
     async fn driver_align(
@@ -120,6 +230,7 @@ impl<CHANNEL: embassy_rp::dma::Channel + 'static> CurrentSensor for INA240<CHANN
     }
 
     async fn init(&mut self) -> Result<(), Self::Error> {
+        self.calibrate().await;
         Ok(())
     }
 
@@ -135,13 +246,18 @@ impl<CHANNEL: embassy_rp::dma::Channel + 'static> CurrentSensor for INA240<CHANN
         self.prev_foc_currents = Some(currents);
     }
 
+    fn prev_raw_currents(&self) -> (f32, f32) {
+        self.prev_raw
+    }
+
     async fn get_phase_currents(
         &mut self,
     ) -> Result<crate::simplefoc::types::PhaseCurrents, Self::Error> {
         // debug!("Reading currents from INA240");
         let (a, b) = self.read_voltage().await;
 
-        let currents = crate::simplefoc::types::PhaseCurrents::Two { a, b };
+        // let currents = crate::simplefoc::types::PhaseCurrents::Two { a, b };
+        let currents = crate::simplefoc::types::PhaseCurrents { a, b };
 
         self.prev_phase_currents = Some(currents);
 

@@ -11,7 +11,7 @@ use crate::{
     hardware::{
         current_sensor::CurrentSensor,
         encoder_sensor::EncoderSensor,
-        ina226::INA226,
+        // ina226::INA226,
         // ina240::INA240,
     },
 };
@@ -54,6 +54,7 @@ pub async fn core0_task1(
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         // >,
         // INA240<embassy_rp::peripherals::DMA_CH0>,
+        crate::hardware::ina240::INA240,
         // crate::hardware::acs712::ACS712,
     >,
     mut output_encoder: Option<

@@ -69,69 +69,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             self.get_electrical_angle()
         };
 
-        // state observer mech_angle should be the same as shaft angle (does not wrap)
-
-        // self.update_luenberger_observer(t_us, self.motor.target_current)
-        // self.update_luenberger_observer(t_us, self.motor.current.q)
-        //     .await;
-        // self.update_luenberger_observer(t_us, 0.).await;
-
-        // self.update_adrc(t_us, self.motor.current.q).await;
-        // self.update_adrc(t_us, 0.0).await;
-
+        // if self.enabled {
+        // }
         self.update_adrc(t_us, self.motor.current.q).await;
 
-        // // let _ = self.encoder.update(t_us).await;
-        // let e2 = self.get_electrical_angle();
-        // if (e2 - e1).abs() > 0.1 {
-        //     debug!(
-        //         "Electrical angle from observer: {}, from encoder: {}",
-        //         e1, e2
-        //     );
-        // }
-        // if e1.is_nan() || e2.is_nan() {
-        //     self.disable();
-        //     panic!()
-        // }
-
-        // let _ = self.encoder.update(t_us).await;
-        let e2 = self.get_electrical_angle();
-
-        let electrical_angle = e2;
-
-        // let a1 = self.state_observer.get_angle_vel().0;
-        // let a1 = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * a1
-        //     - self.zero_electric_angle;
-        // let a1 = Self::normalize_angle(a1);
-
-        // let a2 = self.encoder.get_mechanical_angle();
-        // let a2 = self.sensor_direction.multiplier() * self.motor.pole_pairs as f32 * a2
-        //     - self.zero_electric_angle;
-        // let a2 = Self::normalize_angle(a2);
-
-        // if (a2 - a1).abs() > 0.1 {
-        //     debug!(
-        //         "Mechanical angle from observer: {}, from encoder: {}",
-        //         a1, a2
-        //     );
-        // }
-
-        // let e1 = (e1 * 100.) as i32;
-        // let e2 = (e2 * 100.) as i32;
-        // debug!(
-        //     "Electrical angle from observer: {:04}, from encoder: {:04}",
-        //     e1, e2
-        // );
-
-        // self.set_phase_voltage(0., 0., 0.);
-        // return;
-
-        // let _ = self.encoder.update(t_us).await;
-        // let electrical_angle = self.get_electrical_angle();
-
-        // if let Some(tx) = &mut self.current_sensor_elec_angle_tx {
-        //     let _ = tx.try_send(electrical_angle);
-        // }
+        let electrical_angle = self.get_electrical_angle();
 
         #[cfg(feature = "current_sensing")]
         if let Some(current_sensor) = &mut self.current_sensor {
@@ -568,8 +510,12 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 target_velocity: self.motor.target_shaft_velocity,
                 motor_current: self.motor.current.q,
                 sensor_currents,
-                motor_voltage: (v, 0.),
-                // motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
+                // raw_currents: self
+                //     .current_sensor
+                //     .as_ref()
+                //     .map(|cs| cs.prev_raw_currents()),
+                // motor_voltage: (v, 0.),
+                motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
                 feed_forward: self.feed_forward_torque,
                 // pid_outputs: (
                 //     self.pid_velocity.prev_output(),

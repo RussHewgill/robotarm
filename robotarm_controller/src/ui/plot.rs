@@ -1134,8 +1134,15 @@ impl DataPlot {
                         index,
                     } => {
                         //
-                        None
-                        // Some(format!("{}: {:.3}", plot_name, position.y))
+                        // None
+                        let mult = match *plot_name {
+                            "Angle" | "Pos" | "Target Pos" => self.angle_scale,
+                            "Vel" | "Target Vel" | "Raw Vel" => self.scale_vel,
+                            "Current Id" | "Current Iq" => 10.0,
+                            _ => 1.0,
+                        };
+
+                        Some(format!("{}: {:.3}", plot_name, position.y / mult))
                     }
                     HoverPosition::Elsewhere { position } => {
                         //

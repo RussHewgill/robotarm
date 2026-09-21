@@ -17,14 +17,26 @@ pub trait CurrentSensor {
     fn prev_foc_currents(&self) -> Option<DQCurrents>;
     fn set_prev_foc_currents(&mut self, currents: DQCurrents);
 
+    fn prev_raw_currents(&self) -> (f32, f32);
+
     async fn get_foc_currents(&mut self, electrical_angle: f32) -> Result<DQCurrents, Self::Error> {
         let currents = self.get_phase_currents().await?;
+
+        // let currents = PhaseCurrents { a: 0.0, b: 0.0 };
 
         let ab_currents = self.get_ab_currents(currents).await;
 
         let dq_currents = self.get_dq_currents(ab_currents, electrical_angle).await;
 
+        // let dq_currents = DQCurrents { d: 1.0, q: 0.5 };
+        // let dq_currents = DQCurrents { d: currents.};
+        // let dq_currents = DQCurrents {
+        //     d: ab_currents.alpha,
+        //     q: ab_currents.beta,
+        // };
+
         self.set_prev_foc_currents(dq_currents);
+
         Ok(dq_currents)
     }
 
@@ -54,18 +66,21 @@ pub trait CurrentSensor {
     async fn get_ab_currents(&mut self, current: PhaseCurrents) -> ABCurrents {
         // calculate clarke transform
 
-        let alpha;
-        let beta;
+        // let alpha;
+        // let beta;
 
-        match current {
-            PhaseCurrents::Three { a, b, c } => {
-                unimplemented!()
-            }
-            PhaseCurrents::Two { a, b } => {
-                alpha = a;
-                beta = _1_SQRT3 * a + _2_SQRT3 * b;
-            }
-        }
+        // match current {
+        //     PhaseCurrents::Three { a, b, c } => {
+        //         unimplemented!()
+        //     }
+        //     PhaseCurrents::Two { a, b } => {
+        //         alpha = a;
+        //         beta = _1_SQRT3 * a + _2_SQRT3 * b;
+        //     }
+        // }
+
+        let alpha = current.a;
+        let beta = _1_SQRT3 * current.a + _2_SQRT3 * current.b;
 
         ABCurrents { alpha, beta }
     }
@@ -98,6 +113,9 @@ impl CurrentSensor for () {
         unimplemented!()
     }
     fn set_prev_foc_currents(&mut self, currents: DQCurrents) {
+        unimplemented!()
+    }
+    fn prev_raw_currents(&self) -> (f32, f32) {
         unimplemented!()
     }
     fn prev_phase_currents(&self) -> Option<PhaseCurrents> {

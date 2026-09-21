@@ -342,7 +342,18 @@ impl App {
         egui::Grid::new(format!("Motor Data Grid {id}")).show(ui, |ui| {
             ui.label(RichText::new("Current").monospace());
             ui.label(
-                RichText::new(format!("{:>+0.3} A", self.status[id as usize].current)).monospace(),
+                RichText::new(format!(
+                    "{:>+0.3} A",
+                    self.status[id as usize].sensor_currents.0
+                ))
+                .monospace(),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "{:>+0.3} A",
+                    self.status[id as usize].sensor_currents.1
+                ))
+                .monospace(),
             );
             ui.end_row();
 

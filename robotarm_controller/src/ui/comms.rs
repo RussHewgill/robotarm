@@ -213,6 +213,7 @@ impl App {
                         motor_current,
                         motor_voltage,
                         sensor_currents,
+                        // raw_currents,
                         feed_forward,
                         // pid_outputs,
                         // pid_internals_vel,
@@ -262,6 +263,7 @@ impl App {
                             // self.plots[id as usize]
                             //     .add_point_pid_output_pos(t, pid_outputs.1 as f64);
                             // self.plot.add_point_current(t, motor_current as f64);
+
                             if let Some((current_d, current_q)) = sensor_currents {
                                 self.plots[id as usize].add_point_current(
                                     t,
@@ -269,7 +271,15 @@ impl App {
                                     current_q as f64,
                                 );
                             }
-                            // self.plot.add_point_current(t, );
+
+                            // if let Some((current_d, current_q)) = raw_currents {
+                            //     self.plots[id as usize].add_point_current(
+                            //         t,
+                            //         current_d as f64,
+                            //         current_q as f64,
+                            //     );
+                            // }
+
                             // self.plots[id as usize].add_points_pid_vel_internals(
                             //     t,
                             //     pid_internals_vel.0 as f64,
