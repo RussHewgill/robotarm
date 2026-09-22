@@ -26,7 +26,8 @@ pub async fn core0_task0(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
         crate::hardware::mt_6701_ssi::MT6701<
-            embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
+            // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
+            embassy_rp::peripherals::SPI1,
         >,
         // INA226<
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
@@ -48,13 +49,14 @@ pub async fn core0_task1(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
         crate::hardware::mt_6701_ssi::MT6701<
-            embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
+            // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
+            embassy_rp::peripherals::SPI0,
         >,
         // INA226<
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         // >,
         // INA240<embassy_rp::peripherals::DMA_CH0>,
-        crate::hardware::ina240::INA240,
+        // crate::hardware::ina240::INA240,
         // crate::hardware::acs712::ACS712,
     >,
     mut output_encoder: Option<

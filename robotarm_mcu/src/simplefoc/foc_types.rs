@@ -5,7 +5,6 @@ use robotarm_protocol::types::MotionControlType;
 use crate::{
     comms::usb::UsbLogger,
     hardware::{
-        as5600::AS5600,
         current_sensor::{self, CurrentSensor},
         encoder_sensor::EncoderSensor,
         // mt_6701_adc::MT6701,

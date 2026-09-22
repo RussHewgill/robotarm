@@ -12,10 +12,18 @@ const VEL_DELAY: usize = 5;
 // const VEL_DELAY: usize = 1;
 
 // #[derive(defmt::Format)]
-pub struct MT6701<SPI> {
-    spi: SPI,
-    cs: Output<'static>,
-
+// pub struct MT6701<SPI> {
+pub struct MT6701<T: embassy_rp::spi::Instance + 'static> {
+    // spi: SPI,
+    // cs: Output<'static>,
+    spi: embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig<
+        'static,
+        embassy_sync::blocking_mutex::raw::NoopRawMutex,
+        // embassy_rp::peripherals::SPI0,
+        // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
+        embassy_rp::spi::Spi<'static, T, embassy_rp::spi::Async>,
+        Output<'static>,
+    >,
     buf: [u8; 4],
 
     // min_elapsed_time: f32, // minimum elapsed time between velocity updates in seconds
@@ -50,7 +58,8 @@ pub enum MT6701Error {
     SPIError,
 }
 
-impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
+// impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
+impl<T: embassy_rp::spi::Instance + 'static> EncoderSensor for MT6701<T> {
     type Error = MT6701Error;
 
     async fn update(&mut self, ts_us: u64) -> Result<(), Self::Error> {
@@ -102,12 +111,30 @@ impl<SPI: embedded_hal_async::spi::SpiBus> EncoderSensor for MT6701<SPI> {
     // }
 }
 
-impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
-    pub fn new(mut spi: SPI, cs: Output<'static>) -> Self {
+// impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
+impl<T: embassy_rp::spi::Instance + 'static> MT6701<T> {
+    pub fn new(
+        mut spi: embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig<
+            'static,
+            embassy_sync::blocking_mutex::raw::NoopRawMutex,
+            embassy_rp::spi::Spi<'static, T, embassy_rp::spi::Async>,
+            Output<'static>,
+        >,
+        // spi: SPI,
+        // cs: Output<'static>,
+    ) -> Self {
+        use embassy_embedded_hal::SetConfig;
+
+        let mut config = embassy_rp::spi::Config::default();
+        config.frequency = 4_000_000;
+        config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+        config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+
+        spi.set_config(config);
+
         Self {
             spi,
-            cs,
-
+            // cs,
             buf: [0; 4],
 
             // min_elapsed_time: 0.0001, // 100 microseconds
@@ -263,16 +290,17 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
         self.velocity
     }
 
+    #[cfg(feature = "nope")]
     pub async fn read_raw_angle_debug(&mut self) -> Result<u16, MT6701Error> {
         use bitvec::prelude as bv;
         use bitvec::prelude::*;
 
-        self.cs.set_low();
-        self.spi
-            .read(&mut self.buf[..4])
-            .await
-            .map_err(|_| MT6701Error::SPIError)?;
-        self.cs.set_high();
+        // self.cs.set_low();
+        // self.spi
+        //     .read(&mut self.buf[..4])
+        //     .await
+        //     .map_err(|_| MT6701Error::SPIError)?;
+        // self.cs.set_high();
 
         // Bit 0-13: 14-bit Angle Data D[13:0]
         // Bit 14-17: 4-bit Magnetic Field Status Mg[3:0]
@@ -389,12 +417,19 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
     }
 
     pub async fn read_raw_angle(&mut self) -> Result<u16, MT6701Error> {
-        self.cs.set_low();
+        // self.cs.set_low();
+        // self.spi
+        //     .read(&mut self.buf[..2])
+        //     .await
+        //     .map_err(|_| MT6701Error::SPIError)?;
+        // self.cs.set_high();
+
+        use embedded_hal_async::spi::SpiDevice;
+
         self.spi
-            .read(&mut self.buf[..2])
+            .transaction(&mut [embedded_hal::spi::Operation::Read(&mut self.buf[..2])])
             .await
             .map_err(|_| MT6701Error::SPIError)?;
-        self.cs.set_high();
 
         let xs = [self.buf[0], self.buf[1]];
         let angle = (u16::from_be_bytes(xs) >> 1) & 0x3FFF;
@@ -497,8 +532,7 @@ impl<SPI: embedded_hal_async::spi::SpiBus> MT6701<SPI> {
         self.angle_prev = angle;
         // self.angle_prev_ts = ts_us;
 
-        self.calc_velocity(angle, ts_us);
-        // self.calc_velocity();
+        // self.calc_velocity(angle, ts_us);
 
         Ok(())
     }

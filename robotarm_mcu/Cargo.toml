@@ -15,8 +15,9 @@ debug = true
 
 [features]
 # default = ["picoA"]
-# default = ["debug_logging", "testing"]
-default = ["debug_logging", "testing", "current_sensing"]
+# default = ["testing"]
+default = ["debug_logging", "testing"]
+# default = ["debug_logging", "testing", "current_sensing"]
 testing = []
 picoA = []
 picoB = []
@@ -63,7 +64,6 @@ cortex-m-rt = "0.7.6"
 defmt = "1.1.1"
 defmt-rtt = "1.3.0"
 
-as5600 = { version = "0.8.0", features = ["defmt", "async"] }
 fixed = { version = "1.31.0", default-features = false, features = ["defmt"] }
 
 # as5048a-async = "0.1.0"
@@ -86,7 +86,6 @@ heapless = { version = "0.9.2", default-features = false, features = [] }
 # pidgeon = { version = "0.3.1", default-features = false }
 # standard-pid = { version = "0.1.0" }
 
-# max485-async = "0.2.0"
 # embedded-io-async = "0.7"
 # embedded-io-async = "0.6.1"
 # micromath = { version = "2.1.0", features = ["vector", "quaternion"] }
@@ -104,5 +103,8 @@ approx = { version = "0.5.1", default-features = false, features = [] }
 
 # embedded-test = { version = "0.7.1" }
 
-[patch.crates-io]
-as5600 = { git = "https://github.com/barafael/as5600-rs" }
+# max485-async = "0.2.0"
+# as5600 = { version = "0.8.0", features = ["defmt", "async"] }
+
+# [patch.crates-io]
+# as5600 = { git = "https://github.com/barafael/as5600-rs" }

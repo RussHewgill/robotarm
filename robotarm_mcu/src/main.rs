@@ -20,7 +20,7 @@ use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 use embassy_executor::{Spawner, raw};
-use embassy_rp::{bind_interrupts, pwm::SetDutyCycle};
+use embassy_rp::{bind_interrupts, gpio::Output, pwm::SetDutyCycle};
 use embassy_time::{Instant, Ticker, Timer};
 
 use crate::configs::*;
@@ -1604,17 +1604,17 @@ async fn main(spawner: Spawner) {
     config.polarity = embassy_rp::spi::Polarity::IdleHigh;
     config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
 
-    let mut spi = embassy_rp::pio_programs::spi::Spi::new(
-        &mut common,
-        sm0,
-        sck,
-        mosi,
-        miso,
-        p.DMA_CH0,
-        p.DMA_CH1,
-        Irqs,
-        config,
-    );
+    // let mut spi = embassy_rp::pio_programs::spi::Spi::new(
+    //     &mut common,
+    //     sm0,
+    //     sck,
+    //     mosi,
+    //     miso,
+    //     p.DMA_CH0,
+    //     p.DMA_CH1,
+    //     Irqs,
+    //     config,
+    // );
 
     // let mut spi = crate::hardware::pio_ssi::Ssi::new(
     //     &mut common,
@@ -1628,8 +1628,8 @@ async fn main(spawner: Spawner) {
     //     config,
     // );
 
-    // let mut spi =
-    //     embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, Irqs, config);
+    let mut spi =
+        embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, Irqs, config);
 
     let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
 
@@ -1688,8 +1688,10 @@ async fn main(spawner: Spawner) {
 }
 
 // shared spi test
-// #[cfg(feature = "nope")]
-#[embassy_executor::main]
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
+// #[cortex_m_rt::entry]
+// fn main() -> ! {
 async fn main(spawner: Spawner) {
     // use embassy_rp::pac;
 
@@ -1700,38 +1702,102 @@ async fn main(spawner: Spawner) {
         p.SPI0, p.PIN_18, p.PIN_19, p.PIN_20, p.DMA_CH0, p.DMA_CH1, Irqs, spi_cfg,
     );
 
-    type Spi1Bus = embassy_sync::mutex::Mutex<
-        embassy_sync::blocking_mutex::raw::NoopRawMutex,
-        embassy_rp::spi::Spi<'static, rpp::SPI0, embassy_rp::spi::Async>,
-    >;
-    static SPI_BUS: StaticCell<Spi1Bus> = StaticCell::new();
+    static SPI_BUS: StaticCell<hardware::Spi0Bus> = StaticCell::new();
     let spi_bus = SPI_BUS.init(embassy_sync::mutex::Mutex::new(spi));
 
     let cs_a = embassy_rp::gpio::Output::new(p.PIN_21, embassy_rp::gpio::Level::High);
     let cs_b = embassy_rp::gpio::Output::new(p.PIN_17, embassy_rp::gpio::Level::High);
 
-    let spi_dev0 = embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice::new(spi_bus, cs_a);
-    let spi_dev1 = embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice::new(spi_bus, cs_b);
+    let spi_cfg = embassy_rp::spi::Config::default();
 
-    let _sensor0 = DummySpiDeviceDriver::new(spi_dev0);
-    let _sensor1 = DummySpiDeviceDriver::new(spi_dev1);
+    let mut spi_dev0 = embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
+        spi_bus, cs_a, spi_cfg,
+    );
 
-    //
-}
+    let mut encoder = hardware::mt_6701_ssi::MT6701::new(spi_dev0);
 
-struct DummySpiDeviceDriver<SPI: embedded_hal_async::spi::SpiDevice> {
-    _spi: SPI,
-}
+    loop {
+        let angle = encoder.read_raw_angle().await.unwrap();
 
-impl<SPI: embedded_hal_async::spi::SpiDevice> DummySpiDeviceDriver<SPI> {
-    fn new(spi_dev: SPI) -> Self {
-        Self { _spi: spi_dev }
+        let angle = (angle as f32 / 16384_f32) * simplefoc::types::_2PI;
+
+        debug!("angle: {}", angle);
+
+        Timer::after_millis(250).await;
+    }
+
+    #[cfg(feature = "nope")]
+    {
+        let spi_cfg = embassy_rp::spi::Config::default();
+        let spi = embassy_rp::spi::Spi::new(
+            p.SPI0, p.PIN_18, p.PIN_19, p.PIN_20, p.DMA_CH0, p.DMA_CH1, Irqs, spi_cfg,
+        );
+
+        static SPI_BUS: StaticCell<Spi0Bus> = StaticCell::new();
+        let spi_bus = SPI_BUS.init(embassy_sync::mutex::Mutex::new(spi));
+
+        let cs_a = embassy_rp::gpio::Output::new(p.PIN_21, embassy_rp::gpio::Level::High);
+        let cs_b = embassy_rp::gpio::Output::new(p.PIN_17, embassy_rp::gpio::Level::High);
+
+        // let spi_dev0 = embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice::new(spi_bus, cs_a);
+        // let spi_dev1 = embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice::new(spi_bus, cs_b);
+
+        // let _sensor0 = DummySpiDeviceDriver::new(spi_dev0);
+        // let _sensor1 = DummySpiDeviceDriver::new(spi_dev1);
+
+        let mut spi_dev0 =
+            embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice::new(spi_bus, cs_a);
+        // let sensor0 = crate::hardware::mt6816::Mt6816::new(spi_dev0);
+
+        // let spi_dev1 = embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice::new(spi_bus, cs_b);
+        // let sensor1 = crate::hardware::mt6816::Mt6816::new(spi_dev1);
+
+        use embedded_hal_async::spi::SpiDevice;
+
+        let mut buf = [0u8; 4];
+        loop {
+            spi_dev0
+                .transaction(&mut [
+                    embedded_hal::spi::Operation::Write(&[0x83]),
+                    embedded_hal::spi::Operation::Read(&mut buf),
+                ])
+                .await
+                .unwrap();
+
+            let xs = [buf[0], buf[1]];
+            let angle = (u16::from_be_bytes(xs) >> 1) & 0x3FFF;
+
+            let angle = (angle as f32 / 16384_f32) * simplefoc::types::_2PI;
+
+            debug!("angle: {}", angle);
+
+            Timer::after_millis(200).await;
+        }
+
+        // embassy_rp::multicore::spawn_core1(
+        //     p.CORE1,
+        //     unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
+        //     move || {
+        //         let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
+        //         executor1.run(|spawner| {
+        //             // spawner.spawn(crate::init::core0_task1(foc1, None).unwrap());
+
+        //             //
+        //         });
+        //     },
+        // );
+
+        // let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
+        // executor0.run(|spawner| {
+        //     // spawner.spawn(crate::init::core0_task0(foc0)).unwrap();
+        //     // spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
+        // });
     }
 }
 
 /// MARK: Main
-#[cfg(feature = "nope")]
-// #[cortex_m_rt::entry]
+// #[cfg(feature = "nope")]
+#[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
@@ -1763,7 +1829,68 @@ fn main() -> ! {
     // let supply_voltage = 16.0;
     // let supply_voltage = 20.0;
 
+    #[cfg(feature = "nope")]
+    let spi_bus0 = {
+        let miso = p.PIN_12;
+        let mosi = p.PIN_15;
+
+        let sck = p.PIN_14;
+        // let cs = p.PIN_13;
+
+        let spi = embassy_rp::spi::Spi::new(
+            p.SPI1,
+            sck,
+            mosi,
+            miso,
+            p.DMA_CH2,
+            p.DMA_CH3,
+            Irqs,
+            embassy_rp::spi::Config::default(),
+        );
+
+        static SPI_BUS: StaticCell<hardware::Spi1Bus> = StaticCell::new();
+        let spi_bus = SPI_BUS.init(embassy_sync::mutex::Mutex::new(spi));
+        spi_bus
+    };
+
     // #[cfg(feature = "nope")]
+    let spi_bus1 = {
+        let miso = p.PIN_20;
+        let mosi = p.PIN_19;
+
+        let sck = p.PIN_18;
+        // let cs = p.PIN_21;
+
+        let spi = embassy_rp::spi::Spi::new(
+            p.SPI0,
+            sck,
+            mosi,
+            miso,
+            p.DMA_CH0,
+            p.DMA_CH1,
+            Irqs,
+            embassy_rp::spi::Config::default(),
+        );
+
+        static SPI_BUS: StaticCell<hardware::Spi0Bus> = StaticCell::new();
+        let spi_bus = SPI_BUS.init(embassy_sync::mutex::Mutex::new(spi));
+        spi_bus
+    };
+
+    // #[cfg(feature = "nope")]
+    let encoder1 = {
+        let cs = embassy_rp::gpio::Output::new(p.PIN_21, embassy_rp::gpio::Level::High);
+
+        let spi_cfg = embassy_rp::spi::Config::default();
+
+        let mut spi_dev = embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
+            spi_bus1, cs, spi_cfg,
+        );
+
+        crate::hardware::mt_6701_ssi::MT6701::new(spi_dev)
+    };
+
+    #[cfg(feature = "nope")]
     let encoder0 = {
         let miso = p.PIN_12;
         // let mosi = p.PIN_15;
@@ -1790,8 +1917,8 @@ fn main() -> ! {
 
         encoder
     };
-
-    // #[cfg(feature = "nope")]
+    //
+    #[cfg(feature = "nope")]
     let encoder1 = {
         let cs = p.PIN_21; // Z, yellow, orange
         let miso = p.PIN_20; // SDA, brown, brown
@@ -1880,6 +2007,7 @@ fn main() -> ! {
     };
 
     // INA240
+    #[cfg(feature = "nope")]
     let current_sensor = {
         use embassy_rp::adc::{Adc, Channel, Config, InterruptHandler};
         use embassy_rp::gpio::Pull;
@@ -1998,7 +2126,7 @@ fn main() -> ! {
         crate::comms::rs485::Max485::new(uart, enable)
     };
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
         MOTOR_ID_A,
         encoder0,
@@ -2015,8 +2143,8 @@ fn main() -> ! {
     let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
         MOTOR_ID_B,
         encoder1,
-        // None::<()>,
-        Some(current_sensor),
+        None::<()>,
+        // Some(current_sensor),
         // None,
         // Some(crate::simplefoc::current_read_task::CURRENT_CHANNEL.receiver()),
         // Some(crate::simplefoc::current_read_task::ELEC_ANGLE_CHANNEL.sender()),
@@ -2054,7 +2182,7 @@ fn main() -> ! {
                 // crate::comms::usb_raw::usb_init(&spawner, driver);
 
                 // spawner.spawn(crate::init::core0_task0(foc0, Some(output_encoder0)).unwrap());
-                spawner.spawn(crate::init::core0_task0(foc0, None).unwrap());
+                // spawner.spawn(crate::init::core0_task0(foc0, None).unwrap());
 
                 // spawner.spawn(
                 //     crate::simplefoc::current_read_task::core1_task_current_sens(current_sensor)

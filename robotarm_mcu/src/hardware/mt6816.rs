@@ -26,11 +26,13 @@ pub enum MT6816Error {
 // spi: SPI,
 // spi: SpiBus<SPI>,
 // pub struct Mt6816 {
-pub struct Mt6816 {
-    spi: embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice<
+pub struct Mt6816<T: Instance + 'static> {
+    spi: embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig<
         'static,
         embassy_sync::blocking_mutex::raw::NoopRawMutex,
-        embassy_rp::peripherals::SPI0,
+        // embassy_rp::peripherals::SPI0,
+        // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
+        embassy_rp::spi::Spi<'static, T, embassy_rp::spi::Async>,
         Output<'static>,
     >,
     // cs: Output<'static>,
@@ -139,11 +141,20 @@ impl EncoderSensor for Mt6816 {
     }
 }
 
-#[cfg(feature = "nope")]
-impl Mt6816 {
-    pub fn new(cs: Output<'static>) -> Self {
+// #[cfg(feature = "nope")]
+impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
+    pub fn new(
+        spi: embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig<
+            'static,
+            embassy_sync::blocking_mutex::raw::NoopRawMutex,
+            // embassy_rp::peripherals::SPI0,
+            embassy_rp::spi::Spi<'static, T, embassy_rp::spi::Async>,
+            Output<'static>,
+        >,
+    ) -> Self {
         Self {
-            cs,
+            spi,
+            // cs,
             angles_prev: heapless::Deque::new(),
             angle_prev: 0.0,
             full_rotations: 0,

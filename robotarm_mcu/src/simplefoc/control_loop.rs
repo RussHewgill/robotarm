@@ -4,10 +4,7 @@ use embassy_time::{Instant, Timer};
 use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlType};
 
 use crate::{
-    hardware::{
-        as5600::AS5600, current_sensor::CurrentSensor, encoder_sensor::EncoderSensor,
-        mt_6701::MT6701,
-    },
+    hardware::{current_sensor::CurrentSensor, encoder_sensor::EncoderSensor, mt_6701::MT6701},
     simplefoc::{
         bldc::BLDCMotor,
         foc_types::{FOCModulation, SimpleFOC},
@@ -470,6 +467,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         #[cfg(feature = "debug_logging")]
         if self.debug {
+            #[cfg(feature = "current_sensing")]
             let sensor_currents = if let Some(current_sensor) = &mut self.current_sensor {
                 // match current_sensor.prev_phase_currents() {
                 //     Some(PhaseCurrents::Two { a, b }) => Some((a, b, 0.)),
@@ -484,6 +482,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             } else {
                 None
             };
+            #[cfg(not(feature = "current_sensing"))]
+            let sensor_currents = None;
 
             let v = self.sensor_direction.multiplier()
                 * self

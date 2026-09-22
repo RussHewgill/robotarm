@@ -39,18 +39,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
-name = "as5600"
-version = "0.8.0"
-source = "git+https://github.com/barafael/as5600-rs#e6fdb9771362306ffd5766c1895095d72f3aa531"
-dependencies = [
- "defmt",
- "embedded-hal 1.0.0",
- "embedded-hal-async",
- "num-derive",
- "num-traits",
-]
-
-[[package]]
 name = "ascii-canvas"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1071,17 +1059,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-derive"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "num-integer"
 version = "0.1.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1405,7 +1382,6 @@ name = "robotarm_mcu"
 version = "0.1.0"
 dependencies = [
  "approx",
- "as5600",
  "bitflags 2.10.0",
  "bitvec",
  "byteorder",

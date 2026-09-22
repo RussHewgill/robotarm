@@ -6,7 +6,6 @@ use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlTyp
 
 use crate::{
     hardware::{
-        as5600::AS5600,
         current_sensor::{self, CurrentSensor},
         encoder_sensor::{EncoderSensor, N_LUT_SAMPLES},
         mt_6701::MT6701,

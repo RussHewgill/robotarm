@@ -11,7 +11,7 @@ pub mod shaft_position;
 pub mod types;
 pub mod utils;
 
-use as5600::asynch::As5600;
+// use as5600::asynch::As5600;
 use embassy_rp::i2c::Async;
 
 pub use self::algorithms::*;

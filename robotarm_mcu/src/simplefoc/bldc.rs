@@ -1,4 +1,3 @@
-use as5600::asynch::As5600;
 use embassy_rp::i2c::Async;
 use serde::{Deserialize, Serialize};
 
