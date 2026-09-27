@@ -1,7 +1,14 @@
 use defmt::{Format, debug, error, info, trace, warn};
-use embassy_futures::join::join;
 
 use core::marker::PhantomData;
+
+use embassy_futures::join::join;
+// use embassy_hal_internal::Peri;
+// use embedded_hal_02::spi::{Phase, Polarity};
+// use embedded_hal::spi::{Phase, Polarity};
+use fixed::traits::ToFixed;
+use fixed::types::extra::U8;
+
 use embassy_rp::{
     Peri,
     clocks::clk_sys_freq,
@@ -11,19 +18,14 @@ use embassy_rp::{
     pio::{Common, Direction, Instance, LoadedProgram, Pin, PioPin, ShiftDirection, StateMachine},
     spi::{Async, Blocking, Config, Mode, Phase, Polarity},
 };
-use fixed::{traits::ToFixed, types::extra::U8};
-
-use embassy_rp::pio::program as pio;
-
-/// https://github.com/embassy-rs/embassy/blob/embassy-rp-v0.10.0/embassy-rp/src/pio_programs/spi.rs
 
 /// This struct represents an SPI program loaded into pio instruction memory.
-struct PioSsiProgram<'d, PIO: Instance> {
+struct PioSpiProgram<'d, PIO: Instance> {
     prg: LoadedProgram<'d, PIO>,
     phase: Phase,
 }
 
-impl<'d, PIO: Instance> PioSsiProgram<'d, PIO> {
+impl<'d, PIO: Instance> PioSpiProgram<'d, PIO> {
     /// Load the spi program into the given pio
     pub fn new(common: &mut Common<'d, PIO>, phase: Phase) -> Self {
         // These PIO programs are taken straight from the datasheet (3.6.1 in
@@ -90,17 +92,17 @@ pub enum Error {
 /// Unlike other PIO programs, the PIO SPI driver owns and holds a reference to
 /// the PIO memory it uses. This is so that it can be reconfigured at runtime if
 /// desired.
-pub struct Ssi<'d, PIO: Instance, const SM: usize, M: Mode> {
+pub struct Spi<'d, PIO: Instance, const SM: usize, M: Mode> {
     sm: StateMachine<'d, PIO, SM>,
     cfg: embassy_rp::pio::Config<'d, PIO>,
-    program: Option<PioSsiProgram<'d, PIO>>,
+    program: Option<PioSpiProgram<'d, PIO>>,
     clk_pin: Pin<'d, PIO>,
     tx_dma: Option<dma::Channel<'d>>,
     rx_dma: Option<dma::Channel<'d>>,
     phantom: PhantomData<M>,
 }
 
-impl<'d, PIO: Instance, const SM: usize, M: Mode> Ssi<'d, PIO, SM, M> {
+impl<'d, PIO: Instance, const SM: usize, M: Mode> Spi<'d, PIO, SM, M> {
     #[allow(clippy::too_many_arguments)]
     fn new_inner(
         pio: &mut Common<'d, PIO>,
@@ -112,7 +114,7 @@ impl<'d, PIO: Instance, const SM: usize, M: Mode> Ssi<'d, PIO, SM, M> {
         rx_dma: Option<dma::Channel<'d>>,
         config: Config,
     ) -> Self {
-        let program = PioSsiProgram::new(pio, config.phase);
+        let program = PioSpiProgram::new(pio, config.phase);
 
         let mut clk_pin = pio.make_pio_pin(clk_pin);
         let mosi_pin = pio.make_pio_pin(mosi_pin);
@@ -271,7 +273,7 @@ impl<'d, PIO: Instance, const SM: usize, M: Mode> Ssi<'d, PIO, SM, M> {
             // SAFETY: the state machine is disabled while this happens
             unsafe { pio.free_instr(old_program.prg.used_memory) };
 
-            let new_program = PioSsiProgram::new(pio, config.phase);
+            let new_program = PioSpiProgram::new(pio, config.phase);
 
             self.cfg.use_program(&new_program.prg, &[&self.clk_pin]);
             self.program = Some(new_program);
@@ -292,7 +294,7 @@ fn calculate_clock_divider(frequency_hz: u32) -> fixed::FixedU32<U8> {
     (sys_freq / target_freq).to_fixed()
 }
 
-impl<'d, PIO: Instance, const SM: usize> Ssi<'d, PIO, SM, Blocking> {
+impl<'d, PIO: Instance, const SM: usize> Spi<'d, PIO, SM, Blocking> {
     /// Create an SPI driver in blocking mode.
     pub fn new_blocking(
         pio: &mut Common<'d, PIO>,
@@ -306,7 +308,7 @@ impl<'d, PIO: Instance, const SM: usize> Ssi<'d, PIO, SM, Blocking> {
     }
 }
 
-impl<'d, PIO: Instance, const SM: usize> Ssi<'d, PIO, SM, Async> {
+impl<'d, PIO: Instance, const SM: usize> Spi<'d, PIO, SM, Async> {
     /// Create an SPI driver in async mode supporting DMA operations.
     #[allow(clippy::too_many_arguments)]
     pub fn new<TxDma: dma::ChannelInstance, RxDma: dma::ChannelInstance>(

@@ -453,7 +453,7 @@ async fn main(spawner: Spawner) {
     // let mut tx = max485_async::Max485::new(uart, enable, embassy_time::Delay);
     // let mut tx = crate::comms::rs485::Max485::new(uart, enable, embassy_time::Delay);
 
-    let mut tx = crate::comms::rs485::Max485::new(uart, enable);
+    let mut tx = crate::comms::max485::Max485::new(uart, enable);
 
     // use embedded_io_async::Write;
 
@@ -1616,20 +1616,20 @@ async fn main(spawner: Spawner) {
     //     config,
     // );
 
-    // let mut spi = crate::hardware::pio_ssi::Ssi::new(
-    //     &mut common,
-    //     sm0,
-    //     sck,
-    //     miso,
-    //     mosi,
-    //     p.DMA_CH0,
-    //     p.DMA_CH1,
-    //     Irqs,
-    //     config,
-    // );
+    let mut spi = crate::hardware::pio_ssi::Spi::new(
+        &mut common,
+        sm0,
+        sck,
+        mosi,
+        miso,
+        p.DMA_CH0,
+        p.DMA_CH1,
+        Irqs,
+        config,
+    );
 
-    let mut spi =
-        embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, Irqs, config);
+    // let mut spi =
+    //     embassy_rp::spi::Spi::new_rxonly(p.SPI0, sck, miso, p.DMA_CH0, p.DMA_CH1, Irqs, config);
 
     let mut cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::Low);
 
@@ -1702,6 +1702,26 @@ async fn main(spawner: Spawner) {
         p.SPI0, p.PIN_18, p.PIN_19, p.PIN_20, p.DMA_CH0, p.DMA_CH1, Irqs, spi_cfg,
     );
 
+    // let miso = p.PIN_20; // SDA, brown, brown
+    // let sck = p.PIN_18; // SCL, blue, red
+    // let mosi = p.PIN_15;
+
+    // let embassy_rp::pio::Pio {
+    //     mut common, sm0, ..
+    // } = embassy_rp::pio::Pio::new(p.PIO0, Irqs);
+
+    // let mut spi = crate::hardware::pio_ssi::Spi::new(
+    //     &mut common,
+    //     sm0,
+    //     sck,
+    //     mosi,
+    //     miso,
+    //     p.DMA_CH0,
+    //     p.DMA_CH1,
+    //     Irqs,
+    //     spi_cfg,
+    // );
+
     static SPI_BUS: StaticCell<hardware::Spi0Bus> = StaticCell::new();
     let spi_bus = SPI_BUS.init(embassy_sync::mutex::Mutex::new(spi));
 
@@ -1714,8 +1734,56 @@ async fn main(spawner: Spawner) {
         spi_bus, cs_a, spi_cfg,
     );
 
+    // let mut spi_dev0 = embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice::new(spi_bus, cs_a);
+
     let mut encoder = hardware::mt_6701_ssi::MT6701::new(spi_dev0);
 
+    // let address = 0x00;
+    // crate::hardware::mcp3202::mcp3202_test(address);
+
+    let mut t0 = Instant::now();
+    let mut c = 0;
+    let interval = embassy_time::Duration::from_millis(500);
+    let mut max_time = t0 + interval;
+
+    let mut sum_angle = 0.0;
+
+    loop {
+        // let angle = (raw_angle as f32 / 16384_f32) * simplefoc::types::_2PI;
+
+        let raw_angle = encoder.read_raw_angle().await.unwrap();
+        let angle = (raw_angle as f32 / 16384_f32) * simplefoc::types::_2PI;
+
+        sum_angle += angle;
+
+        // debug!("Raw angle: {}, Angle: {}", raw_angle, angle);
+
+        let t1 = Instant::now();
+
+        if t1 > max_time {
+            let elapsed = t1 - t0;
+            let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
+
+            debug!("Raw angle: {}, Angle: {}", raw_angle, angle);
+            debug!("Sum angle: {}", sum_angle);
+
+            info!(
+                "Elapsed: {}s, Cycles: {}, Freq: {}Hz",
+                elapsed.as_millis() as f32 * 1e-3,
+                c,
+                freq
+            );
+            t0 = t1;
+            c = 0;
+            max_time = t1 + interval;
+        } else {
+            c += 1;
+        }
+
+        // Timer::after_millis(200).await;
+    }
+
+    #[cfg(feature = "nope")]
     loop {
         let angle = encoder.read_raw_angle().await.unwrap();
 
@@ -1793,6 +1861,71 @@ async fn main(spawner: Spawner) {
         //     // spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
         // });
     }
+}
+
+// RS485 test
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    let pin_tx = p.PIN_12; // yellow
+    let pin_rx = p.PIN_13; // orange
+
+    let pin_de = p.PIN_14; // red
+
+    // let mut pin_tx = embassy_rp::gpio::Output::new(pin_tx, embassy_rp::gpio::Level::Low);
+    // let mut pin_rx = embassy_rp::gpio::Input::new(pin_rx, embassy_rp::gpio::Pull::None);
+    let mut pin_de = embassy_rp::gpio::Output::new(pin_de, embassy_rp::gpio::Level::Low);
+
+    // let mut pin_test = embassy_rp::gpio::Output::new(p.PIN_12, embassy_rp::gpio::Level::Low);
+
+    debug!("Starting RS485 test");
+
+    // let mut config = embassy_rp::uart::Config::default();
+    // config.baudrate = 9600;
+
+    // let mut uart = embassy_rp::uart::Uart::new_blocking(p.UART0, pin_tx, pin_rx, config);
+
+    let embassy_rp::pio::Pio {
+        mut common,
+        sm0,
+        sm1,
+        ..
+    } = embassy_rp::pio::Pio::new(p.PIO0, Irqs);
+
+    // let tx_program = embassy_rp::pio_programs::uart::PioUartTxProgram::new(&mut common);
+    // let mut uart_tx = embassy_rp::pio_programs::uart::PioUartTx::new(
+    //     9600,
+    //     &mut common,
+    //     sm0,
+    //     p.PIN_4,
+    //     &tx_program,
+    // );
+
+    // let rx_program = embassy_rp::pio_programs::uart::PioUartRxProgram::new(&mut common);
+    // let mut uart_rx = embassy_rp::pio_programs::uart::PioUartRx::new(
+    //     9600,
+    //     &mut common,
+    //     sm1,
+    //     p.PIN_5,
+    //     &rx_program,
+    // );
+
+    #[cfg(feature = "nope")]
+    loop {
+        pin_de.set_high();
+
+        let msg = [0b1100_1010u8; 16];
+
+        uart.blocking_write(&msg).unwrap();
+        uart.blocking_flush().unwrap();
+
+        pin_de.set_low();
+        Timer::after_millis(10).await;
+    }
+
+    //
 }
 
 /// MARK: Main
@@ -1917,7 +2050,7 @@ fn main() -> ! {
 
         encoder
     };
-    //
+
     #[cfg(feature = "nope")]
     let encoder1 = {
         let cs = p.PIN_21; // Z, yellow, orange
@@ -2007,12 +2140,13 @@ fn main() -> ! {
     };
 
     // INA240
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     let current_sensor = {
         use embassy_rp::adc::{Adc, Channel, Config, InterruptHandler};
         use embassy_rp::gpio::Pull;
 
-        let mut adc = Adc::new(p.ADC, Irqs, Config::default());
+        // let mut adc = Adc::new(p.ADC, Irqs, Config::default());
+        let mut adc = Adc::new_blocking(p.ADC, Config::default());
         let mut dma = embassy_rp::dma::Channel::new(p.DMA_CH4, Irqs);
 
         let mut pin0 = Channel::new_pin(p.PIN_26, Pull::None);
@@ -2123,7 +2257,7 @@ fn main() -> ! {
 
         let mut enable = embassy_rp::gpio::Output::new(p.PIN_18, embassy_rp::gpio::Level::Low);
 
-        crate::comms::rs485::Max485::new(uart, enable)
+        crate::comms::max485::Max485::new(uart, enable)
     };
 
     #[cfg(feature = "nope")]
@@ -2143,8 +2277,8 @@ fn main() -> ! {
     let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
         MOTOR_ID_B,
         encoder1,
-        None::<()>,
-        // Some(current_sensor),
+        // None::<()>,
+        Some(current_sensor),
         // None,
         // Some(crate::simplefoc::current_read_task::CURRENT_CHANNEL.receiver()),
         // Some(crate::simplefoc::current_read_task::ELEC_ANGLE_CHANNEL.sender()),
@@ -2201,7 +2335,7 @@ fn main() -> ! {
         unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
         move || {
             let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
-            executor1.run(|spawner| crate::comms::rs485::init_rs485_logger(&spawner, max485));
+            executor1.run(|spawner| crate::comms::max485::init_rs485_logger(&spawner, max485));
         },
     );
 

@@ -1,5 +1,5 @@
-// pub mod rs485;
 // pub mod usb;
+pub mod rs485;
 pub mod usb_handler;
 pub mod usb_raw;
 

@@ -5,14 +5,15 @@
 pub mod current_sensor;
 pub mod encoder_sensor;
 // pub mod ina226;
-// pub mod ina240;
+pub mod ina240;
 pub mod mt_6701;
 // pub mod mt_6701_adc;
-pub mod mcp3202;
-// pub mod mt6816;
+// pub mod mcp3202;
+pub mod mt6816;
 pub mod mt_6701_ssi;
-// pub mod pio_ssi;
+pub mod pio_ssi;
 // pub mod smooth_sensor;
+pub mod max485;
 
 pub type Spi0Bus = embassy_sync::mutex::Mutex<
     embassy_sync::blocking_mutex::raw::NoopRawMutex,

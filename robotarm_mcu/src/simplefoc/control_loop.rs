@@ -97,7 +97,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 //     }
                 // }
 
-                match current_sensor.get_foc_currents(electrical_angle).await {
+                match current_sensor.get_foc_currents(electrical_angle) {
                     Ok(currents) => {
                         // self.motor.current = currents;
                     }
@@ -468,7 +468,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         #[cfg(feature = "debug_logging")]
         if self.debug {
             #[cfg(feature = "current_sensing")]
-            let sensor_currents = if let Some(current_sensor) = &mut self.current_sensor {
+            let sensor_currents = if let Some(current_sensor) = &self.current_sensor {
                 // match current_sensor.prev_phase_currents() {
                 //     Some(PhaseCurrents::Two { a, b }) => Some((a, b, 0.)),
                 //     Some(PhaseCurrents::Three { a, b, c }) => Some((a, b, c)),

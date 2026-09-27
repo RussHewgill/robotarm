@@ -126,7 +126,8 @@ impl<T: embassy_rp::spi::Instance + 'static> MT6701<T> {
         use embassy_embedded_hal::SetConfig;
 
         let mut config = embassy_rp::spi::Config::default();
-        config.frequency = 4_000_000;
+        // config.frequency = 4_000_000;
+        config.frequency = 2_000_000;
         config.polarity = embassy_rp::spi::Polarity::IdleHigh;
         config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
 
@@ -427,7 +428,8 @@ impl<T: embassy_rp::spi::Instance + 'static> MT6701<T> {
         use embedded_hal_async::spi::SpiDevice;
 
         self.spi
-            .transaction(&mut [embedded_hal::spi::Operation::Read(&mut self.buf[..2])])
+            .read(&mut self.buf[..2])
+            // .read(&mut self.buf[..4])
             .await
             .map_err(|_| MT6701Error::SPIError)?;
 

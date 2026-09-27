@@ -18,7 +18,8 @@ pub struct INA240 {
     // pin1: Channel<'static>,
     pins: [Channel<'static>; 2],
 
-    adc: Adc<'static, embassy_rp::adc::Async>,
+    // adc: Adc<'static, embassy_rp::adc::Async>,
+    adc: Adc<'static, embassy_rp::adc::Blocking>,
     // dma: Peri<'static, CHANNEL>,
     dma: embassy_rp::dma::Channel<'static>,
 
@@ -35,7 +36,8 @@ impl INA240 {
         pin0: Channel<'static>,
         pin1: Channel<'static>,
         // pin_1: Channel<'static>,
-        adc: Adc<'static, embassy_rp::adc::Async>,
+        // adc: Adc<'static, embassy_rp::adc::Async>,
+        adc: Adc<'static, embassy_rp::adc::Blocking>,
         // dma: Peri<'static, CHANNEL>,
         dma: embassy_rp::dma::Channel<'static>,
     ) -> Self {
@@ -95,7 +97,7 @@ impl INA240 {
 
     pub async fn calibrate(&mut self) {}
 
-    pub async fn read_voltage(&mut self) -> (f32, f32) {
+    pub fn read_voltage(&mut self) -> (f32, f32) {
         // let div = 479; // 100kHz sample rate (48Mhz / 100kHz - 1)
         // let div = 95; // 500kHz sample rate (48Mhz / 500kHz - 1)
 
@@ -250,11 +252,13 @@ impl CurrentSensor for INA240 {
         self.prev_raw
     }
 
-    async fn get_phase_currents(
+    fn get_phase_currents(
         &mut self,
     ) -> Result<crate::simplefoc::types::PhaseCurrents, Self::Error> {
         // debug!("Reading currents from INA240");
-        let (a, b) = self.read_voltage().await;
+        // let (a, b) = self.read_voltage().await;
+
+        let (a, b) = (1.0, 0.0);
 
         // let currents = crate::simplefoc::types::PhaseCurrents::Two { a, b };
         let currents = crate::simplefoc::types::PhaseCurrents { a, b };

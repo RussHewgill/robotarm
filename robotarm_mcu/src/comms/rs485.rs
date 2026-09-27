@@ -1,169 +1,98 @@
-use cortex_m::prelude::_embedded_hal_serial_Write as _;
 use defmt::{debug, error, info};
-use embedded_io_async::{Read, Write};
+
 use postcard::accumulator::FeedResult;
-use robotarm_protocol::SerialLogMessage;
 
-pub struct Max485 {
-    buf: [u8; 1024],
-    // serial: embassy_rp::uart::Uart<'static, embassy_rp::uart::Async>,
-    // serial: embassy_rp::uart::Uart<'static, embassy_rp::uart::Blocking>,
-    serial: embassy_rp::uart::BufferedUart,
-    rede_pin: embassy_rp::gpio::Output<'static>,
-    // static TX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
-}
+use crate::{MOTOR_ID_A, MOTOR_ID_B, comms::usb_raw::UsbMutex};
+use robotarm_protocol::SerialCommand;
 
-#[derive(Debug, defmt::Format)]
-pub enum Max485Error {
-    Serial,
-    Pin,
-}
+pub async fn modbus_task(mut max485: crate::hardware::max485::Max485) {
+    info!("Starting rs485 task");
 
-impl Max485 {
-    pub fn new(
-        // serial: embassy_rp::uart::Uart<'static, embassy_rp::uart::Async>,
-        // serial: embassy_rp::uart::Uart<'static, embassy_rp::uart::Blocking>,
-        serial: embassy_rp::uart::BufferedUart,
-        rede_pin: embassy_rp::gpio::Output<'static>,
-    ) -> Self {
-        Self {
-            buf: [0; 1024],
-            serial,
-            rede_pin,
-        }
+    const UNIT: u8 = 0;
+
+    loop {
+
+        //
     }
-
-    pub async fn _send(&mut self, data: &[u8]) -> Result<(), Max485Error> {
-        // Set RE/DE high to enable transmission
-        self.rede_pin.set_high();
-        self.serial
-            .write_all(data)
-            .await
-            .map_err(|_| Max485Error::Serial)?;
-        self.serial.flush().await.map_err(|_| Max485Error::Serial)?;
-        embassy_time::Timer::after(embassy_time::Duration::from_micros(1000)).await;
-        self.rede_pin.set_low();
-        Ok(())
-    }
-
-    pub async fn send(&mut self, msg: SerialLogMessage) -> Result<(), Max485Error> {
-        if let Ok(encoded) = postcard::to_slice_cobs(&msg, &mut self.buf) {
-            // if encoded.len() <= 64 {
-            //     let _ = self.tx.write_packet(encoded).await;
-            // } else {
-            //     error!("Encoded message too long for USB packet");
-            // }
-            // let _ = self.class.write_packet(encoded).await;
-
-            // Set RE/DE high to enable transmission
-            self.rede_pin.set_high();
-            self.serial
-                .write_all(encoded)
-                .await
-                .map_err(|_| Max485Error::Serial)?;
-            self.serial.flush().await.map_err(|_| Max485Error::Serial)?;
-            embassy_time::Timer::after(embassy_time::Duration::from_micros(100)).await;
-            self.rede_pin.set_low();
-        } else {
-            error!("Failed to encode message");
-        }
-        Ok(())
-    }
-
-    pub async fn receive(&mut self, buffer: &mut [u8]) -> Result<usize, Max485Error> {
-        // Set RE/DE low to enable reception
-        self.rede_pin.set_low();
-        let bytes_read = self
-            .serial
-            .read(buffer)
-            .await
-            .map_err(|_| Max485Error::Serial)?;
-        // let bytes_read = self.serial.blocking_read(buffer).unwrap();
-        Ok(bytes_read)
-    }
-}
-
-pub fn init_rs485_logger(spawner: &embassy_executor::Spawner, max485: Max485) {
-    let log_rx = super::usb::LOG_CHAN.receiver();
-    let cmd_tx = super::usb::CMD_CHAN.sender();
-
-    spawner
-        .spawn(rs485_logger_task(max485, cmd_tx, log_rx))
-        .unwrap();
 }
 
 #[embassy_executor::task]
-async fn rs485_logger_task(
-    mut max485: Max485,
-    cmd_tx: embassy_sync::channel::Sender<
-        'static,
-        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-        // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
-        robotarm_protocol::SerialCommand,
-        1,
-    >,
+async fn rx485_logger_task(
+    // mut usb_monitor: UsbMonitor,
+    mut max485: crate::hardware::max485::Max485,
+    cmd_tx0: embassy_sync::channel::Sender<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
+    cmd_tx1: embassy_sync::channel::Sender<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
     log_rx: embassy_sync::channel::Receiver<
         'static,
-        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-        // embassy_sync::blocking_mutex::raw::ThreadModeRawMutex,
+        UsbMutex,
         robotarm_protocol::SerialLogMessage,
-        1,
+        5,
     >,
-) {
-    let mut buf: [u8; 4096];
-    let mut accum = postcard::accumulator::CobsAccumulator::<4096>::new();
+) -> ! {
+    let mut buf: [u8; 1024];
+    let mut tx_buf: [u8; 256] = [0; 256];
+    let mut accum = postcard::accumulator::CobsAccumulator::<1024>::new();
 
     loop {
-        let msg = log_rx.receive().await;
+        buf = [0; 1024];
 
-        if let Err(e) = max485.send(msg).await {
-            error!("Failed to send log message over RS485: {:?}", e);
-        }
-    }
-
-    #[cfg(feature = "nope")]
-    loop {
-        buf = [0; 4096];
         match embassy_futures::select::select(
             log_rx.receive(),
             // usb_monitor.class.read_packet(&mut buf),
             // usb_monitor.rx.read_packet(&mut buf),
+            // usb_monitor.read_ep.read(&mut buf),
             max485.receive(&mut buf),
         )
         .await
         {
             embassy_futures::select::Either::First(msg) => {
-                // if prev_msg == Some(msg) {
-                //     // skip sending duplicate message
-                //     debug!("Skipping duplicate log message");
-                //     continue;
-                // } else {
-                //     debug!("Sending log message: {:?}", msg);
-                //     prev_msg = Some(msg);
-                //     usb_monitor.send(msg).await;
-                // }
-                // debug!("Sending log message: {:?}", msg);
-                // usb_monitor.send(msg).await;
-                if let Err(e) = max485.send(msg).await {
-                    error!("Failed to send log message over RS485: {:?}", e);
+                if let Ok(encoded) = postcard::to_slice_cobs(&msg, &mut tx_buf) {
+                    // debug!("Encoded len = {}", encoded.len());
+                    if let Err(e) = max485.send(&encoded).await {
+                        error!("Failed to write RS485 packet: {:?}", e);
+                    }
                 }
             }
             embassy_futures::select::Either::Second(Err(e)) => {
-                error!("USB read error");
+                unimplemented!()
             }
             embassy_futures::select::Either::Second(Ok(n)) => {
                 // debug!("Received {} bytes from USB", n);
                 let mut window = &buf[..n];
                 'cobs: while !window.is_empty() {
-                    window = match accum.feed(&buf[..n]) {
+                    // window = match accum.feed::<SerialCommand>(&buf[..n]) {
+                    window = match accum.feed::<SerialCommand>(window) {
                         FeedResult::Success { data, remaining } => {
                             // debug!("Received complete message from USB: {:?}", data);
+
+                            let mut retries = 0;
                             loop {
-                                match cmd_tx.try_send(data) {
+                                let tx = match data.id() {
+                                    MOTOR_ID_A => &cmd_tx0,
+                                    MOTOR_ID_B => &cmd_tx1,
+                                    _ => {
+                                        error!(
+                                            "Received command with invalid id: {}, dropping command",
+                                            data.id()
+                                        );
+                                        break;
+                                    }
+                                };
+
+                                match tx.try_send(data) {
                                     Ok(()) => break,
                                     Err(e) => {
-                                        // error!("Failed to send command to main task, retrying...");
-                                        embassy_futures::yield_now().await;
+                                        error!("Failed to send command to main task, retrying...");
+                                        if retries >= 5 {
+                                            error!(
+                                                "Failed to send command after {} retries, dropping command",
+                                                retries
+                                            );
+                                            break;
+                                        } else {
+                                            retries += 1;
+                                            embassy_futures::yield_now().await;
+                                        }
                                     }
                                 }
                             }
@@ -182,7 +111,5 @@ async fn rs485_logger_task(
                 }
             }
         }
-        // let msg = log_rx.receive().await;
-        // usb_monitor.send(msg).await;
     }
 }

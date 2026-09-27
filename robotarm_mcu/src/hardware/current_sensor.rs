@@ -19,16 +19,17 @@ pub trait CurrentSensor {
 
     fn prev_raw_currents(&self) -> (f32, f32);
 
-    async fn get_foc_currents(&mut self, electrical_angle: f32) -> Result<DQCurrents, Self::Error> {
-        let currents = self.get_phase_currents().await?;
+    fn get_foc_currents(&mut self, electrical_angle: f32) -> Result<DQCurrents, Self::Error> {
+        // let currents = self.get_phase_currents().await?;
+        let currents = self.get_phase_currents()?;
 
         // let currents = PhaseCurrents { a: 0.0, b: 0.0 };
 
-        let ab_currents = self.get_ab_currents(currents).await;
+        // let ab_currents = self.get_ab_currents(currents).await;
 
-        let dq_currents = self.get_dq_currents(ab_currents, electrical_angle).await;
+        // let dq_currents = self.get_dq_currents(ab_currents, electrical_angle).await;
 
-        // let dq_currents = DQCurrents { d: 1.0, q: 0.5 };
+        let dq_currents = DQCurrents { d: 1.0, q: 0.5 };
         // let dq_currents = DQCurrents { d: currents.};
         // let dq_currents = DQCurrents {
         //     d: ab_currents.alpha,
@@ -41,9 +42,11 @@ pub trait CurrentSensor {
     }
 
     async fn get_dc_current(&mut self, electrical_angle: f32) -> Result<f32, Self::Error> {
-        let currents = self.get_phase_currents().await?;
+        // let currents = self.get_phase_currents().await?;
+        let currents = self.get_phase_currents()?;
 
-        let ab_currents = self.get_ab_currents(currents).await;
+        // let ab_currents = self.get_ab_currents(currents).await;
+        let ab_currents = self.get_ab_currents(currents);
 
         let st = libm::sinf(electrical_angle);
         let ct = libm::cosf(electrical_angle);
@@ -61,9 +64,9 @@ pub trait CurrentSensor {
             ))
     }
 
-    async fn get_phase_currents(&mut self) -> Result<PhaseCurrents, Self::Error>;
+    fn get_phase_currents(&mut self) -> Result<PhaseCurrents, Self::Error>;
 
-    async fn get_ab_currents(&mut self, current: PhaseCurrents) -> ABCurrents {
+    fn get_ab_currents(&mut self, current: PhaseCurrents) -> ABCurrents {
         // calculate clarke transform
 
         // let alpha;
@@ -85,11 +88,7 @@ pub trait CurrentSensor {
         ABCurrents { alpha, beta }
     }
 
-    async fn get_dq_currents(
-        &mut self,
-        ab_current: ABCurrents,
-        electrical_angle: f32,
-    ) -> DQCurrents {
+    fn get_dq_currents(&mut self, ab_current: ABCurrents, electrical_angle: f32) -> DQCurrents {
         // calculate park transform
         let st = libm::sinf(electrical_angle);
         let ct = libm::cosf(electrical_angle);
@@ -130,7 +129,7 @@ impl CurrentSensor for () {
         unimplemented!()
     }
 
-    async fn get_phase_currents(&mut self) -> Result<PhaseCurrents, Self::Error> {
+    fn get_phase_currents(&mut self) -> Result<PhaseCurrents, Self::Error> {
         unimplemented!()
     }
 }

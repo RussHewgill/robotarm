@@ -192,15 +192,15 @@ async fn usb_logger_task(
 ) -> ! {
     debug!("Starting USB logger task");
 
-    let mut buf: [u8; 4096];
-    let mut accum = postcard::accumulator::CobsAccumulator::<4096>::new();
+    let mut buf: [u8; 1024];
+    let mut accum = postcard::accumulator::CobsAccumulator::<1024>::new();
 
     // let read_ep =
 
-    // buf = [0; 4096];
+    // buf = [0; 1024];
 
     loop {
-        buf = [0; 4096];
+        buf = [0; 1024];
 
         // let msg = log_rx.receive().await;
         // debug!("Sending log message: {:?}", msg);
@@ -292,7 +292,7 @@ async fn usb_logger_task(
             }
             embassy_futures::select::Either::Second(Err(e)) => {
                 error!("USB read error");
-                // accum = postcard::accumulator::CobsAccumulator::<4096>::new();
+                // accum = postcard::accumulator::CobsAccumulator::<1024>::new();
                 debug!("Waiting for USB connection...");
                 // usb_monitor.rx.wait_connection().await;
                 usb_monitor.read_ep.wait_enabled().await;
@@ -388,7 +388,7 @@ async fn usb_logger_task(
             }
             embassy_futures::select::Either::Second(Err(e)) => {
                 error!("USB read error");
-                // accum = postcard::accumulator::CobsAccumulator::<4096>::new();
+                // accum = postcard::accumulator::CobsAccumulator::<1024>::new();
                 // debug!("Waiting for USB connection...");
                 // usb_monitor.rx.wait_connection().await;
                 // debug!("USB connected");
@@ -405,7 +405,7 @@ async fn usb_logger_task(
     #[cfg(feature = "nope")]
     loop {
         // yield_now().await;
-        buf = [0; 4096];
+        buf = [0; 1024];
         match embassy_futures::select::select(
             log_rx.receive(),
             // usb_monitor.class.read_packet(&mut buf),
@@ -428,7 +428,7 @@ async fn usb_logger_task(
             }
             embassy_futures::select::Either::Second(Err(e)) => {
                 error!("USB read error");
-                accum = postcard::accumulator::CobsAccumulator::<4096>::new();
+                accum = postcard::accumulator::CobsAccumulator::<1024>::new();
                 debug!("Waiting for USB connection...");
                 usb_monitor.rx.wait_connection().await;
                 debug!("USB connected");
