@@ -1928,6 +1928,141 @@ async fn main(spawner: Spawner) {
     //
 }
 
+// Low side current sens test
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    // let adc = embassy_rp::adc::Adc::new_blocking(p.ADC, Default::default());
+    // let p26 = embassy_rp::adc::Channel::new_pin(p.PIN_26, embassy_rp::gpio::Pull::None);
+    // ADC.lock(|a| a.borrow_mut().replace((adc, p26)));
+
+    debug!("Starting low side current sense test");
+
+    const VOLTAGE_LIMIT: f32 = 4.;
+    let supply_voltage = 12.0;
+
+    let config = {
+        let mut c = embassy_rp::pwm::Config::default();
+        // let desired_freq_hz = 24_000 * 1;
+        // let desired_freq_hz = 24_000 * 2;
+        let desired_freq_hz = 24_000 * 2 * 2;
+        let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
+
+        let div = 1;
+        let period = (clock_freq_hz / (desired_freq_hz * div as u32)) as u16 - 1;
+
+        c.top = period;
+        c.divider = div.into();
+        c.phase_correct = true;
+        c
+    };
+
+    let (pwm0, pwm12) = {
+        let pwm3 = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, config.clone());
+        let pwm45 =
+            embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE4, p.PIN_8, p.PIN_9, config.clone());
+
+        (pwm3, pwm45)
+    };
+
+    debug!("PWM initialized");
+
+    // crate::hardware::pwm_adc::setup_pwm_adc(&spawner, p.ADC, p.PIN_26, p.PWM_SLICE4, p.PIN_25);
+    // let (pwm0, pwm12) =
+    //     crate::hardware::pwm_adc::setup_pwm_adc(&spawner, p.ADC, p.PIN_27, pwm0, pwm12);
+
+    let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
+    let mut pwm_driver0 = crate::simplefoc::pwm_driver::PWMDriver::new(
+        pwm0,
+        pwm12,
+        enable_pin1,
+        config.clone(),
+        VOLTAGE_LIMIT,
+        supply_voltage,
+    );
+
+    debug!("PWM driver initialized");
+
+    let n_samples = 512;
+    let angle = simplefoc::types::_PI / 2.;
+
+    let motor = crate::configs::MOTOR_CONFIG_GM5208_24;
+
+    fn set_phase_voltage(uq: f32, ud: f32, angle_el: f32) -> (f32, f32, f32) {
+        // debug!(
+        //     "Setting phase voltage: Uq: {}, Ud: {}, Electrical angle: {}",
+        //     uq, ud, angle_el
+        // );
+
+        // Sinusoidal PWM modulation
+        // Inverse Park + Clarke transformation
+        let sa = libm::sinf(angle_el);
+        let ca = libm::cosf(angle_el);
+
+        // // Inverse park transform
+        let u_alpha = ca * ud - sa * uq; // -sin(angle) * Uq;
+        let u_beta = sa * ud + ca * uq; //  cos(angle) * Uq;
+
+        // Clarke transform
+        let mut v_a = u_alpha;
+        let mut v_b = -0.5 * u_alpha + crate::simplefoc::types::_SQRT3_2 * u_beta;
+        let mut v_c = -0.5 * u_alpha - crate::simplefoc::types::_SQRT3_2 * u_beta;
+
+        let mut center = VOLTAGE_LIMIT / 2.0;
+
+        // if (foc_modulation == FOCModulationType::SpaceVectorPWM){
+        //     // discussed here: https://community.simplefoc.com/t/embedded-world-2023-stm32-cordic-co-processor/3107/165?u=candas1
+        //     // a bit more info here: https://microchipdeveloper.com/mct5001:which-zsm-is-best
+        //     // Midpoint Clamp
+        //     float Umin = min(Ua, min(Ub, Uc));
+        //     float Umax = max(Ua, max(Ub, Uc));
+        //     center -= (Umax+Umin) / 2;
+        // }
+
+        // if self.modulation == FOCModulation::SpaceVectorPWM {
+        //     // Space Vector PWM modulation
+        //     let umin = self.phase_v.a.min(self.phase_v.b.min(self.phase_v.c));
+        //     let umax = self.phase_v.a.max(self.phase_v.b.max(self.phase_v.c));
+        //     center = center - (umax + umin) / 2.0;
+        // }
+
+        let modulation_centered = true; // default
+        // let modulation_centered = false;
+
+        v_a += center;
+        v_b += center;
+        v_c += center;
+
+        // self.pwm_driver
+        //     .set_duty_cycles_f32(self.phase_v.a, self.phase_v.b, self.phase_v.c);
+
+        (v_a, v_b, v_c)
+    }
+
+    pwm_driver0.enable();
+
+    for i in 0..n_samples {
+        let shaft_angle = angle * (i as f32 / n_samples as f32);
+        let mut electrical_angle = shaft_angle * motor.pole_pairs as f32;
+
+        // self.set_phase_voltage(self.motor.voltage_sensor_align, 0., electrical_angle);
+        let voltage = 3.0;
+        let (va, vb, vc) = set_phase_voltage(voltage, 0., electrical_angle);
+        pwm_driver0.set_duty_cycles_f32(va, vb, vc);
+        Timer::after_micros(5000).await;
+
+        //
+    }
+
+    pwm_driver0.disable();
+
+    debug!("Sweep complete");
+
+    //
+}
+
 /// MARK: Main
 // #[cfg(feature = "nope")]
 #[cortex_m_rt::entry]
@@ -2165,7 +2300,7 @@ fn main() -> ! {
     // 9        5       brown
     // en: 10   8       red
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let (pwm_driver0, pwm_driver1) = {
         let mut c = embassy_rp::pwm::Config::default();
         // let desired_freq_hz = 24_000 * 1;
@@ -2190,11 +2325,16 @@ fn main() -> ! {
         let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
         let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
 
+        crate::hardware::pwm_adc::PWM0.lock(|p| p.borrow_mut().replace(pwm0));
+        crate::hardware::pwm_adc::PWM12.lock(|p| p.borrow_mut().replace(pwm12));
+
         let enable_pin0 = embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low);
         let driver0: simplefoc::pwm_driver::PWMDriver<'static> =
             crate::simplefoc::pwm_driver::PWMDriver::new(
-                pwm0,
-                pwm12,
+                // pwm0,
+                // pwm12,
+                &crate::hardware::pwm_adc::PWM0,
+                &crate::hardware::pwm_adc::PWM12,
                 enable_pin0,
                 c.clone(),
                 voltage_limit,
@@ -2207,8 +2347,10 @@ fn main() -> ! {
         let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
         let driver1: simplefoc::pwm_driver::PWMDriver<'static> =
             crate::simplefoc::pwm_driver::PWMDriver::new(
-                pwm3,
-                pwm45,
+                // pwm3,
+                // pwm45,
+                &crate::hardware::pwm_adc::PWM0,
+                &crate::hardware::pwm_adc::PWM12,
                 enable_pin1,
                 c,
                 voltage_limit,
@@ -2216,6 +2358,42 @@ fn main() -> ! {
             );
 
         (driver0, driver1)
+    };
+
+    let pwm_driver1 = {
+        let mut c = embassy_rp::pwm::Config::default();
+        // let desired_freq_hz = 24_000 * 1;
+        // let desired_freq_hz = 24_000 * 2;
+        let desired_freq_hz = 24_000 * 2 * 2;
+        let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
+
+        let div = 1;
+        let period = (clock_freq_hz / (desired_freq_hz * div as u32)) as u16 - 1;
+
+        c.top = period;
+        c.divider = div.into();
+        c.phase_correct = true;
+
+        let pwm3 = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, c.clone());
+        let pwm45 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE4, p.PIN_8, p.PIN_9, c.clone());
+
+        crate::hardware::pwm_adc::PWM3.lock(|p| p.borrow_mut().replace(pwm3));
+        crate::hardware::pwm_adc::PWM45.lock(|p| p.borrow_mut().replace(pwm45));
+
+        let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
+        let driver1: simplefoc::pwm_driver::PWMDriver<'static> =
+            crate::simplefoc::pwm_driver::PWMDriver::new(
+                // pwm3,
+                // pwm45,
+                &crate::hardware::pwm_adc::PWM3,
+                &crate::hardware::pwm_adc::PWM45,
+                enable_pin1,
+                c,
+                voltage_limit,
+                supply_voltage,
+            );
+
+        driver1
     };
 
     #[cfg(feature = "picoA")]
