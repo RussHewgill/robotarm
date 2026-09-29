@@ -214,8 +214,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     0.0,
                     0.0,
                 ],
-            })
-            .await;
+            });
             Timer::after_micros(200).await;
         }
 

@@ -1,12 +1,12 @@
 use defmt::{debug, error, info, trace, warn};
 
 use embassy_futures::yield_now;
-use embassy_time::{Instant, Ticker};
+use embassy_time::{Instant, Ticker, Timer};
 use robotarm_protocol::{SerialCommand, types::MotionControlType};
 use static_cell::StaticCell;
 
 use crate::{
-    Irqs,
+    Irqs, MOTOR_ID_A, MOTOR_ID_B,
     comms::usb::UsbLogger,
     hardware::{
         current_sensor::CurrentSensor,
@@ -16,13 +16,111 @@ use crate::{
     },
 };
 
-pub static mut CORE1_STACK: embassy_rp::multicore::Stack<4096> =
+// pub static mut CORE1_STACK: embassy_rp::multicore::Stack<{1024 * 4}> =
+pub static mut CORE1_STACK: embassy_rp::multicore::Stack<{ 1024 * 8 }> =
     embassy_rp::multicore::Stack::new();
 pub static EXECUTOR0: StaticCell<embassy_executor::Executor> = StaticCell::new();
 pub static EXECUTOR1: StaticCell<embassy_executor::Executor> = StaticCell::new();
 
 #[embassy_executor::task]
-pub async fn core0_task0(
+pub async fn test_task(
+    mut logger: UsbLogger,
+    mut encoder: crate::hardware::mt_6701_ssi::MT6701<
+        // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
+        embassy_rp::peripherals::SPI1,
+    >,
+    //
+) {
+    error!("Starting");
+    Timer::after_millis(100).await;
+    error!("Starting 2");
+    // test_fn(logger, encoder).await;
+
+    {
+        // Timer::after_millis(200).await;
+        test_fn(&mut logger, &mut encoder).await;
+    }
+}
+
+async fn test_fn(
+    mut logger: &mut UsbLogger,
+    mut encoder: &mut crate::hardware::mt_6701_ssi::MT6701<
+        // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
+        embassy_rp::peripherals::SPI1,
+    >,
+) {
+    error!("Starting");
+    // Timer::after_millis(100).await;
+
+    loop {
+        debug!("Sending");
+        let t_us = Instant::now().as_micros();
+
+        // let angle = encoder.read_raw_debug().await.unwrap();
+        // encoder.update(t_us).await.unwrap();
+
+        let msg = robotarm_protocol::SerialLogMessage::MotorData {
+            id: 0,
+            timestamp: t_us,
+            motion_control: MotionControlType::Angle,
+            position: 0.0,
+            // angle: encoder.get_mechanical_angle(),
+            angle: 0.0,
+            velocity: 0.0,
+            target_position: 0.0,
+            target_velocity: 0.0,
+            motor_current: 0.0,
+            sensor_currents: None,
+            motor_voltage: (0.0, 0.0),
+            feed_forward: 0.0,
+        };
+
+        logger.send_log_msg(msg);
+
+        Timer::after_millis(200).await;
+    }
+}
+
+async fn test_fn2<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
+    mut foc: &mut crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR, CURRENT>,
+) {
+    error!("Starting");
+
+    // #[cfg(feature = "nope")]
+    loop {
+        debug!("Sending");
+        let t_us = Instant::now().as_micros();
+
+        // let angle = encoder.read_raw_debug().await.unwrap();
+        foc.encoder.update(t_us).await.unwrap();
+
+        let msg = robotarm_protocol::SerialLogMessage::MotorData {
+            id: 0,
+            timestamp: t_us,
+            motion_control: MotionControlType::Angle,
+            position: 0.0,
+            angle: foc.encoder.get_mechanical_angle(),
+            // angle: 0.0,
+            velocity: 0.0,
+            target_position: 0.0,
+            target_velocity: 0.0,
+            motor_current: 0.0,
+            sensor_currents: None,
+            motor_voltage: (0.0, 0.0),
+            feed_forward: 0.0,
+        };
+
+        // logger.send_log_msg(msg);
+        foc.send_debug_message(msg);
+
+        Timer::after_millis(200).await;
+    }
+
+    //
+}
+
+#[embassy_executor::task]
+pub async fn core0_task(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
         crate::hardware::mt_6701_ssi::MT6701<
@@ -39,13 +137,18 @@ pub async fn core0_task0(
         >,
     >,
 ) {
-    // foc_task(foc, output_encoder).await;
-    // foc_task(foc).await;
-    unimplemented!()
+    debug!("Starting core0_task");
+    error!("Starting");
+    Timer::after_millis(100).await;
+    error!("Starting 2");
+
+    foc_task(&mut foc, &mut output_encoder).await;
+
+    debug!("Done");
 }
 
 #[embassy_executor::task]
-pub async fn core0_task1(
+pub async fn core1_task(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
         crate::hardware::mt_6701_ssi::MT6701<
@@ -56,7 +159,7 @@ pub async fn core0_task1(
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         // >,
         // INA240<embassy_rp::peripherals::DMA_CH0>,
-        crate::hardware::ina240::INA240,
+        // crate::hardware::ina240::INA240,
         // crate::hardware::acs712::ACS712,
     >,
     mut output_encoder: Option<
@@ -65,23 +168,28 @@ pub async fn core0_task1(
         >,
     >,
 ) {
-    foc_task(foc, output_encoder).await;
+    // foc_task(foc, output_encoder).await;
+    foc_task(&mut foc, &mut output_encoder).await;
     // foc_task(foc).await;
 }
 
 // #[embassy_executor::task]
 pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
-    mut foc: crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR, CURRENT>,
-    mut output_encoder: Option<
+    mut foc: &mut crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR, CURRENT>,
+    mut output_encoder: &mut Option<
         crate::hardware::mt_6701::MT6701<
             embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,
         >,
     >,
 ) {
     debug!("Starting FOC task for ID: {}", foc.id);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
+
+    // needed on multicore?
+    Timer::after_millis(100).await;
+
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // match foc.id {
     //     // 0 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
@@ -175,7 +283,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_zero_electric_angle(1.55);
     // foc.set_zero_electric_angle(1.61);
     // foc.set_zero_electric_angle(0.602);
-    foc.set_zero_electric_angle(3.66);
+    // foc.set_zero_electric_angle(3.66);
 
     // match foc.id {
     //     0 => foc.set_zero_electric_angle(2.6876297),
@@ -198,13 +306,54 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     foc.set_alignment_voltage(4.0);
 
     // foc.calibrate_encoder().await;
-    // foc.encoder
-    //     .set_calibration_lut(crate::configs::ENCODER_LUT_GL60);
-    foc.encoder
-        .set_calibration_lut(crate::configs::ENCODER_LUT_GM5208_24);
+
+    if foc.id == MOTOR_ID_A {
+        foc.encoder
+            .set_calibration_lut(crate::configs::ENCODER_LUT_GL60);
+    } else if foc.id == MOTOR_ID_B {
+        foc.encoder
+            .set_calibration_lut(crate::configs::ENCODER_LUT_GM5208_24);
+    }
+
+    // foc.calibrate_encoder().await;
     foc.encoder.enable_calibration(true);
 
     // foc.test_calibration().await;
+
+    // error!("Starting");
+
+    // Timer::after_millis(1000).await;
+
+    // loop {
+    //     debug!("Sending");
+    //     let t_us = Instant::now().as_micros();
+
+    //     // let angle = encoder.read_raw_debug().await.unwrap();
+    //     foc.encoder.update(t_us).await.unwrap();
+
+    //     let msg = robotarm_protocol::SerialLogMessage::MotorData {
+    //         id: 0,
+    //         timestamp: t_us,
+    //         motion_control: MotionControlType::Angle,
+    //         position: 0.0,
+    //         angle: foc.encoder.get_mechanical_angle(),
+    //         // angle: 0.0,
+    //         velocity: 0.0,
+    //         target_position: 0.0,
+    //         target_velocity: 0.0,
+    //         motor_current: 0.0,
+    //         sensor_currents: None,
+    //         motor_voltage: (0.0, 0.0),
+    //         feed_forward: 0.0,
+    //     };
+
+    //     // foc.logger.send_log_msg(msg);
+    //     foc.send_debug_message(msg);
+
+    //     // Timer::after_millis(200).await;
+    // }
+
+    // return;
 
     info!("Starting init");
     foc.init();

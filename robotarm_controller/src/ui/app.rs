@@ -16,7 +16,9 @@ pub struct App {
     // pub plot: super::plot::DataPlot,
     pub plots: Vec<super::plot::DataPlot>,
 
-    pub current_plot: usize,
+    pub current_id: usize,
+    pub second_id: usize,
+    pub show_adrc: bool,
 
     #[serde(skip)]
     pub t0: Option<u64>,
@@ -133,13 +135,19 @@ impl eframe::App for App {
             // });
             // ui.separator();
             ui.horizontal(|ui| {
-                self.controls(ui, 1);
+                // self.controls(ui, 1);
+                self.controls(ui, self.current_id as u8);
             });
         });
 
         egui::CentralPanel::default().show(ui, |ui| {
             // ui.heading("Hello World!");
-            self.plots[self.current_plot].show_plot(ui);
+            // self.plots[self.current_id].show_plot(ui, self.show_adrc);
+            if self.show_adrc {
+                self.plots[self.current_id].show_plot(ui);
+            } else {
+                self.plots[self.current_id].show_motion_plots(ui, &self.plots[self.second_id]);
+            }
         });
     }
 }

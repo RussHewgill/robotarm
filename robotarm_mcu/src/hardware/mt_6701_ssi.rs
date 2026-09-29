@@ -6,6 +6,11 @@ use crate::{
     simplefoc::types::_2PI,
 };
 
+/// Wiring:
+/// Z:      CSN, Yellow
+/// SCL:    CLK, Blue
+/// SDA:    DO, MISO, Brown
+
 /// number of samples to delay velocity calculation to reduce noise
 // const VEL_DELAY: usize = 10;
 const VEL_DELAY: usize = 5;

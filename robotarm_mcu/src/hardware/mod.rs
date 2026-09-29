@@ -14,7 +14,7 @@ pub mod mt_6701_ssi;
 pub mod pio_ssi;
 // pub mod smooth_sensor;
 pub mod max485;
-pub mod pwm_adc;
+// pub mod pwm_adc;
 
 pub type Spi0Bus = embassy_sync::mutex::Mutex<
     embassy_sync::blocking_mutex::raw::NoopRawMutex,
@@ -25,3 +25,32 @@ pub type Spi1Bus = embassy_sync::mutex::Mutex<
     embassy_sync::blocking_mutex::raw::NoopRawMutex,
     embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
 >;
+
+pub static SPI_BUS0: static_cell::StaticCell<Spi0Bus> = static_cell::StaticCell::new();
+// pub static SPI_BUS1: static_cell::StaticCell<Spi1Bus> = static_cell::StaticCell::new();
+
+pub struct NoopEncoder;
+
+impl encoder_sensor::EncoderSensor for NoopEncoder {
+    type Error = ();
+
+    async fn update(&mut self, ts_us: u64) -> Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn get_mechanical_angle(&self) -> f32 {
+        todo!()
+    }
+
+    fn get_angle(&self) -> f32 {
+        todo!()
+    }
+
+    fn get_velocity(&self) -> f32 {
+        todo!()
+    }
+
+    fn reset_position(&mut self) {
+        todo!()
+    }
+}

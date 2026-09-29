@@ -345,41 +345,36 @@ impl App {
 
         egui::Grid::new(format!("Plot Controls Grid")).show(ui, |ui| {
             if ui.button("Clear Plot").clicked() {
-                self.plots[self.current_plot].reset();
+                self.plots[self.current_id].reset();
                 self.t0 = None;
             }
             ui.end_row();
             ui.end_row();
 
             if ui.button("Save to CSV").clicked() {
-                self.plots[self.current_plot].save_plot();
+                self.plots[self.current_id].save_plot();
             }
 
             ui.end_row();
             ui.end_row();
             ui.label("Window time (s)");
             ui.add(egui::Slider::new(
-                &mut self.plots[self.current_plot].window_time,
+                &mut self.plots[self.current_id].window_time,
                 1.0..=60.0,
             ));
             ui.end_row();
 
-            ui.end_row();
             ui.label("Window scale");
             ui.add(
-                egui::Slider::new(&mut self.plots[self.current_plot].window_scale, 2.0..=60.0)
+                egui::Slider::new(&mut self.plots[self.current_id].window_scale, 2.0..=60.0)
                     .step_by(2.0),
             );
             ui.end_row();
 
-            ui.end_row();
             ui.label("Window offset");
             ui.add(
-                egui::Slider::new(
-                    &mut self.plots[self.current_plot].window_offset,
-                    -60.0..=60.0,
-                )
-                .step_by(1.0),
+                egui::Slider::new(&mut self.plots[self.current_id].window_offset, -60.0..=60.0)
+                    .step_by(1.0),
             );
             ui.end_row();
 
@@ -387,11 +382,19 @@ impl App {
 
             for (i, plot) in self.plots.iter().enumerate() {
                 if ui
-                    .selectable_label(self.current_plot == i, format!("Motor {}", i))
+                    .selectable_label(self.current_id == i, format!("Motor {}", i))
                     .clicked()
                 {
-                    self.current_plot = i;
+                    self.current_id = i;
                 }
+
+                if ui
+                    .selectable_label(self.second_id == i, format!("Motor {}", i))
+                    .clicked()
+                {
+                    self.second_id = i;
+                }
+
                 ui.end_row();
             }
 
@@ -402,11 +405,11 @@ impl App {
             {
                 ui.label("Plot settings:");
                 ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_plot].draw_angle, "Angle");
+                ui.checkbox(&mut self.plots[self.current_id].draw_angle, "Angle");
 
                 ui.add(
                     egui::Slider::new(
-                        &mut self.plots[self.current_plot].angle_scale,
+                        &mut self.plots[self.current_id].angle_scale,
                         // log_min..=log_max,
                         0.01..=20.0,
                     )
@@ -415,23 +418,23 @@ impl App {
                 );
 
                 ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_plot].draw_pos, "Position");
+                ui.checkbox(&mut self.plots[self.current_id].draw_pos, "Position");
                 ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_plot].draw_vel, "Velocity");
+                ui.checkbox(&mut self.plots[self.current_id].draw_vel, "Velocity");
                 ui.end_row();
                 ui.checkbox(
-                    &mut self.plots[self.current_plot].draw_target_pos,
+                    &mut self.plots[self.current_id].draw_target_pos,
                     "Target position",
                 );
                 ui.end_row();
                 ui.checkbox(
-                    &mut self.plots[self.current_plot].draw_target_vel,
+                    &mut self.plots[self.current_id].draw_target_vel,
                     "Target velocity",
                 );
                 ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_plot].draw_voltage, "Voltage");
+                ui.checkbox(&mut self.plots[self.current_id].draw_voltage, "Voltage");
                 ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_plot].draw_current, "Current");
+                ui.checkbox(&mut self.plots[self.current_id].draw_current, "Current");
                 ui.end_row();
             }
 
@@ -439,20 +442,20 @@ impl App {
 
             // ADRC
             {
-                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_v1, LABEL_V1);
+                ui.checkbox(&mut self.plots[self.current_id].draw_adrc_v1, LABEL_V1);
                 ui.add(
                     egui::Slider::new(
-                        &mut self.plots[self.current_plot].adrc_v1_scale,
+                        &mut self.plots[self.current_id].adrc_v1_scale,
                         log_min..=log_max,
                     )
                     .logarithmic(true)
                     .max_decimals(log_decimals),
                 );
                 ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_v2, LABEL_V2);
+                ui.checkbox(&mut self.plots[self.current_id].draw_adrc_v2, LABEL_V2);
                 ui.add(
                     egui::Slider::new(
-                        &mut self.plots[self.current_plot].adrc_v2_scale,
+                        &mut self.plots[self.current_id].adrc_v2_scale,
                         log_min..=log_max,
                     )
                     .logarithmic(true)
@@ -460,40 +463,40 @@ impl App {
                 );
                 ui.end_row();
 
-                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_x1, LABEL_X1);
+                ui.checkbox(&mut self.plots[self.current_id].draw_adrc_x1, LABEL_X1);
                 ui.add(
                     egui::Slider::new(
-                        &mut self.plots[self.current_plot].adrc_v1_scale,
+                        &mut self.plots[self.current_id].adrc_v1_scale,
                         log_min..=log_max,
                     )
                     .logarithmic(true)
                     .max_decimals(log_decimals),
                 );
                 ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_x2, LABEL_X2);
+                ui.checkbox(&mut self.plots[self.current_id].draw_adrc_x2, LABEL_X2);
                 ui.add(
                     egui::Slider::new(
-                        &mut self.plots[self.current_plot].adrc_v2_scale,
+                        &mut self.plots[self.current_id].adrc_v2_scale,
                         log_min..=log_max,
                     )
                     .logarithmic(true)
                     .max_decimals(log_decimals),
                 );
                 ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_x3, LABEL_X3);
+                ui.checkbox(&mut self.plots[self.current_id].draw_adrc_x3, LABEL_X3);
                 ui.add(
                     egui::Slider::new(
-                        &mut self.plots[self.current_plot].adrc_x3_scale,
+                        &mut self.plots[self.current_id].adrc_x3_scale,
                         log_min / 1_000_000.0..=log_max / 1_000_000.0,
                     )
                     .logarithmic(true)
                     .max_decimals(log_decimals + 4),
                 );
                 ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_plot].draw_adrc_u, "ADRC u");
+                ui.checkbox(&mut self.plots[self.current_id].draw_adrc_u, "ADRC u");
                 ui.add(
                     egui::Slider::new(
-                        &mut self.plots[self.current_plot].adrc_u_scale,
+                        &mut self.plots[self.current_id].adrc_u_scale,
                         log_min..=log_max,
                     )
                     .logarithmic(true)
@@ -1098,186 +1101,25 @@ impl DataPlot {
 }
 
 impl DataPlot {
+    pub fn show_motion_plots(&self, ui: &mut egui::Ui, second: &Self) {
+        let available = ui.available_size();
+        let half_height = (available.y * 0.5).max(120.0);
+
+        ui.allocate_ui(egui::vec2(available.x, half_height), |ui| {
+            self.show_plot_motion(ui);
+        });
+
+        ui.allocate_ui(egui::vec2(available.x, half_height), |ui| {
+            second.show_plot_motion(ui);
+        });
+    }
+
     pub fn show_plot(&mut self, ui: &mut egui::Ui) {
         let available = ui.available_size();
         let half_height = (available.y * 0.5).max(120.0);
 
         ui.allocate_ui(egui::vec2(available.x, half_height), |ui| {
-            let x_min = self.prev_time - self.window_time;
-            let x_max = self.prev_time;
-
-            let mut plot = egui_plot::Plot::new("data_plot")
-                .legend(egui_plot::Legend::default().position(egui_plot::Corner::LeftTop))
-                .height(ui.available_height())
-                .allow_scroll(false)
-                .allow_drag(false)
-                .allow_zoom(false)
-                .auto_bounds([true, false])
-                .include_x(x_min)
-                .include_x(x_max)
-                // .include_y(0.0)
-                // .include_y(2.0 * PI)
-                // .default_x_bounds(x_min, x_max)
-                // .default_y_bounds(0.0, 2.0 * PI)
-                .default_y_bounds(-2.0 * PI, 2.0 * PI)
-                // .invert_x(true)
-                // .x_axis_label(format!("{x_min}, {x_max}"))
-                // .x_axis_formatter(|gridmark, range| {
-                //     //
-                //     // format!("{:.0}", (gridmark.value - self.prev_time).abs().floor()).to_string()
-                //     format!("{:.0}", gridmark.value.floor()).to_string()
-                // })
-                .label_formatter(|pos| match pos {
-                    HoverPosition::NearDataPoint {
-                        plot_name,
-                        position,
-                        index,
-                    } => {
-                        //
-                        // None
-                        let mult = match *plot_name {
-                            "Angle" | "Pos" | "Target Pos" => self.angle_scale,
-                            "Vel" | "Target Vel" | "Raw Vel" => self.scale_vel,
-                            "Current Id" | "Current Iq" => 10.0,
-                            _ => 1.0,
-                        };
-
-                        Some(format!("{}: {:.3}", plot_name, position.y / mult))
-                    }
-                    HoverPosition::Elsewhere { position } => {
-                        //
-                        None
-                    }
-                })
-                .custom_y_axes(vec![
-                    AxisHints::new_x(),
-                    AxisHints::new_y().placement(HPlacement::Left),
-                    AxisHints::new_y().placement(HPlacement::Right),
-                ]);
-
-            plot.show(ui, |plot_ui| {
-                if self.draw_angle {
-                    let pts: Vec<[f64; 2]> = self
-                        .angle
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, angle)| [*t, self.angle_scale * *angle])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("Angle", pts)
-                            .name("Angle")
-                            .color(GREEN)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_pos {
-                    let pts: Vec<[f64; 2]> = self
-                        .pos
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, angle)| [*t, self.angle_scale * *angle])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("Pos", pts)
-                            .name("Position")
-                            .color(TEAL)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_vel {
-                    let pts: Vec<[f64; 2]> = self
-                        .vel
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, vel)| [*t, *vel * self.scale_vel])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("Vel", pts)
-                            .name("Velocity")
-                            .color(BLUE)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_target_pos {
-                    let pts: Vec<[f64; 2]> = self
-                        .target_pos
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, angle)| [*t, self.angle_scale * *angle])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("Target Pos", pts)
-                            .name("Target Pos")
-                            .color(RED)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_target_vel {
-                    let pts: Vec<[f64; 2]> = self
-                        .target_vel
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, target)| [*t, *target * self.scale_vel])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("", pts)
-                            .name("Target Vel")
-                            .color(MAGENTA)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_voltage {
-                    let pts: Vec<[f64; 2]> = self
-                        .voltage
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, v)| [*t, *v * self.scale_vel])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("", pts)
-                            .name("Raw Vel")
-                            .color(ORANGE)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_current {
-                    let current_scale = 10.0;
-
-                    let pts_d: Vec<[f64; 2]> = self
-                        .current_d
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, c)| [*t, *c * current_scale])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("Current Id", pts_d)
-                            .name("Current Id")
-                            .color(CYAN)
-                            .width(self.stroke_width as f32),
-                    );
-
-                    let pts_q: Vec<[f64; 2]> = self
-                        .current_q
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, c)| [*t, *c * current_scale])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("Current Iq", pts_q)
-                            .name("Current Iq")
-                            .color(YELLOW)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-            });
-
-            //
+            self.show_plot_motion(ui);
         });
 
         // ---- Bottom pane (ADRC / PID) -------------------------------------
@@ -1430,6 +1272,184 @@ impl DataPlot {
         });
 
         // unimplemented!()
+    }
+
+    fn show_plot_motion(&self, ui: &mut egui::Ui) {
+        let x_min = self.prev_time - self.window_time;
+        let x_max = self.prev_time;
+
+        let mut plot = egui_plot::Plot::new("data_plot")
+            .legend(egui_plot::Legend::default().position(egui_plot::Corner::LeftTop))
+            .height(ui.available_height())
+            .allow_scroll(false)
+            .allow_drag(false)
+            .allow_zoom(false)
+            .auto_bounds([true, false])
+            .include_x(x_min)
+            .include_x(x_max)
+            // .include_y(0.0)
+            // .include_y(2.0 * PI)
+            // .default_x_bounds(x_min, x_max)
+            // .default_y_bounds(0.0, 2.0 * PI)
+            .default_y_bounds(-2.0 * PI, 2.0 * PI)
+            // .invert_x(true)
+            // .x_axis_label(format!("{x_min}, {x_max}"))
+            // .x_axis_formatter(|gridmark, range| {
+            //     //
+            //     // format!("{:.0}", (gridmark.value - self.prev_time).abs().floor()).to_string()
+            //     format!("{:.0}", gridmark.value.floor()).to_string()
+            // })
+            .label_formatter(|pos| match pos {
+                HoverPosition::NearDataPoint {
+                    plot_name,
+                    position,
+                    index,
+                } => {
+                    //
+                    // None
+                    let mult = match *plot_name {
+                        "Angle" | "Pos" | "Target Pos" => self.angle_scale,
+                        "Vel" | "Target Vel" | "Raw Vel" => self.scale_vel,
+                        "Current Id" | "Current Iq" => 10.0,
+                        _ => 1.0,
+                    };
+
+                    Some(format!("{}: {:.3}", plot_name, position.y / mult))
+                }
+                HoverPosition::Elsewhere { position } => {
+                    //
+                    None
+                }
+            })
+            .custom_y_axes(vec![
+                AxisHints::new_x(),
+                AxisHints::new_y().placement(HPlacement::Left),
+                AxisHints::new_y().placement(HPlacement::Right),
+            ]);
+
+        plot.show(ui, |plot_ui| {
+            if self.draw_angle {
+                let pts: Vec<[f64; 2]> = self
+                    .angle
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                    .collect();
+                plot_ui.line(
+                    Line::new("Angle", pts)
+                        .name("Angle")
+                        .color(GREEN)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_pos {
+                let pts: Vec<[f64; 2]> = self
+                    .pos
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                    .collect();
+                plot_ui.line(
+                    Line::new("Pos", pts)
+                        .name("Position")
+                        .color(TEAL)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_vel {
+                let pts: Vec<[f64; 2]> = self
+                    .vel
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, vel)| [*t, *vel * self.scale_vel])
+                    .collect();
+                plot_ui.line(
+                    Line::new("Vel", pts)
+                        .name("Velocity")
+                        .color(BLUE)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_target_pos {
+                let pts: Vec<[f64; 2]> = self
+                    .target_pos
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                    .collect();
+                plot_ui.line(
+                    Line::new("Target Pos", pts)
+                        .name("Target Pos")
+                        .color(RED)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_target_vel {
+                let pts: Vec<[f64; 2]> = self
+                    .target_vel
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, target)| [*t, *target * self.scale_vel])
+                    .collect();
+                plot_ui.line(
+                    Line::new("", pts)
+                        .name("Target Vel")
+                        .color(MAGENTA)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_voltage {
+                let pts: Vec<[f64; 2]> = self
+                    .voltage
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, v)| [*t, *v * self.scale_vel])
+                    .collect();
+                plot_ui.line(
+                    Line::new("", pts)
+                        .name("Raw Vel")
+                        .color(ORANGE)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_current {
+                let current_scale = 10.0;
+
+                let pts_d: Vec<[f64; 2]> = self
+                    .current_d
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, c)| [*t, *c * current_scale])
+                    .collect();
+                plot_ui.line(
+                    Line::new("Current Id", pts_d)
+                        .name("Current Id")
+                        .color(CYAN)
+                        .width(self.stroke_width as f32),
+                );
+
+                let pts_q: Vec<[f64; 2]> = self
+                    .current_q
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, c)| [*t, *c * current_scale])
+                    .collect();
+                plot_ui.line(
+                    Line::new("Current Iq", pts_q)
+                        .name("Current Iq")
+                        .color(YELLOW)
+                        .width(self.stroke_width as f32),
+                );
+            }
+        });
+
+        //
     }
 }
 

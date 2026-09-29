@@ -326,13 +326,15 @@ impl App {
                 self.col_0(ui, id);
             });
             col_1.vertical(|ui| {
-                self.col_1(ui, id);
+                self.col_controls(ui, id);
             });
             col_2.vertical(|ui| {
-                self.col_2(ui, id);
+                // self.col_2(ui, id);
+                self.col_controls(ui, self.second_id as u8);
             });
             col_3.vertical(|ui| {
-                self.col_3(ui, id);
+                // self.col_3(ui, id);
+                self.col_adrc(ui, id);
             });
         });
     }
@@ -516,8 +518,22 @@ impl App {
     }
 
     // motor controls
-    fn col_1(&mut self, ui: &mut egui::Ui, id: u8) {
+    fn col_controls(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("Motor Controls Grid {id}")).show(ui, |ui| {
+            ui.label(RichText::new(format!("Motor Controls: {}", id)).strong());
+
+            if ui.button("Disable All Motors").clicked() {
+                for i in 0..self.status.len() {
+                    self.status[i].enabled = false;
+                    let cmd = SerialCommand::SetEnabled {
+                        id: i as u8,
+                        enabled: false,
+                    };
+                    self.send_command(cmd);
+                }
+            }
+            ui.end_row();
+
             if ui.button("Enable Motor").clicked() {
                 self.status[id as usize].enabled = true;
                 let cmd = SerialCommand::SetEnabled { id, enabled: true };
@@ -808,6 +824,7 @@ impl App {
         });
 
         // feedforward
+        #[cfg(feature = "nope")]
         ui.horizontal(|ui| {
             ui.label("Feedforward:");
 
@@ -985,7 +1002,7 @@ impl App {
         //
     }
 
-    fn col_2(&mut self, ui: &mut egui::Ui, id: u8) {
+    fn col_adrc(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("col_2_grid")).show(ui, |ui| {
             self::pid_settings::pid_control_dec(
                 ui,
@@ -1127,7 +1144,7 @@ impl App {
         });
     }
 
-    fn col_3(&mut self, ui: &mut egui::Ui, id: u8) {
+    fn col_debug(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("col_3_grid")).show(ui, |ui| {
             // debug motion
             ui.toggle_value(

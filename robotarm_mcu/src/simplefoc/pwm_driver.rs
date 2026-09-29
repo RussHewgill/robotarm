@@ -4,13 +4,13 @@ use embassy_rp::pwm::SetDutyCycle;
 use core::cell::{Cell, RefCell};
 use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 
-use crate::hardware::pwm_adc::PwmMutex;
+// use crate::hardware::pwm_adc::PwmMutex;
 
 pub struct PWMDriver<'a> {
-    // pwm0: embassy_rp::pwm::Pwm<'a>,
-    // pwm12: embassy_rp::pwm::Pwm<'a>,
-    pwm0: &'static PwmMutex,
-    pwm12: &'static PwmMutex,
+    pwm0: embassy_rp::pwm::Pwm<'a>,
+    pwm12: embassy_rp::pwm::Pwm<'a>,
+    // pwm0: &'static PwmMutex,
+    // pwm12: &'static PwmMutex,
     // pwm1: embassy_rp::pwm::PwmOutput<'a>,
     // pwm2: embassy_rp::pwm::PwmOutput<'a>,
     enable_pin: embassy_rp::gpio::Output<'a>,
@@ -25,10 +25,10 @@ pub struct PWMDriver<'a> {
 
 impl<'a> PWMDriver<'a> {
     pub fn new(
-        // mut pwm0: embassy_rp::pwm::Pwm<'a>,
-        // mut pwm12: embassy_rp::pwm::Pwm<'a>,
-        pwm0: &'static PwmMutex,
-        pwm12: &'static PwmMutex,
+        mut pwm0: embassy_rp::pwm::Pwm<'a>,
+        mut pwm12: embassy_rp::pwm::Pwm<'a>,
+        // pwm0: &'static PwmMutex,
+        // pwm12: &'static PwmMutex,
 
         // pwm2: embassy_rp::pwm::Pwm<'a>,
         enable_pin: embassy_rp::gpio::Output<'a>,
@@ -38,19 +38,19 @@ impl<'a> PWMDriver<'a> {
         voltage_limit: f32,
         voltage_supply: f32,
     ) -> Self {
-        // let max_duty_cycle = pwm0.max_duty_cycle();
-        let max_duty_cycle = pwm0.lock(|p| p.borrow().as_ref().unwrap().max_duty_cycle());
+        let max_duty_cycle = pwm0.max_duty_cycle();
+        // let max_duty_cycle = pwm0.lock(|p| p.borrow().as_ref().unwrap().max_duty_cycle());
 
         // debug!("Max duty cycle0: {}", max_duty_cycle);
         // debug!("Max duty cycle12: {}", pwm12.max_duty_cycle());
 
         config.enable = false;
 
-        // pwm0.set_config(&config);
-        // pwm12.set_config(&config);
+        pwm0.set_config(&config);
+        pwm12.set_config(&config);
 
-        pwm0.lock(|p| p.borrow_mut().as_mut().unwrap().set_config(&config));
-        pwm12.lock(|p| p.borrow_mut().as_mut().unwrap().set_config(&config));
+        // pwm0.lock(|p| p.borrow_mut().as_mut().unwrap().set_config(&config));
+        // pwm12.lock(|p| p.borrow_mut().as_mut().unwrap().set_config(&config));
 
         let mut out = Self {
             pwm0,
@@ -82,53 +82,53 @@ impl<'a> PWMDriver<'a> {
     }
 
     fn set_config(&mut self, config: embassy_rp::pwm::Config) {
-        // self.pwm0.set_config(&config);
-        // self.pwm12.set_config(&config);
-        self.pwm0
-            .lock(|p| p.borrow_mut().as_mut().unwrap().set_config(&config));
-        self.pwm12
-            .lock(|p| p.borrow_mut().as_mut().unwrap().set_config(&config));
+        self.pwm0.set_config(&config);
+        self.pwm12.set_config(&config);
+        // self.pwm0
+        //     .lock(|p| p.borrow_mut().as_mut().unwrap().set_config(&config));
+        // self.pwm12
+        //     .lock(|p| p.borrow_mut().as_mut().unwrap().set_config(&config));
     }
 
     fn set_counter(&self, counter: u16) {
-        // self.pwm0.set_counter(0);
-        // self.pwm12.set_counter(0);
-        self.pwm0
-            .lock(|p| p.borrow_mut().as_mut().unwrap().set_counter(counter));
-        self.pwm12
-            .lock(|p| p.borrow_mut().as_mut().unwrap().set_counter(counter));
+        self.pwm0.set_counter(0);
+        self.pwm12.set_counter(0);
+        // self.pwm0
+        //     .lock(|p| p.borrow_mut().as_mut().unwrap().set_counter(counter));
+        // self.pwm12
+        //     .lock(|p| p.borrow_mut().as_mut().unwrap().set_counter(counter));
     }
 
     fn set_duty_cycles(&mut self, dc0: u16, dc1: u16, dc2: u16) {
-        // if let Err(_e) = self.pwm0.set_duty_cycle(dc0) {
-        //     // debug!("Failed to set duty cycle for PWM0");
-        // }
-        // match self.pwm12.split_by_ref() {
-        //     (Some(mut pwm1), Some(mut pwm2)) => {
-        //         if let Err(_e) = pwm1.set_duty_cycle(dc1) {
-        //             // debug!("Failed to set duty cycle for PWM1");
-        //         }
-        //         if let Err(_e) = pwm2.set_duty_cycle(dc2) {
-        //             // debug!("Failed to set duty cycle for PWM2");
-        //         }
-        //     }
-        //     // _ => debug!("Failed to split PWM slice into two channels"),
-        //     _ => {}
-        // }
-
-        let _ = self
-            .pwm0
-            .lock(|p| p.borrow_mut().as_mut().unwrap().set_duty_cycle(dc0));
-        self.pwm12.lock(|p| {
-            let mut p = p.borrow_mut();
-            match p.as_mut().unwrap().split_by_ref() {
-                (Some(mut pwm1), Some(mut pwm2)) => {
-                    let _ = pwm1.set_duty_cycle(dc1);
-                    let _ = pwm2.set_duty_cycle(dc2);
+        if let Err(_e) = self.pwm0.set_duty_cycle(dc0) {
+            // debug!("Failed to set duty cycle for PWM0");
+        }
+        match self.pwm12.split_by_ref() {
+            (Some(mut pwm1), Some(mut pwm2)) => {
+                if let Err(_e) = pwm1.set_duty_cycle(dc1) {
+                    // debug!("Failed to set duty cycle for PWM1");
                 }
-                _ => {}
+                if let Err(_e) = pwm2.set_duty_cycle(dc2) {
+                    // debug!("Failed to set duty cycle for PWM2");
+                }
             }
-        });
+            // _ => debug!("Failed to split PWM slice into two channels"),
+            _ => {}
+        }
+
+        // let _ = self
+        //     .pwm0
+        //     .lock(|p| p.borrow_mut().as_mut().unwrap().set_duty_cycle(dc0));
+        // self.pwm12.lock(|p| {
+        //     let mut p = p.borrow_mut();
+        //     match p.as_mut().unwrap().split_by_ref() {
+        //         (Some(mut pwm1), Some(mut pwm2)) => {
+        //             let _ = pwm1.set_duty_cycle(dc1);
+        //             let _ = pwm2.set_duty_cycle(dc2);
+        //         }
+        //         _ => {}
+        //     }
+        // });
     }
 
     /// disable, then sync and enable
@@ -147,17 +147,17 @@ impl<'a> PWMDriver<'a> {
         // self.pwm0.set_config(&self.config);
         // self.pwm12.set_config(&self.config);
 
-        // embassy_rp::pwm::pwmbatch::set_enabled(true, |batch| {
-        //     batch.enable(&self.pwm0);
-        //     batch.enable(&self.pwm12);
-        // });
-
         embassy_rp::pwm::PwmBatch::set_enabled(true, |batch| {
-            self.pwm0
-                .lock(|p| batch.enable(p.borrow_mut().as_mut().unwrap()));
-            self.pwm12
-                .lock(|p| batch.enable(p.borrow_mut().as_mut().unwrap()));
+            batch.enable(&self.pwm0);
+            batch.enable(&self.pwm12);
         });
+
+        // embassy_rp::pwm::PwmBatch::set_enabled(true, |batch| {
+        //     self.pwm0
+        //         .lock(|p| batch.enable(p.borrow_mut().as_mut().unwrap()));
+        //     self.pwm12
+        //         .lock(|p| batch.enable(p.borrow_mut().as_mut().unwrap()));
+        // });
     }
 
     pub fn disable(&mut self) {
@@ -165,28 +165,28 @@ impl<'a> PWMDriver<'a> {
 
         self.enable_pin.set_low();
 
-        // let _ = self.pwm0.set_duty_cycle_fully_off();
-        // match self.pwm12.split_by_ref() {
-        //     (Some(mut pwm1), Some(mut pwm2)) => {
-        //         let _ = pwm1.set_duty_cycle_fully_off();
-        //         let _ = pwm2.set_duty_cycle_fully_off();
-        //     }
-        //     _ => debug!("Failed to split PWM slice into two channels"),
-        // }
-
-        let _ = self
-            .pwm0
-            .lock(|p| p.borrow_mut().as_mut().unwrap().set_duty_cycle_fully_off());
-        let _ = self.pwm12.lock(|p| {
-            let mut p = p.borrow_mut();
-            match p.as_mut().unwrap().split_by_ref() {
-                (Some(mut pwm1), Some(mut pwm2)) => {
-                    let _ = pwm1.set_duty_cycle_fully_off();
-                    let _ = pwm2.set_duty_cycle_fully_off();
-                }
-                _ => error!("Failed to split PWM slice into two channels"),
+        let _ = self.pwm0.set_duty_cycle_fully_off();
+        match self.pwm12.split_by_ref() {
+            (Some(mut pwm1), Some(mut pwm2)) => {
+                let _ = pwm1.set_duty_cycle_fully_off();
+                let _ = pwm2.set_duty_cycle_fully_off();
             }
-        });
+            _ => debug!("Failed to split PWM slice into two channels"),
+        }
+
+        // let _ = self
+        //     .pwm0
+        //     .lock(|p| p.borrow_mut().as_mut().unwrap().set_duty_cycle_fully_off());
+        // let _ = self.pwm12.lock(|p| {
+        //     let mut p = p.borrow_mut();
+        //     match p.as_mut().unwrap().split_by_ref() {
+        //         (Some(mut pwm1), Some(mut pwm2)) => {
+        //             let _ = pwm1.set_duty_cycle_fully_off();
+        //             let _ = pwm2.set_duty_cycle_fully_off();
+        //         }
+        //         _ => error!("Failed to split PWM slice into two channels"),
+        //     }
+        // });
 
         self.config.enable = false;
 

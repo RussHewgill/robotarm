@@ -524,8 +524,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 // pid_internals_vel: self.pid_velocity.prev_internals(),
                 // pid_internals_vel: (0., 0., 0., 0.),
                 // pid_internals_vel: None,
-            })
-            .await;
+            });
 
             #[cfg(feature = "nope")]
             self.send_debug_message(robotarm_protocol::SerialLogMessage::MotorData {
@@ -583,8 +582,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 state,
                 u,
                 u0,
-            })
-            .await;
+            });
 
             // self.send_debug_message(SerialLogMessage::PIDDebugData {
             //     id: self.id,

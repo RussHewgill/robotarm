@@ -65,10 +65,8 @@ const CONFIG_DATA: &str = include_str!("../configs/motors.ron");
 #[unsafe(link_section = ".bi_entries")]
 #[used]
 pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
-    embassy_rp::binary_info::rp_program_name!(c"Blinky Example"),
-    embassy_rp::binary_info::rp_program_description!(
-        c"This example tests the RP Pico on board LED, connected to gpio 25"
-    ),
+    embassy_rp::binary_info::rp_program_name!(c"arm"),
+    embassy_rp::binary_info::rp_program_description!(c""),
     embassy_rp::binary_info::rp_cargo_version!(),
     embassy_rp::binary_info::rp_program_build_attribute!(),
 ];
@@ -1953,13 +1951,15 @@ async fn main(spawner: Spawner) {
         let div = 1;
         let period = (clock_freq_hz / (desired_freq_hz * div as u32)) as u16 - 1;
 
+        c.enable = false;
+
         c.top = period;
         c.divider = div.into();
         c.phase_correct = true;
         c
     };
 
-    let (pwm0, pwm12) = {
+    let (pwm3, pwm45) = {
         let pwm3 = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, config.clone());
         let pwm45 =
             embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE4, p.PIN_8, p.PIN_9, config.clone());
@@ -1970,13 +1970,13 @@ async fn main(spawner: Spawner) {
     debug!("PWM initialized");
 
     // crate::hardware::pwm_adc::setup_pwm_adc(&spawner, p.ADC, p.PIN_26, p.PWM_SLICE4, p.PIN_25);
-    // let (pwm0, pwm12) =
-    //     crate::hardware::pwm_adc::setup_pwm_adc(&spawner, p.ADC, p.PIN_27, pwm0, pwm12);
+    let (pwm3, pwm45) =
+        crate::hardware::pwm_adc::setup_pwm_adc(&spawner, p.ADC, p.PIN_27, pwm3, pwm45);
 
     let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
     let mut pwm_driver0 = crate::simplefoc::pwm_driver::PWMDriver::new(
-        pwm0,
-        pwm12,
+        &pwm3,
+        &pwm45,
         enable_pin1,
         config.clone(),
         VOLTAGE_LIMIT,
@@ -1986,7 +1986,7 @@ async fn main(spawner: Spawner) {
     debug!("PWM driver initialized");
 
     let n_samples = 512;
-    let angle = simplefoc::types::_PI / 2.;
+    let angle = simplefoc::types::_PI * 2.;
 
     let motor = crate::configs::MOTOR_CONFIG_GM5208_24;
 
@@ -2056,6 +2056,21 @@ async fn main(spawner: Spawner) {
         //
     }
 
+    for i in 0..n_samples {
+        let shaft_angle = angle * (i as f32 / n_samples as f32);
+        let mut electrical_angle = shaft_angle * motor.pole_pairs as f32;
+
+        electrical_angle = simplefoc::types::_2PI * motor.pole_pairs as f32 - electrical_angle;
+
+        // self.set_phase_voltage(self.motor.voltage_sensor_align, 0., electrical_angle);
+        let voltage = 3.0;
+        let (va, vb, vc) = set_phase_voltage(voltage, 0., electrical_angle);
+        pwm_driver0.set_duty_cycles_f32(va, vb, vc);
+        Timer::after_micros(5000).await;
+
+        //
+    }
+
     pwm_driver0.disable();
 
     debug!("Sweep complete");
@@ -2098,7 +2113,7 @@ fn main() -> ! {
     // let supply_voltage = 20.0;
 
     #[cfg(feature = "nope")]
-    let spi_bus0 = {
+    let spi_bus1 = {
         let miso = p.PIN_12;
         let mosi = p.PIN_15;
 
@@ -2116,13 +2131,13 @@ fn main() -> ! {
             embassy_rp::spi::Config::default(),
         );
 
-        static SPI_BUS: StaticCell<hardware::Spi1Bus> = StaticCell::new();
-        let spi_bus = SPI_BUS.init(embassy_sync::mutex::Mutex::new(spi));
+        // static SPI_BUS1: StaticCell<hardware::Spi1Bus> = StaticCell::new();
+        let spi_bus = hardware::SPI_BUS1.init(embassy_sync::mutex::Mutex::new(spi));
         spi_bus
     };
 
     // #[cfg(feature = "nope")]
-    let spi_bus1 = {
+    let spi_bus0 = {
         let miso = p.PIN_20;
         let mosi = p.PIN_19;
 
@@ -2140,8 +2155,8 @@ fn main() -> ! {
             embassy_rp::spi::Config::default(),
         );
 
-        static SPI_BUS: StaticCell<hardware::Spi0Bus> = StaticCell::new();
-        let spi_bus = SPI_BUS.init(embassy_sync::mutex::Mutex::new(spi));
+        // static SPI_BUS0: StaticCell<hardware::Spi0Bus> = StaticCell::new();
+        let spi_bus = hardware::SPI_BUS0.init(embassy_sync::mutex::Mutex::new(spi));
         spi_bus
     };
 
@@ -2152,7 +2167,7 @@ fn main() -> ! {
         let spi_cfg = embassy_rp::spi::Config::default();
 
         let mut spi_dev = embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
-            spi_bus1, cs, spi_cfg,
+            spi_bus0, cs, spi_cfg,
         );
 
         crate::hardware::mt_6701_ssi::MT6701::new(spi_dev)
@@ -2215,7 +2230,7 @@ fn main() -> ! {
         encoder
     };
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let output_encoder0 = {
         let sda = p.PIN_16;
         let scl = p.PIN_17;
@@ -2275,7 +2290,7 @@ fn main() -> ! {
     };
 
     // INA240
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let current_sensor = {
         use embassy_rp::adc::{Adc, Channel, Config, InterruptHandler};
         use embassy_rp::gpio::Pull;
@@ -2292,15 +2307,6 @@ fn main() -> ! {
         sensor
     };
 
-    // simpleFOCShield
-    // PWM pins:
-    // pico     shield
-    // 7        10       white
-    // 8        6      black
-    // 9        5       brown
-    // en: 10   8       red
-
-    #[cfg(feature = "nope")]
     let (pwm_driver0, pwm_driver1) = {
         let mut c = embassy_rp::pwm::Config::default();
         // let desired_freq_hz = 24_000 * 1;
@@ -2325,16 +2331,11 @@ fn main() -> ! {
         let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
         let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
 
-        crate::hardware::pwm_adc::PWM0.lock(|p| p.borrow_mut().replace(pwm0));
-        crate::hardware::pwm_adc::PWM12.lock(|p| p.borrow_mut().replace(pwm12));
-
         let enable_pin0 = embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low);
         let driver0: simplefoc::pwm_driver::PWMDriver<'static> =
             crate::simplefoc::pwm_driver::PWMDriver::new(
-                // pwm0,
-                // pwm12,
-                &crate::hardware::pwm_adc::PWM0,
-                &crate::hardware::pwm_adc::PWM12,
+                pwm0,
+                pwm12,
                 enable_pin0,
                 c.clone(),
                 voltage_limit,
@@ -2347,10 +2348,8 @@ fn main() -> ! {
         let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
         let driver1: simplefoc::pwm_driver::PWMDriver<'static> =
             crate::simplefoc::pwm_driver::PWMDriver::new(
-                // pwm3,
-                // pwm45,
-                &crate::hardware::pwm_adc::PWM0,
-                &crate::hardware::pwm_adc::PWM12,
+                pwm3,
+                pwm45,
                 enable_pin1,
                 c,
                 voltage_limit,
@@ -2358,42 +2357,6 @@ fn main() -> ! {
             );
 
         (driver0, driver1)
-    };
-
-    let pwm_driver1 = {
-        let mut c = embassy_rp::pwm::Config::default();
-        // let desired_freq_hz = 24_000 * 1;
-        // let desired_freq_hz = 24_000 * 2;
-        let desired_freq_hz = 24_000 * 2 * 2;
-        let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
-
-        let div = 1;
-        let period = (clock_freq_hz / (desired_freq_hz * div as u32)) as u16 - 1;
-
-        c.top = period;
-        c.divider = div.into();
-        c.phase_correct = true;
-
-        let pwm3 = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, c.clone());
-        let pwm45 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE4, p.PIN_8, p.PIN_9, c.clone());
-
-        crate::hardware::pwm_adc::PWM3.lock(|p| p.borrow_mut().replace(pwm3));
-        crate::hardware::pwm_adc::PWM45.lock(|p| p.borrow_mut().replace(pwm45));
-
-        let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
-        let driver1: simplefoc::pwm_driver::PWMDriver<'static> =
-            crate::simplefoc::pwm_driver::PWMDriver::new(
-                // pwm3,
-                // pwm45,
-                &crate::hardware::pwm_adc::PWM3,
-                &crate::hardware::pwm_adc::PWM45,
-                enable_pin1,
-                c,
-                voltage_limit,
-                supply_voltage,
-            );
-
-        driver1
     };
 
     #[cfg(feature = "picoA")]
@@ -2408,8 +2371,9 @@ fn main() -> ! {
 
     #[cfg(feature = "testing")]
     // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM4108, MOTOR_CONFIG_GM5208_24);
-    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM5208_24, MOTOR_CONFIG_GM5208_24);
+    // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM5208_24, MOTOR_CONFIG_GM5208_24);
     // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GL60, MOTOR_CONFIG_GL60);
+    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GL60, MOTOR_CONFIG_GM5208_24);
 
     #[cfg(feature = "picoA")]
     // let (output_encoder0, output_encoder1) = (None, Some(output_encoder0));
@@ -2438,43 +2402,19 @@ fn main() -> ! {
         crate::comms::max485::Max485::new(uart, enable)
     };
 
-    #[cfg(feature = "nope")]
-    let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
-        MOTOR_ID_A,
-        encoder0,
-        None::<()>,
-        // Some(current_sensor),
-        // None,
-        // None,
-        pwm_driver0,
-        motor_config0,
-        usb.clone(),
-        // None,
-    );
+    let usb2 = usb.clone();
 
     let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
         MOTOR_ID_B,
         encoder1,
-        // None::<()>,
-        Some(current_sensor),
+        None::<()>,
+        // Some(current_sensor),
         // None,
         // Some(crate::simplefoc::current_read_task::CURRENT_CHANNEL.receiver()),
         // Some(crate::simplefoc::current_read_task::ELEC_ANGLE_CHANNEL.sender()),
         pwm_driver1,
         motor_config1,
         usb,
-        // None,
-    );
-
-    #[cfg(feature = "nope")]
-    let foc = crate::simplefoc::foc_types::SimpleFOC::new(
-        0,
-        // encoder0,
-        encoder1,
-        pwm_driver0,
-        enable_pin0,
-        motor_config0,
-        Some(usb),
         // None,
     );
 
@@ -2486,15 +2426,61 @@ fn main() -> ! {
         move || {
             let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
             executor1.run(|spawner| {
-                // spawner.spawn(crate::init::core0_task1(foc1, None).unwrap());
-
-                // let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
-
-                // crate::comms::usb::UsbMonitor::init(&spawner, driver);
                 // crate::comms::usb_raw::usb_init(&spawner, driver);
 
-                // spawner.spawn(crate::init::core0_task0(foc0, Some(output_encoder0)).unwrap());
-                // spawner.spawn(crate::init::core0_task0(foc0, None).unwrap());
+                // #[cfg(feature = "nope")]
+                {
+                    let spi_bus1 = {
+                        let miso = p.PIN_12;
+                        let mosi = p.PIN_15;
+
+                        let sck = p.PIN_14;
+                        // let cs = p.PIN_13;
+
+                        let spi = embassy_rp::spi::Spi::new(
+                            p.SPI1,
+                            sck,
+                            mosi,
+                            miso,
+                            p.DMA_CH2,
+                            p.DMA_CH3,
+                            Irqs,
+                            embassy_rp::spi::Config::default(),
+                        );
+
+                        static SPI_BUS1: StaticCell<hardware::Spi1Bus> = StaticCell::new();
+                        let spi_bus = SPI_BUS1.init(embassy_sync::mutex::Mutex::new(spi));
+                        spi_bus
+                    };
+
+                    let encoder0 = {
+                        let cs =
+                            embassy_rp::gpio::Output::new(p.PIN_13, embassy_rp::gpio::Level::High);
+                        let spi_cfg = embassy_rp::spi::Config::default();
+                        let mut spi_dev =
+                            embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
+                                spi_bus1, cs, spi_cfg,
+                            );
+                        crate::hardware::mt_6701_ssi::MT6701::new(spi_dev)
+                    };
+
+                    // #[cfg(feature = "nope")]
+                    let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
+                        MOTOR_ID_A,
+                        encoder0,
+                        None::<()>,
+                        // Some(current_sensor),
+                        // None,
+                        // None,
+                        pwm_driver0,
+                        motor_config0,
+                        usb2,
+                        // None,
+                    );
+
+                    spawner.spawn(crate::init::core0_task(foc0, None).unwrap());
+                    // spawner.spawn(crate::init::test_task(usb2, encoder0).unwrap());
+                }
 
                 // spawner.spawn(
                 //     crate::simplefoc::current_read_task::core1_task_current_sens(current_sensor)
@@ -2525,7 +2511,7 @@ fn main() -> ! {
         move || {
             let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
             executor1.run(|spawner| {
-                spawner.spawn(crate::init::core0_task1(foc1)).unwrap();
+                spawner.spawn(crate::init::core1_task(foc1)).unwrap();
             });
         },
     );
@@ -2541,10 +2527,39 @@ fn main() -> ! {
         //     .unwrap();
 
         // crate::comms::usb::UsbMonitor::init(&spawner, driver);
+        // crate::comms::usb_raw::usb_init(&spawner, driver);
+
         crate::comms::usb_raw::usb_init(&spawner, driver);
 
-        // crate::comms::usb_raw::usb_init(&spawner, driver);
-        spawner.spawn(crate::init::core0_task1(foc1, None).unwrap());
+        // spawner.spawn(crate::init::core1_task(foc1, None).unwrap());
+
+        #[cfg(feature = "nope")]
+        {
+            let encoder0 = {
+                let cs = embassy_rp::gpio::Output::new(p.PIN_13, embassy_rp::gpio::Level::High);
+                let spi_cfg = embassy_rp::spi::Config::default();
+                let mut spi_dev =
+                    embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
+                        spi_bus1, cs, spi_cfg,
+                    );
+                crate::hardware::mt_6701_ssi::MT6701::new(spi_dev)
+            };
+
+            // #[cfg(feature = "nope")]
+            let foc0 = crate::simplefoc::foc_types::SimpleFOC::new(
+                MOTOR_ID_A,
+                encoder0,
+                None::<()>,
+                // Some(current_sensor),
+                // None,
+                // None,
+                pwm_driver0,
+                motor_config0,
+                usb2,
+                // None,
+            );
+            spawner.spawn(crate::init::core0_task(foc0, None).unwrap());
+        }
 
         // crate::comms::usb::UsbMonitor::init(&spawner, driver);
         // crate::comms::usb_raw::usb_init(&spawner, driver);

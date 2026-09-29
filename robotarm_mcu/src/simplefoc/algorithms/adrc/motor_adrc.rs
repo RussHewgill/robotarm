@@ -471,6 +471,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 "ADRC ESO: NaN detected in state estimate: {:?}",
                 state.as_slice()
             );
+            self.disable();
             panic!()
         }
 
