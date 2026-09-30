@@ -385,14 +385,24 @@ impl App {
                     .selectable_label(self.current_id == i, format!("Motor {}", i))
                     .clicked()
                 {
-                    self.current_id = i;
+                    if self.second_id == i {
+                        self.second_id = self.current_id;
+                        self.current_id = i;
+                    } else {
+                        self.current_id = i;
+                    }
                 }
 
                 if ui
                     .selectable_label(self.second_id == i, format!("Motor {}", i))
                     .clicked()
                 {
-                    self.second_id = i;
+                    if self.current_id == i {
+                        self.current_id = self.second_id;
+                        self.second_id = i;
+                    } else {
+                        self.second_id = i;
+                    }
                 }
 
                 ui.end_row();

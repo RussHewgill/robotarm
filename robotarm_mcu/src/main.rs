@@ -28,6 +28,9 @@ use crate::hardware::encoder_sensor::EncoderSensor;
 
 // use crate::simplefoc::SimpleFOC;
 
+use ape_table_trig::TrigTableF32;
+pub static TRIG_TABLE: ape_table_trig::TrigTableF32 = ape_table_trig::trig_table_gen_f32!(10000);
+
 #[cfg(any(
     all(feature = "picoA", feature = "picoB"),
     all(feature = "picoA", feature = "picoC"),
@@ -2307,7 +2310,8 @@ fn main() -> ! {
         sensor
     };
 
-    let (pwm_driver0, pwm_driver1) = {
+    // flipped
+    let (pwm_driver1, pwm_driver0) = {
         let mut c = embassy_rp::pwm::Config::default();
         // let desired_freq_hz = 24_000 * 1;
         // let desired_freq_hz = 24_000 * 2;
@@ -2428,7 +2432,7 @@ fn main() -> ! {
             executor1.run(|spawner| {
                 // crate::comms::usb_raw::usb_init(&spawner, driver);
 
-                // #[cfg(feature = "nope")]
+                #[cfg(feature = "nope")]
                 {
                     let spi_bus1 = {
                         let miso = p.PIN_12;
@@ -2531,7 +2535,7 @@ fn main() -> ! {
 
         crate::comms::usb_raw::usb_init(&spawner, driver);
 
-        // spawner.spawn(crate::init::core1_task(foc1, None).unwrap());
+        spawner.spawn(crate::init::core1_task(foc1, None).unwrap());
 
         #[cfg(feature = "nope")]
         {

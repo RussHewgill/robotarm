@@ -573,8 +573,21 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // Sinusoidal PWM modulation
         // Inverse Park + Clarke transformation
+
         let sa = libm::sinf(angle_el);
         let ca = libm::cosf(angle_el);
+        // let (sa, ca) = libm::sincosf(angle_el);
+
+        // let sa = embassy_rp::rom_data::float_funcs::sinf(angle_el);
+        // let ca = libm::cosf(angle_el);
+
+        // let table = ape_table_trig::TrigTableF32::new(&crate::TRIG_TABLE);
+
+        // let sa = crate::TRIG_TABLE.sin(angle_el);
+        // let ca = crate::TRIG_TABLE.cos(angle_el);
+
+        // use micromath::F32Ext;
+        // let (sa, ca) = angle_el.sin_cos();
 
         // // Inverse park transform
         let u_alpha = ca * ud - sa * uq; // -sin(angle) * Uq;

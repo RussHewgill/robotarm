@@ -189,13 +189,13 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
-    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
+    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
-    // match foc.id {
-    //     // 0 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
-    //     1 => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW),
-    //     _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
-    // };
+    match foc.id {
+        MOTOR_ID_A => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
+        MOTOR_ID_B => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
+        _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
+    };
 
     // foc.set_motion_control(MotionControlType::Torque);
     // foc.set_motion_control(MotionControlType::Velocity);
@@ -285,11 +285,12 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_zero_electric_angle(0.602);
     // foc.set_zero_electric_angle(3.66);
 
-    // match foc.id {
-    //     0 => foc.set_zero_electric_angle(2.6876297),
-    //     1 => foc.set_zero_electric_angle(2.8906922),
-    //     _ => foc.set_zero_electric_angle(0.0),
-    // }
+    match foc.id {
+        MOTOR_ID_A => foc.set_zero_electric_angle(2.76),
+        MOTOR_ID_B => foc.set_zero_electric_angle(2.55),
+        // _ => foc.set_zero_electric_angle(0.0),
+        _ => {}
+    }
 
     // foc.output_sensor_offset = match foc.id {
     //     0 => 0.0,
@@ -307,53 +308,18 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.calibrate_encoder().await;
 
-    if foc.id == MOTOR_ID_A {
-        foc.encoder
-            .set_calibration_lut(crate::configs::ENCODER_LUT_GL60);
-    } else if foc.id == MOTOR_ID_B {
-        foc.encoder
-            .set_calibration_lut(crate::configs::ENCODER_LUT_GM5208_24);
-    }
+    // if foc.id == MOTOR_ID_A {
+    //     foc.encoder
+    //         .set_calibration_lut(crate::configs::ENCODER_LUT_GL60);
+    // } else if foc.id == MOTOR_ID_B {
+    //     foc.encoder
+    //         .set_calibration_lut(crate::configs::ENCODER_LUT_GM5208_24);
+    // }
 
     // foc.calibrate_encoder().await;
     foc.encoder.enable_calibration(true);
 
     // foc.test_calibration().await;
-
-    // error!("Starting");
-
-    // Timer::after_millis(1000).await;
-
-    // loop {
-    //     debug!("Sending");
-    //     let t_us = Instant::now().as_micros();
-
-    //     // let angle = encoder.read_raw_debug().await.unwrap();
-    //     foc.encoder.update(t_us).await.unwrap();
-
-    //     let msg = robotarm_protocol::SerialLogMessage::MotorData {
-    //         id: 0,
-    //         timestamp: t_us,
-    //         motion_control: MotionControlType::Angle,
-    //         position: 0.0,
-    //         angle: foc.encoder.get_mechanical_angle(),
-    //         // angle: 0.0,
-    //         velocity: 0.0,
-    //         target_position: 0.0,
-    //         target_velocity: 0.0,
-    //         motor_current: 0.0,
-    //         sensor_currents: None,
-    //         motor_voltage: (0.0, 0.0),
-    //         feed_forward: 0.0,
-    //     };
-
-    //     // foc.logger.send_log_msg(msg);
-    //     foc.send_debug_message(msg);
-
-    //     // Timer::after_millis(200).await;
-    // }
-
-    // return;
 
     info!("Starting init");
     foc.init();
@@ -374,7 +340,26 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.state_observer.set_torque_constant(0.);
     // foc.state_observer.set_rotor_inertia(100. * 1e-7);
     // foc.state_observer.set_rotor_inertia(100. * 1e-7);
-    foc.state_observer.set_rotor_inertia(50. * 1e-7);
+    // foc.state_observer.set_rotor_inertia(50. * 1e-7);
+
+    match foc.id {
+        MOTOR_ID_A => {
+            foc.state_observer.set_rotor_inertia(100. * 1e-7);
+            foc.state_observer.set_speed_factor(20.);
+            foc.state_observer.set_observer_bandwidth(1500.);
+            foc.state_observer.set_controller_bandwidth(300.);
+        }
+        MOTOR_ID_B => {
+            foc.state_observer.set_rotor_inertia(50. * 1e-7);
+            // foc.state_observer.set_speed_factor(20.);
+            // foc.state_observer.set_observer_bandwidth(200.);
+            // foc.state_observer.set_controller_bandwidth(50.);
+            foc.state_observer.set_speed_factor(20.);
+            foc.state_observer.set_observer_bandwidth(1000.);
+            foc.state_observer.set_controller_bandwidth(200.);
+        }
+        _ => {}
+    }
 
     // debug!("Finding angle limits");
     // foc.find_angle_limits().await;

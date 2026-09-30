@@ -1004,6 +1004,9 @@ impl App {
 
     fn col_adrc(&mut self, ui: &mut egui::Ui, id: u8) {
         egui::Grid::new(format!("col_2_grid")).show(ui, |ui| {
+            ui.label(RichText::new(format!("ADRC Settings: {}", id)).strong());
+            ui.end_row();
+
             self::pid_settings::pid_control_dec(
                 ui,
                 "b0",

@@ -89,7 +89,7 @@ impl App {
         out.status.push(FocStatus::default());
         out.status.push(FocStatus::default());
 
-        out.status[0].gear_ratio = 30.;
+        out.status[0].gear_ratio = 12.;
         out.status[1].gear_ratio = 20.;
         // out.status[1].gear_ratio = 1.;
 
