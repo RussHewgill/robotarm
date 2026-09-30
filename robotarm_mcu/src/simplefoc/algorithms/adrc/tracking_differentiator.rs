@@ -1,5 +1,7 @@
 use defmt::debug;
 
+use micromath::F32Ext;
+
 /// A second-order Tracking Differentiator.
 ///
 /// Given a reference input that may be noisy, stepwise, or otherwise
@@ -80,7 +82,8 @@ pub fn fhan(x1: f32, x2: f32, r: f32, h0: f32) -> f32 {
     let d = r * h0 * h0;
     let a0 = h0 * x2;
     let y = x1 + a0;
-    let a1 = libm::sqrtf(d * (d + 8.0 * libm::fabsf(y)));
+    // let a1 = libm::sqrtf(d * (d + 8.0 * libm::fabsf(y)));
+    let a1 = (d * (d + 8.0 * y.abs())).sqrt();
     let a2 = a0 + y.signum() * (a1 - d) / 2.0;
     let sy = ((y + d).signum() - (y - d).signum()) / 2.0;
     let a = (a0 + y - a2) * sy + a2;

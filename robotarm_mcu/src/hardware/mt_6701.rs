@@ -1,7 +1,6 @@
-// use embedded_hal::delay::DelayNs;
-// use embedded_hal::i2c::I2c as BlockingI2c;
-
 use defmt::{debug, error, info};
+
+use micromath::F32Ext;
 
 use crate::{hardware::encoder_sensor::EncoderSensor, simplefoc::types::_2PI};
 
@@ -138,7 +137,7 @@ impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
         let move_angle = angle - self.angle_prev;
 
         // handle full rotations - if the angle jumps more than 0.8 * 2PI, we assume it wrapped around
-        if libm::fabsf(move_angle) > (0.8 * _2PI) {
+        if move_angle.abs() > (0.8 * _2PI) {
             if move_angle > 0.0 {
                 self.full_rotations -= 1;
             } else {

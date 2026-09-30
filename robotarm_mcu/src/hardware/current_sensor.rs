@@ -1,5 +1,7 @@
 use defmt::{debug, error, info, trace, warn};
 
+use micromath::F32Ext;
+
 use crate::simplefoc::types::{_1_SQRT3, _2_SQRT3, ABCurrents, DQCurrents, PhaseCurrents};
 
 pub trait CurrentSensor {
@@ -48,8 +50,9 @@ pub trait CurrentSensor {
         // let ab_currents = self.get_ab_currents(currents).await;
         let ab_currents = self.get_ab_currents(currents);
 
-        let st = libm::sinf(electrical_angle);
-        let ct = libm::cosf(electrical_angle);
+        // let st = libm::sinf(electrical_angle);
+        // let ct = libm::cosf(electrical_angle);
+        let (st, ct) = crate::TRIG_TABLE.sin_cos(electrical_angle);
 
         // (ABcurrent.beta*ct - ABcurrent.alpha*st) > 0 ? 1 : -1;
         let sign = if ab_currents.beta * ct - ab_currents.alpha * st > 0.0 {
@@ -59,9 +62,7 @@ pub trait CurrentSensor {
         };
 
         Ok(sign
-            * libm::sqrtf(
-                ab_currents.alpha * ab_currents.alpha + ab_currents.beta * ab_currents.beta,
-            ))
+            * (ab_currents.alpha * ab_currents.alpha + ab_currents.beta * ab_currents.beta).sqrt())
     }
 
     fn get_phase_currents(&mut self) -> Result<PhaseCurrents, Self::Error>;
@@ -90,8 +91,9 @@ pub trait CurrentSensor {
 
     fn get_dq_currents(&mut self, ab_current: ABCurrents, electrical_angle: f32) -> DQCurrents {
         // calculate park transform
-        let st = libm::sinf(electrical_angle);
-        let ct = libm::cosf(electrical_angle);
+        // let st = libm::sinf(electrical_angle);
+        // let ct = libm::cosf(electrical_angle);
+        let (st, ct) = crate::TRIG_TABLE.sin_cos(electrical_angle);
         DQCurrents {
             d: ab_current.alpha * ct + ab_current.beta * st,
             q: ab_current.beta * ct - ab_current.alpha * st,

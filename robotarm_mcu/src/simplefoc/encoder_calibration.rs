@@ -1,6 +1,8 @@
 use defmt::{debug, error, info, trace, warn};
 use embassy_time::{Duration, Instant, Timer};
 
+use micromath::F32Ext;
+
 use crate::{
     hardware::{
         current_sensor::CurrentSensor,
@@ -983,7 +985,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // calculate offset index
         let index_offset =
-            libm::floorf(N_LUT as f32 * raw_offset / crate::simplefoc::types::_2PI) as usize;
+            // libm::floorf(N_LUT as f32 * raw_offset / crate::simplefoc::types::_2PI) as usize;
+            (N_LUT as f32 * raw_offset / crate::simplefoc::types::_2PI).floor() as usize;
         let dn = n_ticks as f32 / N_LUT as f32;
 
         let mut calibration_lut: [f32; N_LUT] = [0.0; N_LUT];

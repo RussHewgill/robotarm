@@ -641,10 +641,13 @@ impl App {
             let range =
                 // -self.status[id as usize].vel_pid_limit..=self.status[id as usize].vel_pid_limit;
                 min..=max;
-            let resp = ui.add(egui::Slider::new(
-                &mut self.status[id as usize].target_voltage,
-                range,
-            ));
+            let resp = ui.add_enabled(
+                matches!(
+                    self.status[id as usize].motion_control,
+                    Some(robotarm_protocol::MotionControlType::Torque)
+                ),
+                egui::Slider::new(&mut self.status[id as usize].target_voltage, range),
+            );
 
             let mut send_target = None;
 
@@ -693,10 +696,14 @@ impl App {
         // target pos
         ui.horizontal(|ui| {
             ui.label("Target Pos:");
-            let resp = ui.add(egui::Slider::new(
-                &mut self.status[id as usize].target_pos,
-                -100.0..=100.0,
-            ));
+            let resp = ui.add_enabled(
+                matches!(
+                    self.status[id as usize].motion_control,
+                    Some(robotarm_protocol::MotionControlType::Angle)
+                        | Some(robotarm_protocol::MotionControlType::AngleOpenLoop)
+                ),
+                egui::Slider::new(&mut self.status[id as usize].target_pos, -100.0..=100.0),
+            );
             // if resp.sc
             let mut send_target = None;
 
@@ -763,10 +770,14 @@ impl App {
             let range =
                 // -self.status[id as usize].vel_pid_limit..=self.status[id as usize].vel_pid_limit;
                 -15.0..=15.0;
-            let resp = ui.add(egui::Slider::new(
-                &mut self.status[id as usize].target_vel,
-                range,
-            ));
+            let resp = ui.add_enabled(
+                matches!(
+                    self.status[id as usize].motion_control,
+                    Some(robotarm_protocol::MotionControlType::Velocity)
+                        | Some(robotarm_protocol::MotionControlType::VelocityOpenLoop)
+                ),
+                egui::Slider::new(&mut self.status[id as usize].target_vel, range),
+            );
             let mut send_target = None;
 
             if !(matches!(

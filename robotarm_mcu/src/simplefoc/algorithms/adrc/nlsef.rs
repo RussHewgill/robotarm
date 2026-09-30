@@ -1,5 +1,7 @@
 use defmt::debug;
 
+use micromath::F32Ext;
+
 /// The `fal` (nonlinear gain) function at the heart of ADRC's nonlinear
 /// blocks (ESO correction terms, NLSEF error feedback).
 ///
@@ -18,11 +20,17 @@ use defmt::debug;
 #[inline]
 pub fn fal(e: f32, alpha: f32, delta: f32) -> f32 {
     // debug_assert!(delta > 0.0, "fal: delta must be > 0");
-    let abs_e = libm::fabsf(e);
+    // let abs_e = libm::fabsf(e);
+    // if abs_e > delta {
+    //     libm::powf(abs_e, alpha) * e.signum()
+    // } else {
+    //     e * libm::powf(delta, 1.0 - alpha) / delta
+    // }
+    let abs_e = e.abs();
     if abs_e > delta {
-        libm::powf(abs_e, alpha) * e.signum()
+        abs_e.powf(alpha) * e.signum()
     } else {
-        e * libm::powf(delta, 1.0 - alpha) / delta
+        e * delta.powf(alpha - 1.0)
     }
 }
 

@@ -1,6 +1,8 @@
 use defmt::{debug, error, info};
 use embassy_rp::{Peri, gpio::Output};
 
+use micromath::F32Ext;
+
 use crate::{
     hardware::encoder_sensor::{EncoderSensor, N_LUT},
     simplefoc::types::_2PI,
@@ -528,7 +530,7 @@ impl<T: embassy_rp::spi::Instance + 'static> MT6701<T> {
         let move_angle = angle - self.angle_prev;
 
         // handle full rotations - if the angle jumps more than 0.8 * 2PI, we assume it wrapped around
-        if libm::fabsf(move_angle) > (0.8 * _2PI) {
+        if move_angle.abs() > (0.8 * _2PI) {
             if move_angle > 0.0 {
                 self.full_rotations -= 1;
             } else {
