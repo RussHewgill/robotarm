@@ -2,6 +2,7 @@ use defmt::{debug, error, info, warn};
 
 use embassy_rp::{gpio::Output, spi::Instance};
 use embedded_hal::spi::Operation;
+use embedded_hal_async::spi::SpiDevice;
 
 use crate::{
     hardware::encoder_sensor::{EncoderSensor, N_LUT},
@@ -144,7 +145,7 @@ impl EncoderSensor for Mt6816 {
 // #[cfg(feature = "nope")]
 impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
     pub fn new(
-        spi: embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig<
+        mut spi: embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig<
             'static,
             embassy_sync::blocking_mutex::raw::NoopRawMutex,
             // embassy_rp::peripherals::SPI0,
@@ -152,6 +153,16 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
             Output<'static>,
         >,
     ) -> Self {
+        use embassy_embedded_hal::SetConfig;
+
+        let mut config = embassy_rp::spi::Config::default();
+        // config.frequency = 4_000_000;
+        config.frequency = 2_000_000;
+        config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+        config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+
+        spi.set_config(config);
+
         Self {
             spi,
             // cs,
@@ -163,9 +174,54 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
         }
     }
 
-    pub fn read_raw_angle<SPI>(&mut self, spi: &mut SPI) -> Result<u16, MT6816Error> {
+    pub async fn read_raw_angle(&mut self) -> Result<u16, MT6816Error> {
+        // let raw0 = self.read_reg(0x03).await?;
+        // debug!("Read raw angle high byte: {:08b}", raw0);
+        // let raw1 = self.read_reg(0x04).await?;
+        // debug!("Read raw angle low byte:  {:08b}", raw1);
+
+        let mut buf = [0u8; 2];
+
+        self.spi
+            .transaction(&mut [Operation::Write(&[0x83]), Operation::Read(&mut buf)])
+            .await
+            .map_err(|_| MT6816Error::Spi)?;
+
+        debug!("Raw0: {:08b}, Raw1: {:08b}", buf[0], buf[1]);
+
+        Ok(u16::from_be_bytes(buf))
+    }
+
+    async fn read_reg(&mut self, reg: u8) -> Result<u8, MT6816Error> {
+        let mut buf = [0u8; 2];
+
+        let cmd = 0b1000_0000 | (reg & 0b0111_1111);
+
+        // self.spi
+        //     .transaction(&mut [Operation::Write(&[cmd]), Operation::Read(&mut buf)])
+        //     .await
+        //     .map_err(|_| MT6816Error::Spi)?;
+
+        self.spi.write(&[cmd]).await.map_err(|_| MT6816Error::Spi)?;
+        self.spi
+            .read(&mut buf)
+            .await
+            .map_err(|_| MT6816Error::Spi)?;
+
+        Ok(buf[1])
+    }
+
+    fn write_reg(&mut self, reg: u8, val: u8) -> Result<u16, MT6816Error> {
+        let mut buf = [0u8; 2];
+
+        let cmd = 0b0000_0000 | (reg & 0b0111_1111);
+
         unimplemented!()
     }
+
+    // pub fn read_raw_angle<SPI>(&mut self, spi: &mut SPI) -> Result<u16, MT6816Error> {
+    //     unimplemented!()
+    // }
 }
 
 #[cfg(feature = "nope")]

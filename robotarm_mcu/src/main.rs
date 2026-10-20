@@ -2081,9 +2081,70 @@ async fn main(spawner: Spawner) {
     //
 }
 
-/// MARK: Main
+// MT6816 test
 // #[cfg(feature = "nope")]
-#[cortex_m_rt::entry]
+#[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    debug!("Starting MT6816 test");
+
+    let mosi = p.PIN_15;
+    let miso = p.PIN_12;
+    let sck = p.PIN_14;
+    let cs = p.PIN_13;
+
+    // let mut config = embassy_rp::spi::Config::default();
+    // config.frequency = 1_000_000;
+    // config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+    // config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+
+    // let mut spi =
+    //     embassy_rp::spi::Spi::new(p.SPI1, sck, mosi, miso, p.DMA_CH2, p.DMA_CH3, Irqs, config);
+
+    let spi = embassy_rp::spi::Spi::new(
+        p.SPI1,
+        sck,
+        mosi,
+        miso,
+        p.DMA_CH2,
+        p.DMA_CH3,
+        Irqs,
+        embassy_rp::spi::Config::default(),
+    );
+
+    type Spi1Bus = embassy_sync::mutex::Mutex<
+        embassy_sync::blocking_mutex::raw::NoopRawMutex,
+        embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
+    >;
+
+    static SPI_BUS1: static_cell::StaticCell<Spi1Bus> = static_cell::StaticCell::new();
+    let spi_bus1 = SPI_BUS1.init(embassy_sync::mutex::Mutex::new(spi));
+
+    let cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::High);
+
+    let spi_cfg = embassy_rp::spi::Config::default();
+
+    let mut spi_dev = embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
+        spi_bus1, cs, spi_cfg,
+    );
+
+    let mut encoder = crate::hardware::mt6816::Mt6816::new(spi_dev);
+
+    loop {
+        let angle = encoder.read_raw_angle().await.unwrap();
+
+        debug!("angle: {}", angle);
+
+        Timer::after_millis(500).await;
+    }
+
+    //
+}
+
+/// MARK: Main
+#[cfg(feature = "nope")]
+// #[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
@@ -2104,7 +2165,8 @@ fn main() -> ! {
 
     // let voltage_limit = 2.0;
     // let voltage_limit = 4.;
-    let voltage_limit = 6.;
+    let voltage_limit_a = 6.;
+    let voltage_limit_b = 6.;
     // let voltage_limit = 8.;
     // let voltage_limit = 8.;
     // let voltage_limit = 10.;
@@ -2342,7 +2404,7 @@ fn main() -> ! {
                 pwm12,
                 enable_pin0,
                 c.clone(),
-                voltage_limit,
+                voltage_limit_a,
                 supply_voltage,
             );
 
@@ -2356,7 +2418,7 @@ fn main() -> ! {
                 pwm45,
                 enable_pin1,
                 c,
-                voltage_limit,
+                voltage_limit_b,
                 supply_voltage,
             );
 

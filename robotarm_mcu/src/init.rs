@@ -23,103 +23,6 @@ pub static EXECUTOR0: StaticCell<embassy_executor::Executor> = StaticCell::new()
 pub static EXECUTOR1: StaticCell<embassy_executor::Executor> = StaticCell::new();
 
 #[embassy_executor::task]
-pub async fn test_task(
-    mut logger: UsbLogger,
-    mut encoder: crate::hardware::mt_6701_ssi::MT6701<
-        // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
-        embassy_rp::peripherals::SPI1,
-    >,
-    //
-) {
-    error!("Starting");
-    Timer::after_millis(100).await;
-    error!("Starting 2");
-    // test_fn(logger, encoder).await;
-
-    {
-        // Timer::after_millis(200).await;
-        test_fn(&mut logger, &mut encoder).await;
-    }
-}
-
-async fn test_fn(
-    mut logger: &mut UsbLogger,
-    mut encoder: &mut crate::hardware::mt_6701_ssi::MT6701<
-        // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
-        embassy_rp::peripherals::SPI1,
-    >,
-) {
-    error!("Starting");
-    // Timer::after_millis(100).await;
-
-    loop {
-        debug!("Sending");
-        let t_us = Instant::now().as_micros();
-
-        // let angle = encoder.read_raw_debug().await.unwrap();
-        // encoder.update(t_us).await.unwrap();
-
-        let msg = robotarm_protocol::SerialLogMessage::MotorData {
-            id: 0,
-            timestamp: t_us,
-            motion_control: MotionControlType::Angle,
-            position: 0.0,
-            // angle: encoder.get_mechanical_angle(),
-            angle: 0.0,
-            velocity: 0.0,
-            target_position: 0.0,
-            target_velocity: 0.0,
-            motor_current: 0.0,
-            sensor_currents: None,
-            motor_voltage: (0.0, 0.0),
-            feed_forward: 0.0,
-        };
-
-        logger.send_log_msg(msg);
-
-        Timer::after_millis(200).await;
-    }
-}
-
-async fn test_fn2<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
-    mut foc: &mut crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR, CURRENT>,
-) {
-    error!("Starting");
-
-    // #[cfg(feature = "nope")]
-    loop {
-        debug!("Sending");
-        let t_us = Instant::now().as_micros();
-
-        // let angle = encoder.read_raw_debug().await.unwrap();
-        foc.encoder.update(t_us).await.unwrap();
-
-        let msg = robotarm_protocol::SerialLogMessage::MotorData {
-            id: 0,
-            timestamp: t_us,
-            motion_control: MotionControlType::Angle,
-            position: 0.0,
-            angle: foc.encoder.get_mechanical_angle(),
-            // angle: 0.0,
-            velocity: 0.0,
-            target_position: 0.0,
-            target_velocity: 0.0,
-            motor_current: 0.0,
-            sensor_currents: None,
-            motor_voltage: (0.0, 0.0),
-            feed_forward: 0.0,
-        };
-
-        // logger.send_log_msg(msg);
-        foc.send_debug_message(msg);
-
-        Timer::after_millis(200).await;
-    }
-
-    //
-}
-
-#[embassy_executor::task]
 pub async fn core0_task(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
@@ -192,7 +95,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     match foc.id {
-        MOTOR_ID_A => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
+        // MOTOR_ID_A => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
         MOTOR_ID_B => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
         _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
     };
@@ -286,8 +189,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_zero_electric_angle(3.66);
 
     match foc.id {
-        MOTOR_ID_A => foc.set_zero_electric_angle(2.76),
-        MOTOR_ID_B => foc.set_zero_electric_angle(2.55),
+        // MOTOR_ID_A => foc.set_zero_electric_angle(2.76),
+        MOTOR_ID_B => foc.set_zero_electric_angle(2.44),
         // _ => foc.set_zero_electric_angle(0.0),
         _ => {}
     }

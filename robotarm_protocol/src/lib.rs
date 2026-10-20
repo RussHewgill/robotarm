@@ -119,6 +119,9 @@ impl SerialLogMessage {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SerialCommand {
+    KeepAlive {
+        id: u8,
+    },
     RequestSettings {
         id: u8,
     },
@@ -213,6 +216,7 @@ pub enum SerialCommand {
 impl SerialCommand {
     pub fn id(&self) -> u8 {
         match self {
+            SerialCommand::KeepAlive { id } => *id,
             SerialCommand::RequestSettings { id } => *id,
             SerialCommand::RequestDebugData { id } => *id,
             SerialCommand::SetEnabled { id, .. } => *id,

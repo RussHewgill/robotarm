@@ -87,6 +87,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // #[cfg(feature = "nope")]
         match cmd {
+            SerialCommand::KeepAlive { id } => {
+                //
+            }
             SerialCommand::SetEncoderCalibration { id, enable } => {
                 // debug!(
                 //     "Received SetEncoderCalibration command: id: {}, enable: {}",

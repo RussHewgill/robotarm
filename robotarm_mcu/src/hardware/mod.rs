@@ -21,10 +21,10 @@ pub type Spi0Bus = embassy_sync::mutex::Mutex<
     embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
 >;
 
-pub type Spi1Bus = embassy_sync::mutex::Mutex<
-    embassy_sync::blocking_mutex::raw::NoopRawMutex,
-    embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
->;
+// pub type Spi1Bus = embassy_sync::mutex::Mutex<
+//     embassy_sync::blocking_mutex::raw::NoopRawMutex,
+//     embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
+// >;
 
 pub static SPI_BUS0: static_cell::StaticCell<Spi0Bus> = static_cell::StaticCell::new();
 // pub static SPI_BUS1: static_cell::StaticCell<Spi1Bus> = static_cell::StaticCell::new();
