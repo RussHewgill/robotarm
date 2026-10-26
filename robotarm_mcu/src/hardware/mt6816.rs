@@ -157,7 +157,8 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
 
         let mut config = embassy_rp::spi::Config::default();
         // config.frequency = 4_000_000;
-        config.frequency = 2_000_000;
+        // config.frequency = 2_000_000;
+        config.frequency = 1_000_000;
         config.polarity = embassy_rp::spi::Polarity::IdleHigh;
         config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
 
@@ -175,21 +176,55 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
     }
 
     pub async fn read_raw_angle(&mut self) -> Result<u16, MT6816Error> {
-        // let raw0 = self.read_reg(0x03).await?;
-        // debug!("Read raw angle high byte: {:08b}", raw0);
-        // let raw1 = self.read_reg(0x04).await?;
-        // debug!("Read raw angle low byte:  {:08b}", raw1);
+        let raw0 = self.read_reg(0x03).await?;
+        let raw1 = self.read_reg(0x04).await?;
+        let mut buf = [raw0, raw1];
 
-        let mut buf = [0u8; 2];
+        // let mut buf = [0u8; 2];
 
-        self.spi
-            .transaction(&mut [Operation::Write(&[0x83]), Operation::Read(&mut buf)])
-            .await
-            .map_err(|_| MT6816Error::Spi)?;
+        // let (buf0, buf1) = buf.split_at_mut(1);
 
-        debug!("Raw0: {:08b}, Raw1: {:08b}", buf[0], buf[1]);
+        // self.spi
+        //     .transaction(&mut [
+        //         Operation::Write(&[0x83]),
+        //         Operation::Read(buf0),
+        //         Operation::Write(&[0x84]),
+        //         Operation::Read(buf1),
+        //     ])
+        //     .await
+        //     .map_err(|_| MT6816Error::Spi)?;
 
-        Ok(u16::from_be_bytes(buf))
+        // debug!("Raw0: {:08b}, Raw1: {:08b}", buf[0], buf[1]);
+
+        let raw = u16::from_be_bytes(buf);
+
+        // Parity: bit 0, Magnet: bit 1, Angle: bits 2..=15
+        let parity_bit = (raw & (1 << 0)) != 0;
+        let magnet_bit = (raw & (1 << 1)) != 0;
+        let raw_angle = raw >> 2;
+
+        // Calculate even parity over bits 1..15 (angle bits + magnet bit)
+        let calculated_parity = ((raw >> 1).count_ones() % 2) != 0;
+
+        if calculated_parity != parity_bit {
+            warn!(
+                "Parity error detected: calculated_parity = {}, parity_bit = {}, raw = {:016b}",
+                calculated_parity, parity_bit, raw
+            );
+            // return Err(MT6816Error::Parity);
+        }
+
+        if magnet_bit {
+            warn!("Magnet error detected");
+            // return Err(MT6816Error::Magnet);
+        }
+
+        let angle_f32 = (raw_angle as f32 / 16384_f32) * _2PI;
+
+        debug!("Raw angle: {}", raw_angle);
+        debug!("Angle (f32): {}", angle_f32);
+
+        Ok(raw_angle)
     }
 
     async fn read_reg(&mut self, reg: u8) -> Result<u8, MT6816Error> {
@@ -197,31 +232,70 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
 
         let cmd = 0b1000_0000 | (reg & 0b0111_1111);
 
-        // self.spi
-        //     .transaction(&mut [Operation::Write(&[cmd]), Operation::Read(&mut buf)])
-        //     .await
-        //     .map_err(|_| MT6816Error::Spi)?;
-
-        self.spi.write(&[cmd]).await.map_err(|_| MT6816Error::Spi)?;
         self.spi
-            .read(&mut buf)
+            .transaction(&mut [Operation::Write(&[cmd]), Operation::Read(&mut buf)])
             .await
             .map_err(|_| MT6816Error::Spi)?;
+
+        // self.spi.write(&[cmd]).await.map_err(|_| MT6816Error::Spi)?;
+        // self.spi
+        //     .read(&mut buf)
+        //     .await
+        //     .map_err(|_| MT6816Error::Spi)?;
 
         Ok(buf[1])
     }
 
-    fn write_reg(&mut self, reg: u8, val: u8) -> Result<u16, MT6816Error> {
-        let mut buf = [0u8; 2];
+    // fn write_reg(&mut self, reg: u8, val: u8) -> Result<u16, MT6816Error> {
+    //     let mut buf = [0u8; 2];
+    //     let cmd = 0b0000_0000 | (reg & 0b0111_1111);
+    //     unimplemented!()
+    // }
+}
 
-        let cmd = 0b0000_0000 | (reg & 0b0111_1111);
+impl<T: embassy_rp::spi::Instance + 'static> EncoderSensor for Mt6816<T> {
+    type Error = MT6816Error;
 
+    async fn update(&mut self, ts_us: u64) -> Result<(), Self::Error> {
         unimplemented!()
     }
 
-    // pub fn read_raw_angle<SPI>(&mut self, spi: &mut SPI) -> Result<u16, MT6816Error> {
-    //     unimplemented!()
-    // }
+    fn get_mechanical_angle(&self) -> f32 {
+        unimplemented!()
+    }
+
+    fn get_angle(&self) -> f32 {
+        unimplemented!()
+    }
+
+    fn get_velocity(&self) -> f32 {
+        unimplemented!()
+    }
+
+    fn reset_position(&mut self) {
+        self.full_rotations = 0;
+    }
+
+    async fn read_raw_debug(&mut self) -> Result<u16, Self::Error> {
+        unimplemented!()
+    }
+
+    fn set_calibration_lut(&mut self, calibration: [f32; super::encoder_sensor::N_LUT]) {
+        self.lut = calibration;
+    }
+    fn update_calibration_lut(&mut self, index: usize, chunk: [f32; 8]) {
+        unimplemented!()
+    }
+
+    fn enable_calibration(&mut self, enable: bool) {
+        self.enable_calibration = enable;
+    }
+    fn get_encoder_calibration_enabled(&self) -> bool {
+        self.enable_calibration
+    }
+    fn get_encoder_calibration_lut(&self) -> Option<[f32; N_LUT]> {
+        Some(self.lut)
+    }
 }
 
 #[cfg(feature = "nope")]

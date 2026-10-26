@@ -73,4 +73,6 @@ pub struct FocStatus {
     pub debug_motion_sine: bool,
     pub debug_motion_steps: bool,
     pub debug_motion_val: f64,
+
+    pub encoder_calibration: Vec<f32>,
 }

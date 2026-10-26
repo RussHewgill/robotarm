@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::types::*;
 
+const ENCODER_CALIBRATION_CHUNK_SIZE: usize = 8;
+
 /// Data from MCU to Controller
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -97,6 +99,11 @@ pub enum SerialLogMessage {
         u: f32,
         u0: f32,
     },
+    EncoderCalibrationData {
+        id: u8,
+        index: usize,
+        chunk: [f32; ENCODER_CALIBRATION_CHUNK_SIZE],
+    },
 }
 
 impl SerialLogMessage {
@@ -111,6 +118,7 @@ impl SerialLogMessage {
             // SerialLogMessage::PIDDebugData { id, .. } => *id,
             SerialLogMessage::LogData { id, .. } => *id,
             SerialLogMessage::ADRCDebugData { id, .. } => *id,
+            SerialLogMessage::EncoderCalibrationData { id, .. } => *id,
         }
     }
 }
@@ -211,6 +219,14 @@ pub enum SerialCommand {
     ResetADRC {
         id: u8,
     },
+    SendEncoderCalibration {
+        id: u8,
+    },
+    SetEncoderCalibrationData {
+        id: u8,
+        index: usize,
+        chunk: [f32; ENCODER_CALIBRATION_CHUNK_SIZE],
+    },
 }
 
 impl SerialCommand {
@@ -240,6 +256,8 @@ impl SerialCommand {
             SerialCommand::ToggleDebugLogging { id } => *id,
             SerialCommand::SetThermalConfig { id } => *id,
             SerialCommand::ResetADRC { id } => *id,
+            SerialCommand::SendEncoderCalibration { id, .. } => *id,
+            SerialCommand::SetEncoderCalibrationData { id, .. } => *id,
         }
     }
 }

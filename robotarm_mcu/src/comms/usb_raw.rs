@@ -10,18 +10,13 @@ use postcard::accumulator::FeedResult;
 use robotarm_protocol::SerialCommand;
 use static_cell::StaticCell;
 
-use crate::{MOTOR_ID_A, MOTOR_ID_B};
+use crate::{
+    MOTOR_ID_A, MOTOR_ID_B,
+    comms::{CMD_CHAN0, CMD_CHAN1, LOG_CHAN, CommsMutex},
+};
 
-pub type UsbMutex = embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-// pub type UsbMutex = embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
-
-pub type LogChannel =
-    embassy_sync::channel::Channel<UsbMutex, robotarm_protocol::SerialLogMessage, 5>;
-pub type CmdChannel = embassy_sync::channel::Channel<UsbMutex, robotarm_protocol::SerialCommand, 5>;
-
-pub static LOG_CHAN: LogChannel = LogChannel::new();
-pub static CMD_CHAN0: CmdChannel = CmdChannel::new();
-pub static CMD_CHAN1: CmdChannel = CmdChannel::new();
+// pub type UsbMutex = embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+// // pub type UsbMutex = embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 
 // #[embassy_executor::task]
 // pub async fn usb_test_task() {
@@ -38,42 +33,15 @@ pub static CMD_CHAN1: CmdChannel = CmdChannel::new();
 //     }
 // }
 
-/// owned by FOC loop task
-#[derive(Clone)]
-pub struct UsbLogger {
-    /// MCU recieves command from USB task
-    rx0: embassy_sync::channel::Receiver<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
-    rx1: embassy_sync::channel::Receiver<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
-    /// MCU sends log to USB task
-    tx: embassy_sync::channel::Sender<'static, UsbMutex, robotarm_protocol::SerialLogMessage, 5>,
-}
-
-impl UsbLogger {
-    pub fn new() -> Self {
-        // let mut queue = heapless::Vec::new();
-        // for _ in 0..4 {
-        //     queue.push(heapless::Deque::new()).unwrap();
-        // }
-        let rx0 = CMD_CHAN0.receiver();
-        let rx1 = CMD_CHAN1.receiver();
-        let tx = LOG_CHAN.sender();
-        Self { rx0, rx1, tx }
-    }
-
-    pub fn recv(&mut self, id: u8) -> Result<robotarm_protocol::SerialCommand, TryReceiveError> {
-        match id {
-            MOTOR_ID_A => self.rx0.try_receive(),
-            MOTOR_ID_B => self.rx1.try_receive(),
-            _ => Err(TryReceiveError::Empty),
-        }
-    }
-
-    pub fn send_log_msg(&mut self, msg: robotarm_protocol::SerialLogMessage) {
-        if let Err(e) = self.tx.try_send(msg) {
-            // error!("Failed to send log message to USB task");
-        }
-    }
-}
+// /// owned by FOC loop task
+// #[derive(Clone)]
+// pub struct UsbLogger {
+//     /// MCU recieves command from USB task
+//     rx0: embassy_sync::channel::Receiver<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
+//     rx1: embassy_sync::channel::Receiver<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
+//     /// MCU sends log to USB task
+//     tx: embassy_sync::channel::Sender<'static, UsbMutex, robotarm_protocol::SerialLogMessage, 5>,
+// }
 
 pub struct UsbMonitor {
     buf: [u8; 512],
@@ -181,11 +149,11 @@ pub fn usb_init(
 #[embassy_executor::task]
 async fn usb_logger_task(
     mut usb_monitor: UsbMonitor,
-    cmd_tx0: embassy_sync::channel::Sender<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
-    cmd_tx1: embassy_sync::channel::Sender<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
+    cmd_tx0: embassy_sync::channel::Sender<'static, CommsMutex, robotarm_protocol::SerialCommand, 5>,
+    cmd_tx1: embassy_sync::channel::Sender<'static, CommsMutex, robotarm_protocol::SerialCommand, 5>,
     log_rx: embassy_sync::channel::Receiver<
         'static,
-        UsbMutex,
+        CommsMutex,
         robotarm_protocol::SerialLogMessage,
         5,
     >,
@@ -202,54 +170,9 @@ async fn usb_logger_task(
     loop {
         buf = [0; 1024];
 
-        // let msg = log_rx.receive().await;
-        // debug!("Sending log message: {:?}", msg);
-
-        // if let Ok(encoded) = postcard::to_slice_cobs(&msg, &mut usb_monitor.buf) {
-        //     if encoded.len() <= 64 {
-        //         // let _ = self.tx.write_packet(encoded).await;
-        //         // unimplemented!()
-        //     } else {
-        //         // for i in encoded.chunks(64) {
-        //         //     let _ = self.tx.write_packet(i).await;
-        //         // }
-        //         error!("Encoded message too long for USB packet");
-        //         // let mut _ = self.tx.write_packet(&encoded[..64]).await;
-        //     }
-        //     // let _ = self.class.write_packet(encoded).await;
-        //     if let Err(e) = usb_monitor.write_ep.write(&encoded).await {
-        //         error!("Failed to write USB packet: {:?}", e);
-        //     }
-        //     // usb_monitor.write_ep.
-        // } else {
-        //     error!("Failed to encode message");
-        // }
-
-        // match usb_monitor.read_ep.read(&mut buf).await {
-        //     Ok(n) => {
-        //         debug!("Received {} bytes from USB", n);
-        //     }
-        //     Err(e) => {
-        //         error!("USB read error");
-        //     }
-        // }
-
-        // let msg = log_rx.receive().await;
-        // if let Ok(encoded) = postcard::to_slice_cobs(&msg, &mut usb_monitor.buf) {
-        //     // debug!("Encoded len = {}", encoded.len());
-        //     if let Err(e) = usb_monitor.write_ep.write(&encoded).await {
-        //         error!("Failed to write USB packet: {:?}", e);
-        //     }
-        // }
-
         // #[cfg(feature = "nope")]
-        match embassy_futures::select::select(
-            log_rx.receive(),
-            // usb_monitor.class.read_packet(&mut buf),
-            // usb_monitor.rx.read_packet(&mut buf),
-            usb_monitor.read_ep.read(&mut buf),
-        )
-        .await
+        match embassy_futures::select::select(log_rx.receive(), usb_monitor.read_ep.read(&mut buf))
+            .await
         {
             embassy_futures::select::Either::First(msg) => {
                 // debug!("Sending log message: {:?}", msg);

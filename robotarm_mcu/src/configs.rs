@@ -1,6 +1,7 @@
 pub use encoder_configs::*;
-pub use motor_configs::*;
+// pub use motor_configs::*;
 
+#[cfg(feature = "nope")]
 mod motor_configs {
     use crate::simplefoc::bldc::BLDCMotor;
 

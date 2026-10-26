@@ -29,6 +29,7 @@ pub trait EncoderSensor {
     // }
 
     fn set_calibration_lut(&mut self, calibration: [f32; N_LUT]) {}
+    fn update_calibration_lut(&mut self, index: usize, chunk: [f32; 8]);
     fn enable_calibration(&mut self, enable: bool) {}
     fn get_encoder_calibration_enabled(&self) -> bool {
         false

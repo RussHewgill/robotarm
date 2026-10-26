@@ -304,6 +304,12 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             SerialCommand::ResetADRC { id } => {
                 self.state_observer.reset();
             }
+            SerialCommand::SendEncoderCalibration { id } => {
+                unimplemented!("SendEncoderCalibration command is not implemented yet");
+            }
+            SerialCommand::SetEncoderCalibrationData { id, index, chunk } => {
+                unimplemented!("SetEncoderCalibrationData command is not implemented yet");
+            }
         }
 
         #[cfg(feature = "nope")]

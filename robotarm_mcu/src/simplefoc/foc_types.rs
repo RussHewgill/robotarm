@@ -3,7 +3,7 @@ use embassy_rp::gpio::Output;
 use robotarm_protocol::types::MotionControlType;
 
 use crate::{
-    comms::usb::UsbLogger,
+    comms::logger::UsbLogger,
     hardware::{
         current_sensor::{self, CurrentSensor},
         encoder_sensor::EncoderSensor,
@@ -45,6 +45,16 @@ pub enum FOCStatus {
 pub enum FOCModulation {
     SinePWM,
     SpaceVectorPWM,
+}
+
+/// Owns encoder and other hardware while waiting for init signal
+pub struct PreFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
+    pub encoder: ENCODER,
+    pub current_sensor: Option<CURRENT>,
+
+    pub pwm_driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
+
+    pub usb_logger: UsbLogger,
 }
 
 pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {

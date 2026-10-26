@@ -2082,8 +2082,8 @@ async fn main(spawner: Spawner) {
 }
 
 // MT6816 test
-// #[cfg(feature = "nope")]
-#[embassy_executor::main]
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -2131,10 +2131,40 @@ async fn main(spawner: Spawner) {
 
     let mut encoder = crate::hardware::mt6816::Mt6816::new(spi_dev);
 
-    loop {
-        let angle = encoder.read_raw_angle().await.unwrap();
+    let mut t0 = Instant::now();
+    let mut c = 0;
+    let interval = embassy_time::Duration::from_millis(500);
+    let mut max_time = t0 + interval;
 
-        debug!("angle: {}", angle);
+    let mut sum_angle = 0.0;
+
+    loop {
+        let raw_angle = encoder.read_raw_angle().await.unwrap();
+
+        // sum_angle += raw_angle as f32;
+
+        let t1 = Instant::now();
+
+        #[cfg(feature = "nope")]
+        if t1 > max_time {
+            let elapsed = t1 - t0;
+            let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
+
+            debug!("Raw angle: {}", raw_angle);
+            debug!("Sum angle: {}", sum_angle);
+
+            info!(
+                "Elapsed: {}s, Cycles: {}, Freq: {}Hz",
+                elapsed.as_millis() as f32 * 1e-3,
+                c,
+                freq
+            );
+            t0 = t1;
+            c = 0;
+            max_time = t1 + interval;
+        } else {
+            c += 1;
+        }
 
         Timer::after_millis(500).await;
     }
@@ -2143,6 +2173,18 @@ async fn main(spawner: Spawner) {
 }
 
 /// MARK: Main
+// #[cfg(feature = "nope")]
+#[cortex_m_rt::entry]
+fn main() -> ! {
+    let p = embassy_rp::init(Default::default());
+
+    let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
+    executor0.run(|spawner| {
+        // crate::comms::usb_raw::usb_init(&spawner, driver);
+    });
+}
+
+/// MARK: Main Prev
 #[cfg(feature = "nope")]
 // #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -2177,7 +2219,7 @@ fn main() -> ! {
     // let supply_voltage = 16.0;
     // let supply_voltage = 20.0;
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     let spi_bus1 = {
         let miso = p.PIN_12;
         let mosi = p.PIN_15;
@@ -2201,7 +2243,7 @@ fn main() -> ! {
         spi_bus
     };
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     let spi_bus0 = {
         let miso = p.PIN_20;
         let mosi = p.PIN_19;
@@ -2232,10 +2274,11 @@ fn main() -> ! {
         let spi_cfg = embassy_rp::spi::Config::default();
 
         let mut spi_dev = embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
-            spi_bus0, cs, spi_cfg,
+            spi_bus1, cs, spi_cfg,
         );
 
-        crate::hardware::mt_6701_ssi::MT6701::new(spi_dev)
+        // crate::hardware::mt_6701_ssi::MT6701::new(spi_dev)
+        crate::hardware::mt6816::Mt6816::new(spi_dev)
     };
 
     #[cfg(feature = "nope")]
@@ -2485,7 +2528,7 @@ fn main() -> ! {
     );
 
     // second core runs USB
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     embassy_rp::multicore::spawn_core1(
         p.CORE1,
         unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },

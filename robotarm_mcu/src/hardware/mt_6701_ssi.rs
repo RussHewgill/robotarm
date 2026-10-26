@@ -102,6 +102,10 @@ impl<T: embassy_rp::spi::Instance + 'static> EncoderSensor for MT6701<T> {
         self.lut = calibration;
     }
 
+    fn update_calibration_lut(&mut self, index: usize, chunk: [f32; 8]) {
+        unimplemented!()
+    }
+
     fn enable_calibration(&mut self, enable: bool) {
         self.enable_calibration = enable;
     }

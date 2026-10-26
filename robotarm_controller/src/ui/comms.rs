@@ -338,6 +338,11 @@ impl App {
                             }
                         }
                     }
+                    SerialLogMessage::EncoderCalibrationData { id, index, chunk } => {
+                        debug!("Got EncoderCalibrationData: id={}, index={}", id, index);
+
+                        // let cal = &mut self.status[id as usize].encoder_calibration;
+                    }
                 }
             }
         }

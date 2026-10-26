@@ -7,7 +7,6 @@ use static_cell::StaticCell;
 
 use crate::{
     Irqs, MOTOR_ID_A, MOTOR_ID_B,
-    comms::usb::UsbLogger,
     hardware::{
         current_sensor::CurrentSensor,
         encoder_sensor::EncoderSensor,
@@ -22,12 +21,17 @@ pub static mut CORE1_STACK: embassy_rp::multicore::Stack<{ 1024 * 8 }> =
 pub static EXECUTOR0: StaticCell<embassy_executor::Executor> = StaticCell::new();
 pub static EXECUTOR1: StaticCell<embassy_executor::Executor> = StaticCell::new();
 
-#[embassy_executor::task]
+#[cfg(feature = "nope")]
+// #[embassy_executor::task]
 pub async fn core0_task(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
-        crate::hardware::mt_6701_ssi::MT6701<
-            // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
+        // crate::hardware::mt_6701_ssi::MT6701<
+        //     // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
+        //     embassy_rp::peripherals::SPI1,
+        // >,
+        crate::hardware::mt6816::Mt6816<
+            // embassy_rp::peripherals::SPI0,
             embassy_rp::peripherals::SPI1,
         >,
         // INA226<
@@ -51,12 +55,17 @@ pub async fn core0_task(
 }
 
 #[embassy_executor::task]
+// #[cfg(feature = "nope")]
 pub async fn core1_task(
     mut foc: crate::simplefoc::foc_types::SimpleFOC<
         'static,
-        crate::hardware::mt_6701_ssi::MT6701<
-            // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
-            embassy_rp::peripherals::SPI0,
+        // crate::hardware::mt_6701_ssi::MT6701<
+        //     // embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
+        //     embassy_rp::peripherals::SPI0,
+        // >,
+        crate::hardware::mt6816::Mt6816<
+            // embassy_rp::peripherals::SPI0,
+            embassy_rp::peripherals::SPI1,
         >,
         // INA226<
         //     embassy_rp::i2c::I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Async>,

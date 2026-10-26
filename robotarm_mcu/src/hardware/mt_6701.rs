@@ -53,6 +53,10 @@ impl<I2C: embedded_hal_async::i2c::I2c> EncoderSensor for MT6701<I2C> {
     fn reset_position(&mut self) {
         self.full_rotations = 0;
     }
+
+    fn update_calibration_lut(&mut self, index: usize, chunk: [f32; 8]) {
+        unimplemented!()
+    }
 }
 
 impl<I2C: embedded_hal_async::i2c::I2c> MT6701<I2C> {
