@@ -13,6 +13,7 @@ pub mod mt6816;
 // pub mod mt_6701_ssi;
 pub mod pio_ssi;
 // pub mod smooth_sensor;
+pub mod m24c64;
 pub mod max485;
 // pub mod pwm_adc;
 

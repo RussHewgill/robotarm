@@ -2173,20 +2173,149 @@ async fn main(spawner: Spawner) {
 }
 
 /// MARK: Main
-// #[cfg(feature = "nope")]
-#[cortex_m_rt::entry]
+#[cfg(feature = "nope")]
+// #[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
+
+    // #[cfg(feature = "nope")]
+    let spi_bus1 = {
+        let miso = p.PIN_12;
+        let mosi = p.PIN_15;
+
+        let sck = p.PIN_14;
+        // let cs = p.PIN_13;
+
+        let spi = embassy_rp::spi::Spi::new(
+            p.SPI1,
+            sck,
+            mosi,
+            miso,
+            p.DMA_CH2,
+            p.DMA_CH3,
+            Irqs,
+            embassy_rp::spi::Config::default(),
+        );
+
+        // static SPI_BUS1: StaticCell<hardware::Spi1Bus> = StaticCell::new();
+        let spi_bus = hardware::SPI_BUS1.init(embassy_sync::mutex::Mutex::new(spi));
+        spi_bus
+    };
+
+    #[cfg(feature = "nope")]
+    let spi_bus0 = {
+        let miso = p.PIN_20;
+        let mosi = p.PIN_19;
+
+        let sck = p.PIN_18;
+        // let cs = p.PIN_21;
+
+        let spi = embassy_rp::spi::Spi::new(
+            p.SPI0,
+            sck,
+            mosi,
+            miso,
+            p.DMA_CH0,
+            p.DMA_CH1,
+            Irqs,
+            embassy_rp::spi::Config::default(),
+        );
+
+        // static SPI_BUS0: StaticCell<hardware::Spi0Bus> = StaticCell::new();
+        let spi_bus = hardware::SPI_BUS0.init(embassy_sync::mutex::Mutex::new(spi));
+        spi_bus
+    };
+
+    let output_encoder0 = ();
+
+    // #[cfg(feature = "nope")]
+    let encoder = {
+        let cs = embassy_rp::gpio::Output::new(p.PIN_21, embassy_rp::gpio::Level::High);
+
+        let spi_cfg = embassy_rp::spi::Config::default();
+
+        let mut spi_dev = embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
+            spi_bus1, cs, spi_cfg,
+        );
+
+        // crate::hardware::mt_6701_ssi::MT6701::new(spi_dev)
+        crate::hardware::mt6816::Mt6816::new(spi_dev)
+    };
+
+    // flipped
+    let (pwm_driver1, pwm_driver0) = {
+        let supply_voltage = 12.0;
+        let voltage_limit = 2.0;
+
+        let mut c = embassy_rp::pwm::Config::default();
+        // let desired_freq_hz = 24_000 * 1;
+        // let desired_freq_hz = 24_000 * 2;
+        let desired_freq_hz = 24_000 * 2 * 2;
+        let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
+
+        let div = 1;
+        let period = (clock_freq_hz / (desired_freq_hz * div as u32)) as u16 - 1;
+
+        c.top = period;
+        c.divider = div.into();
+        c.phase_correct = true;
+
+        // c.invert_a = true;
+        // c.invert_b = true;
+
+        // debug!("PWM top: {}", c.top);
+        // debug!("PWM divider: {}", c.divider);
+        // debug!("PWM phase_correct: {}", c.phase_correct);
+
+        let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
+        let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
+
+        let enable_pin0 = embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low);
+        let driver0: simplefoc::pwm_driver::PWMDriver<'static> =
+            crate::simplefoc::pwm_driver::PWMDriver::new(
+                pwm0,
+                pwm12,
+                enable_pin0,
+                c.clone(),
+                voltage_limit,
+                supply_voltage,
+            );
+
+        let pwm3 = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, c.clone());
+        let pwm45 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE4, p.PIN_8, p.PIN_9, c.clone());
+
+        let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
+        let driver1: simplefoc::pwm_driver::PWMDriver<'static> =
+            crate::simplefoc::pwm_driver::PWMDriver::new(
+                pwm3,
+                pwm45,
+                enable_pin1,
+                c,
+                voltage_limit,
+                supply_voltage,
+            );
+
+        (driver0, driver1)
+    };
+
+    let usb = comms::logger::CommsLogger::new();
+    let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
+
+    let pre_foc = simplefoc::foc_types::PreFOC::new(encoder, None::<()>, pwm_driver1, usb);
 
     let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
     executor0.run(|spawner| {
         // crate::comms::usb_raw::usb_init(&spawner, driver);
+
+        crate::comms::usb_raw::usb_init(&spawner, driver);
+
+        spawner.spawn(crate::init::core0_task(pre_foc).unwrap());
     });
 }
 
 /// MARK: Main Prev
-#[cfg(feature = "nope")]
-// #[cortex_m_rt::entry]
+// #[cfg(feature = "nope")]
+#[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
@@ -2206,9 +2335,9 @@ fn main() -> ! {
     );
 
     // let voltage_limit = 2.0;
-    // let voltage_limit = 4.;
-    let voltage_limit_a = 6.;
-    let voltage_limit_b = 6.;
+    let voltage_limit = 4.;
+    // let voltage_limit_a = 6.;
+    // let voltage_limit_b = 6.;
     // let voltage_limit = 8.;
     // let voltage_limit = 8.;
     // let voltage_limit = 10.;
@@ -2447,7 +2576,7 @@ fn main() -> ! {
                 pwm12,
                 enable_pin0,
                 c.clone(),
-                voltage_limit_a,
+                voltage_limit,
                 supply_voltage,
             );
 
@@ -2461,7 +2590,7 @@ fn main() -> ! {
                 pwm45,
                 enable_pin1,
                 c,
-                voltage_limit_b,
+                voltage_limit,
                 supply_voltage,
             );
 
@@ -2482,13 +2611,14 @@ fn main() -> ! {
     // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM4108, MOTOR_CONFIG_GM5208_24);
     // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM5208_24, MOTOR_CONFIG_GM5208_24);
     // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GL60, MOTOR_CONFIG_GL60);
-    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GL60, MOTOR_CONFIG_GM5208_24);
+    // let (motor_config0, motor_config1) = (MOTOR_CONFIG_GL60, MOTOR_CONFIG_GM5208_24);
+    let (motor_config0, motor_config1) = (MOTOR_CONFIG_GM3506, MOTOR_CONFIG_GM3506);
 
     #[cfg(feature = "picoA")]
     // let (output_encoder0, output_encoder1) = (None, Some(output_encoder0));
     let output_encoder1 = Some(output_encoder0);
 
-    let usb = comms::usb::UsbLogger::new();
+    let usb = comms::logger::CommsLogger::new();
     let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
     #[cfg(feature = "nope")]

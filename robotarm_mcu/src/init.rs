@@ -85,6 +85,18 @@ pub async fn core1_task(
     // foc_task(foc).await;
 }
 
+#[embassy_executor::task]
+// #[cfg(feature = "nope")]
+pub async fn core0_task(
+    pre_foc: crate::simplefoc::foc_types::PreFOC<
+        'static,
+        crate::hardware::mt6816::Mt6816<embassy_rp::peripherals::SPI1>,
+        (),
+    >,
+) {
+    unimplemented!()
+}
+
 // #[embassy_executor::task]
 pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     mut foc: &mut crate::simplefoc::foc_types::SimpleFOC<'static, SENSOR, CURRENT>,
@@ -103,11 +115,11 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
-    match foc.id {
-        // MOTOR_ID_A => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
-        MOTOR_ID_B => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
-        _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
-    };
+    // match foc.id {
+    //     // MOTOR_ID_A => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
+    //     MOTOR_ID_B => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW),
+    //     _ => foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown),
+    // };
 
     // foc.set_motion_control(MotionControlType::Torque);
     // foc.set_motion_control(MotionControlType::Velocity);
@@ -197,12 +209,12 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_zero_electric_angle(0.602);
     // foc.set_zero_electric_angle(3.66);
 
-    match foc.id {
-        // MOTOR_ID_A => foc.set_zero_electric_angle(2.76),
-        MOTOR_ID_B => foc.set_zero_electric_angle(2.44),
-        // _ => foc.set_zero_electric_angle(0.0),
-        _ => {}
-    }
+    // match foc.id {
+    //     // MOTOR_ID_A => foc.set_zero_electric_angle(2.76),
+    //     MOTOR_ID_B => foc.set_zero_electric_angle(2.44),
+    //     // _ => foc.set_zero_electric_angle(0.0),
+    //     _ => {}
+    // }
 
     // foc.output_sensor_offset = match foc.id {
     //     0 => 0.0,

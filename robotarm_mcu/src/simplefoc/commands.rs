@@ -4,8 +4,13 @@ use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlTyp
 
 use crate::{
     hardware::{current_sensor::CurrentSensor, encoder_sensor::EncoderSensor},
-    simplefoc::foc_types::SimpleFOC,
+    simplefoc::foc_types::{PreFOC, SimpleFOC},
 };
+
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> PreFOC<'a, ENCODER, CURRENT> {
+    // fn run_command(&mut self, cmd: SerialCommand) {
+    // }
+}
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     // #[inline(never)]
@@ -87,6 +92,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // #[cfg(feature = "nope")]
         match cmd {
+            SerialCommand::Init { id } => {
+                //
+            }
             SerialCommand::KeepAlive { id } => {
                 //
             }

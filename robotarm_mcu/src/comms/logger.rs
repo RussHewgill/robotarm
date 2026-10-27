@@ -4,12 +4,12 @@ use embassy_sync::channel::TryReceiveError;
 
 use crate::{
     MOTOR_ID_A,
-    comms::{CMD_CHAN0, CMD_CHAN1, LOG_CHAN, CommsMutex},
+    comms::{CMD_CHAN0, CMD_CHAN1, CommsMutex, LOG_CHAN},
 };
 
 /// owned by FOC loop task
 #[derive(Clone)]
-pub struct UsbLogger {
+pub struct CommsLogger {
     /// MCU recieves command from USB task
     rx0: embassy_sync::channel::Receiver<'static, CommsMutex, robotarm_protocol::SerialCommand, 5>,
     // rx1: embassy_sync::channel::Receiver<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
@@ -17,7 +17,7 @@ pub struct UsbLogger {
     tx: embassy_sync::channel::Sender<'static, CommsMutex, robotarm_protocol::SerialLogMessage, 5>,
 }
 
-impl UsbLogger {
+impl CommsLogger {
     pub fn new() -> Self {
         // let mut queue = heapless::Vec::new();
         // for _ in 0..4 {

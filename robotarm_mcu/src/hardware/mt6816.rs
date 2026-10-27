@@ -251,21 +251,48 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
     //     let cmd = 0b0000_0000 | (reg & 0b0111_1111);
     //     unimplemented!()
     // }
+
+    async fn _update(&mut self, ts_us: u64) -> Result<(), MT6816Error> {
+        let raw_angle = self.read_raw_angle().await?;
+
+        let raw_angle = (raw_angle as f32 / 16384_f32) * _2PI;
+
+        let angle = if self.enable_calibration {
+            crate::simplefoc::encoder_calibration::apply_calibration_lut(raw_angle, &self.lut)
+        } else {
+            raw_angle
+        };
+
+        let move_angle = angle - self.angle_prev;
+
+        // handle full rotations - if the angle jumps more than 0.8 * 2PI, we assume it wrapped around
+        if move_angle.abs() > (0.8 * _2PI) {
+            if move_angle > 0.0 {
+                self.full_rotations -= 1;
+            } else {
+                self.full_rotations += 1;
+            }
+        }
+
+        self.angle_prev = angle;
+
+        Ok(())
+    }
 }
 
 impl<T: embassy_rp::spi::Instance + 'static> EncoderSensor for Mt6816<T> {
     type Error = MT6816Error;
 
     async fn update(&mut self, ts_us: u64) -> Result<(), Self::Error> {
-        unimplemented!()
+        self._update(ts_us).await
     }
 
     fn get_mechanical_angle(&self) -> f32 {
-        unimplemented!()
+        self.angle_prev
     }
 
     fn get_angle(&self) -> f32 {
-        unimplemented!()
+        self.full_rotations as f32 * _2PI + self.angle_prev
     }
 
     fn get_velocity(&self) -> f32 {
@@ -284,7 +311,7 @@ impl<T: embassy_rp::spi::Instance + 'static> EncoderSensor for Mt6816<T> {
         self.lut = calibration;
     }
     fn update_calibration_lut(&mut self, index: usize, chunk: [f32; 8]) {
-        unimplemented!()
+        self.lut[index..index + 8].copy_from_slice(&chunk);
     }
 
     fn enable_calibration(&mut self, enable: bool) {
