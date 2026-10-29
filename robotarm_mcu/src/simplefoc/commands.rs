@@ -291,6 +291,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                     self.state_observer
                         .set_controller_bandwidth(controller_bandwidth);
                 }
+
+                let (b0, speed_factor, observer_bandwidth, controller_bandwidth, _, _, _) =
+                    self.state_observer.get_params();
             }
             SerialCommand::SetZeroElectricalAngle { id, angle } => {
                 self.zero_electric_angle = angle;

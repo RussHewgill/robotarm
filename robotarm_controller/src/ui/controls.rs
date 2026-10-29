@@ -1018,6 +1018,14 @@ impl App {
             ui.label(RichText::new(format!("ADRC Settings: {}", id)).strong());
             ui.end_row();
 
+            if ui.button("Fetch settings").clicked() {
+                let cmd = SerialCommand::RequestSettings { id };
+                if let Err(e) = self.serial_cmd_tx.as_ref().unwrap().try_send(cmd) {
+                    error!("Failed to send command: {}", e);
+                }
+            }
+            ui.end_row();
+
             self::pid_settings::pid_control_dec(
                 ui,
                 "b0",

@@ -126,7 +126,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     // }
 }
 
-/// internal
+/// internal, init
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     pub fn init(&mut self) {
         // check driver initialized
@@ -244,6 +244,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
             if (moved.abs() as f32) < (crate::simplefoc::types::_2PI / 101.0) {
                 // no movement
+                self.disable();
                 panic!(
                     "Sensor alignment failed: no movement detected, check motor and encoder wiring"
                 );

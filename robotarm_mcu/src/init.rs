@@ -6,7 +6,7 @@ use robotarm_protocol::{SerialCommand, types::MotionControlType};
 use static_cell::StaticCell;
 
 use crate::{
-    Irqs, MOTOR_ID_A, MOTOR_ID_B,
+    Irqs, MOTOR_ID_A,
     hardware::{
         current_sensor::CurrentSensor,
         encoder_sensor::EncoderSensor,
@@ -112,7 +112,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     Timer::after_millis(100).await;
 
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CW);
-    // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
+    foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::CCW);
     // foc.set_encoder_direction(crate::simplefoc::types::SensorDirection::Unknown);
 
     // match foc.id {
@@ -207,7 +207,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_zero_electric_angle(1.55);
     // foc.set_zero_electric_angle(1.61);
     // foc.set_zero_electric_angle(0.602);
-    // foc.set_zero_electric_angle(3.66);
+    foc.set_zero_electric_angle(1.84);
 
     // match foc.id {
     //     // MOTOR_ID_A => foc.set_zero_electric_angle(2.76),
@@ -240,6 +240,9 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     //         .set_calibration_lut(crate::configs::ENCODER_LUT_GM5208_24);
     // }
 
+    foc.encoder
+        .set_calibration_lut(crate::configs::ENCODER_LUT_GM3506);
+
     // foc.calibrate_encoder().await;
     foc.encoder.enable_calibration(true);
 
@@ -266,23 +269,29 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.state_observer.set_rotor_inertia(100. * 1e-7);
     // foc.state_observer.set_rotor_inertia(50. * 1e-7);
 
-    match foc.id {
-        MOTOR_ID_A => {
-            foc.state_observer.set_rotor_inertia(100. * 1e-7);
-            foc.state_observer.set_speed_factor(20.);
-            foc.state_observer.set_observer_bandwidth(1500.);
-            foc.state_observer.set_controller_bandwidth(300.);
-        }
-        MOTOR_ID_B => {
-            foc.state_observer.set_rotor_inertia(50. * 1e-7);
-            // foc.state_observer.set_speed_factor(20.);
-            // foc.state_observer.set_observer_bandwidth(200.);
-            // foc.state_observer.set_controller_bandwidth(50.);
-            foc.state_observer.set_speed_factor(20.);
-            foc.state_observer.set_observer_bandwidth(1000.);
-            foc.state_observer.set_controller_bandwidth(200.);
-        }
-        _ => {}
+    #[cfg(feature = "nope")]
+    {
+        foc.state_observer.set_rotor_inertia(100. * 1e-7);
+        foc.state_observer.set_speed_factor(20.);
+        foc.state_observer.set_observer_bandwidth(1500.);
+        foc.state_observer.set_controller_bandwidth(300.);
+    }
+
+    #[cfg(feature = "nope")]
+    {
+        foc.state_observer.set_rotor_inertia(50. * 1e-7);
+        foc.state_observer.set_speed_factor(20.);
+        foc.state_observer.set_observer_bandwidth(1000.);
+        foc.state_observer.set_controller_bandwidth(200.);
+    }
+
+    // #[cfg(feature = "nope")]
+    {
+        // foc.state_observer.set_rotor_inertia(5000. * 1e-7);
+        foc.state_observer.set_rotor_inertia(10. * 1e-7);
+        foc.state_observer.set_speed_factor(5.);
+        foc.state_observer.set_observer_bandwidth(10.);
+        foc.state_observer.set_controller_bandwidth(2.);
     }
 
     // debug!("Finding angle limits");

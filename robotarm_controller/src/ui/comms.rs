@@ -83,6 +83,7 @@ impl App {
                         u,
                         u0,
                     } => {
+                        // debug!("Got ADRC debug data from motor {}", id);
                         if let Some(t0) = self.t0 {
                             let t = timestamp as f64 * 1e-6 - t0 as f64 * 1e-6;
                             // debug!("State: {:?}", state);
@@ -106,6 +107,10 @@ impl App {
                         controller_bandwidth,
                     } => {
                         debug!("Got motor ADRC settings from motor {}", id);
+                        debug!(
+                            "b0: {}, speed_factor: {}, observer_bandwidth: {}, controller_bandwidth: {}",
+                            b0, speed_factor, observer_bandwidth, controller_bandwidth
+                        );
 
                         self.status[id as usize].adrc_b0 = b0;
                         self.status[id as usize].adrc_speed_factor = speed_factor;

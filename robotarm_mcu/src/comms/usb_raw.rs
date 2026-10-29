@@ -11,8 +11,8 @@ use robotarm_protocol::SerialCommand;
 use static_cell::StaticCell;
 
 use crate::{
-    MOTOR_ID_A, MOTOR_ID_B,
-    comms::{CMD_CHAN0, CMD_CHAN1, LOG_CHAN, CommsMutex},
+    MOTOR_ID_A,
+    comms::{CMD_CHAN0, CMD_CHAN1, CommsMutex, LOG_CHAN},
 };
 
 // pub type UsbMutex = embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -149,8 +149,18 @@ pub fn usb_init(
 #[embassy_executor::task]
 async fn usb_logger_task(
     mut usb_monitor: UsbMonitor,
-    cmd_tx0: embassy_sync::channel::Sender<'static, CommsMutex, robotarm_protocol::SerialCommand, 5>,
-    cmd_tx1: embassy_sync::channel::Sender<'static, CommsMutex, robotarm_protocol::SerialCommand, 5>,
+    cmd_tx0: embassy_sync::channel::Sender<
+        'static,
+        CommsMutex,
+        robotarm_protocol::SerialCommand,
+        5,
+    >,
+    cmd_tx1: embassy_sync::channel::Sender<
+        'static,
+        CommsMutex,
+        robotarm_protocol::SerialCommand,
+        5,
+    >,
     log_rx: embassy_sync::channel::Receiver<
         'static,
         CommsMutex,
@@ -234,12 +244,12 @@ async fn usb_logger_task(
                             loop {
                                 let tx = match data.id() {
                                     MOTOR_ID_A => &cmd_tx0,
-                                    MOTOR_ID_B => &cmd_tx1,
+                                    // MOTOR_ID_B => &cmd_tx1,
                                     _ => {
-                                        error!(
-                                            "Received command with invalid id: {}, dropping command",
-                                            data.id()
-                                        );
+                                        // error!(
+                                        //     "Received command with invalid id: {}, dropping command",
+                                        //     data.id()
+                                        // );
                                         break;
                                     }
                                 };
@@ -249,11 +259,22 @@ async fn usb_logger_task(
                                     Err(e) => {
                                         error!("Failed to send command to main task, retrying...");
                                         if retries >= 5 {
-                                            error!(
-                                                "Failed to send command after {} retries, dropping command",
-                                                retries
-                                            );
-                                            break;
+                                            match data {
+                                                SerialCommand::SetEnabled { id, enabled } => {
+                                                    error!(
+                                                        "Failed to send SetEnabled command, retrying"
+                                                    );
+                                                    retries = 0;
+                                                    continue;
+                                                }
+                                                _ => {
+                                                    error!(
+                                                        "Failed to send command after {} retries, dropping command",
+                                                        retries
+                                                    );
+                                                    break;
+                                                }
+                                            }
                                         } else {
                                             retries += 1;
                                             embassy_futures::yield_now().await;

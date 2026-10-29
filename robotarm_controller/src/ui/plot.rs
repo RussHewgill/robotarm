@@ -1120,7 +1120,8 @@ impl DataPlot {
         });
 
         ui.allocate_ui(egui::vec2(available.x, half_height), |ui| {
-            second.show_plot_motion(ui);
+            // second.show_plot_motion(ui);
+            self.show_plot_adrc(ui);
         });
     }
 
@@ -1133,155 +1134,157 @@ impl DataPlot {
         });
 
         // ---- Bottom pane (ADRC / PID) -------------------------------------
-        ui.allocate_ui(egui::vec2(available.x, half_height), |ui| {
-            let x_min = self.prev_time - self.window_time;
-            let x_max = self.prev_time;
-
-            let plot = Plot::new("adrc_plot")
-                .legend(Legend::default().position(egui_plot::Corner::LeftTop))
-                .height(ui.available_height())
-                .allow_scroll(false)
-                .allow_drag(false)
-                .allow_zoom(false)
-                .auto_bounds([true, false])
-                .include_x(x_min)
-                .include_x(x_max)
-                // .include_y(-2.0)
-                // .include_y(2.0)
-                // .default_x_bounds(x_min, x_max)
-                .default_y_bounds(-2., 2.)
-                // .invert_x(true)
-                .label_formatter(|pos| match pos {
-                    HoverPosition::NearDataPoint {
-                        plot_name,
-                        position,
-                        index,
-                    } => {
-                        //
-                        // None
-                        let mult = match *plot_name {
-                            LABEL_V1 => self.adrc_v1_scale,
-                            LABEL_V2 => self.adrc_v2_scale,
-                            LABEL_X1 => self.adrc_v1_scale,
-                            LABEL_X2 => self.adrc_v2_scale,
-                            LABEL_X3 => self.adrc_x3_scale,
-                            "ADRC u" => self.adrc_u_scale,
-                            _ => 1.0,
-                        };
-
-                        Some(format!("{}: {:.3}", plot_name, position.y / mult))
-                    }
-                    HoverPosition::Elsewhere { position } => {
-                        //
-                        None
-                    }
-                })
-                // .x_axis_formatter(|gridmark, range| {
-                //     //
-                //     // format!("{:.0}", (gridmark.value - self.prev_time).abs().floor()).to_string()
-                //     format!("{:.0}", gridmark.value.abs().floor()).to_string()
-                // })
-                .custom_y_axes(vec![
-                    AxisHints::new_x(),
-                    AxisHints::new_y().placement(HPlacement::Left),
-                    AxisHints::new_y().placement(HPlacement::Right),
-                ]);
-
-            plot.show(ui, |plot_ui| {
-                // ---------------- ADRC ---------------------------------
-                if self.draw_adrc_v1 {
-                    let pts: Vec<[f64; 2]> = self
-                        .adrc_vs
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, vs)| [*t, vs[0] * self.adrc_v1_scale])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("", pts)
-                            .name(LABEL_V1)
-                            .color(COLOR_V1)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_adrc_v2 {
-                    let pts: Vec<[f64; 2]> = self
-                        .adrc_vs
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, vs)| [*t, vs[1] * self.adrc_v2_scale])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("", pts)
-                            .name(LABEL_V2)
-                            .color(COLOR_V2)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_adrc_x1 {
-                    let pts: Vec<[f64; 2]> = self
-                        .adrc_state
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, xs)| [*t, xs[0] * self.adrc_v1_scale])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("", pts)
-                            .name(LABEL_X1)
-                            .color(COLOR_X1)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_adrc_x2 {
-                    let pts: Vec<[f64; 2]> = self
-                        .adrc_state
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, xs)| [*t, xs[1] * self.adrc_v2_scale])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("", pts)
-                            .name(LABEL_X2)
-                            .color(COLOR_X2)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_adrc_x3 {
-                    let pts: Vec<[f64; 2]> = self
-                        .adrc_state
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, xs)| [*t, xs[2] * self.adrc_x3_scale])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("", pts)
-                            .name(LABEL_X3)
-                            .color(COLOR_X3)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-
-                if self.draw_adrc_u {
-                    let pts: Vec<[f64; 2]> = self
-                        .adrc_u
-                        .iter()
-                        .filter(|(t, _)| *t >= x_min)
-                        .map(|(t, u)| [*t, *u * self.adrc_u_scale])
-                        .collect();
-                    plot_ui.line(
-                        Line::new("", pts)
-                            .name("ADRC u")
-                            .color(COLOR_U)
-                            .width(self.stroke_width as f32),
-                    );
-                }
-            });
-        });
+        ui.allocate_ui(egui::vec2(available.x, half_height), |ui| {});
 
         // unimplemented!()
+    }
+
+    fn show_plot_adrc(&self, ui: &mut egui::Ui) {
+        let x_min = self.prev_time - self.window_time;
+        let x_max = self.prev_time;
+
+        let plot = Plot::new("adrc_plot")
+            .legend(Legend::default().position(egui_plot::Corner::LeftTop))
+            .height(ui.available_height())
+            .allow_scroll(false)
+            .allow_drag(false)
+            .allow_zoom(false)
+            .auto_bounds([true, false])
+            .include_x(x_min)
+            .include_x(x_max)
+            // .include_y(-2.0)
+            // .include_y(2.0)
+            // .default_x_bounds(x_min, x_max)
+            .default_y_bounds(-2., 2.)
+            // .invert_x(true)
+            .label_formatter(|pos| match pos {
+                HoverPosition::NearDataPoint {
+                    plot_name,
+                    position,
+                    index,
+                } => {
+                    //
+                    // None
+                    let mult = match *plot_name {
+                        LABEL_V1 => self.adrc_v1_scale,
+                        LABEL_V2 => self.adrc_v2_scale,
+                        LABEL_X1 => self.adrc_v1_scale,
+                        LABEL_X2 => self.adrc_v2_scale,
+                        LABEL_X3 => self.adrc_x3_scale,
+                        "ADRC u" => self.adrc_u_scale,
+                        _ => 1.0,
+                    };
+
+                    Some(format!("{}: {:.3}", plot_name, position.y / mult))
+                }
+                HoverPosition::Elsewhere { position } => {
+                    //
+                    None
+                }
+            })
+            // .x_axis_formatter(|gridmark, range| {
+            //     //
+            //     // format!("{:.0}", (gridmark.value - self.prev_time).abs().floor()).to_string()
+            //     format!("{:.0}", gridmark.value.abs().floor()).to_string()
+            // })
+            .custom_y_axes(vec![
+                AxisHints::new_x(),
+                AxisHints::new_y().placement(HPlacement::Left),
+                AxisHints::new_y().placement(HPlacement::Right),
+            ]);
+
+        plot.show(ui, |plot_ui| {
+            // ---------------- ADRC ---------------------------------
+            if self.draw_adrc_v1 {
+                let pts: Vec<[f64; 2]> = self
+                    .adrc_vs
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, vs)| [*t, vs[0] * self.adrc_v1_scale])
+                    .collect();
+                plot_ui.line(
+                    Line::new("", pts)
+                        .name(LABEL_V1)
+                        .color(COLOR_V1)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_adrc_v2 {
+                let pts: Vec<[f64; 2]> = self
+                    .adrc_vs
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, vs)| [*t, vs[1] * self.adrc_v2_scale])
+                    .collect();
+                plot_ui.line(
+                    Line::new("", pts)
+                        .name(LABEL_V2)
+                        .color(COLOR_V2)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_adrc_x1 {
+                let pts: Vec<[f64; 2]> = self
+                    .adrc_state
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, xs)| [*t, xs[0] * self.adrc_v1_scale])
+                    .collect();
+                plot_ui.line(
+                    Line::new("", pts)
+                        .name(LABEL_X1)
+                        .color(COLOR_X1)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_adrc_x2 {
+                let pts: Vec<[f64; 2]> = self
+                    .adrc_state
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, xs)| [*t, xs[1] * self.adrc_v2_scale])
+                    .collect();
+                plot_ui.line(
+                    Line::new("", pts)
+                        .name(LABEL_X2)
+                        .color(COLOR_X2)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_adrc_x3 {
+                let pts: Vec<[f64; 2]> = self
+                    .adrc_state
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, xs)| [*t, xs[2] * self.adrc_x3_scale])
+                    .collect();
+                plot_ui.line(
+                    Line::new("", pts)
+                        .name(LABEL_X3)
+                        .color(COLOR_X3)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_adrc_u {
+                let pts: Vec<[f64; 2]> = self
+                    .adrc_u
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, u)| [*t, *u * self.adrc_u_scale])
+                    .collect();
+                plot_ui.line(
+                    Line::new("", pts)
+                        .name("ADRC u")
+                        .color(COLOR_U)
+                        .width(self.stroke_width as f32),
+                );
+            }
+        });
     }
 
     fn show_plot_motion(&self, ui: &mut egui::Ui) {

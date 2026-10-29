@@ -1,6 +1,7 @@
 pub mod motor_adrc;
 
 mod adrc;
+pub mod calibration;
 mod extended_state_observer;
 mod nlsef;
 mod tracking_differentiator;

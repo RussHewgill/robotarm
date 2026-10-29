@@ -257,6 +257,8 @@ impl MotorADRC {
         // );
         self.adrc.eso.beta =
             SVector::<f32, 3>::from_row_slice(&[3.0 * wo, 3.0 * wo * wo, wo * wo * wo]);
+
+        self.wo = wo;
     }
 
     pub fn set_controller_bandwidth(&mut self, wc: f32) {
@@ -275,6 +277,8 @@ impl MotorADRC {
         // self.adrc.nlsef = NonlinearStateErrorFeedback::linear(beta1, beta2);
         self.adrc.nlsef.beta1 = beta1;
         self.adrc.nlsef.beta2 = beta2;
+
+        self.wc = wc;
     }
 
     pub fn get_prev_output(&self) -> f32 {
@@ -339,6 +343,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         if dt_us == 0 || dt_us > 20_000 {
             // self.prev_t_us = t_us;
             // return measured_angle;
+            self.disable();
             panic!()
         }
         let dt = dt_us as f32 * 1e-6; // Convert microseconds to seconds
@@ -347,6 +352,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         if !(dt > 0.0 && dt.is_finite()) {
             // self.prev_t_us = t_us;
             // return measured_angle;
+            self.disable();
             panic!()
         }
 

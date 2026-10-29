@@ -43,8 +43,8 @@ compile_error!("More than one pico feature enabled.");
 
 #[cfg(feature = "testing")]
 pub const MOTOR_ID_A: u8 = 0;
-#[cfg(feature = "testing")]
-pub const MOTOR_ID_B: u8 = 1;
+// #[cfg(feature = "testing")]
+// pub const MOTOR_ID_B: u8 = 1;
 
 #[cfg(feature = "picoA")]
 pub const MOTOR_ID_A: u8 = 0;
@@ -2089,59 +2089,95 @@ async fn main(spawner: Spawner) {
 
     debug!("Starting MT6816 test");
 
-    let mosi = p.PIN_15;
-    let miso = p.PIN_12;
-    let sck = p.PIN_14;
-    let cs = p.PIN_13;
+    #[cfg(feature = "nope")]
+    {
+        let mosi = p.PIN_15;
+        let miso = p.PIN_12;
+        let sck = p.PIN_14;
+        let cs = p.PIN_13;
 
-    // let mut config = embassy_rp::spi::Config::default();
-    // config.frequency = 1_000_000;
-    // config.polarity = embassy_rp::spi::Polarity::IdleHigh;
-    // config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+        // let mut config = embassy_rp::spi::Config::default();
+        // config.frequency = 1_000_000;
+        // config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+        // config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
 
-    // let mut spi =
-    //     embassy_rp::spi::Spi::new(p.SPI1, sck, mosi, miso, p.DMA_CH2, p.DMA_CH3, Irqs, config);
+        // let mut spi =
+        //     embassy_rp::spi::Spi::new(p.SPI1, sck, mosi, miso, p.DMA_CH2, p.DMA_CH3, Irqs, config);
 
-    let spi = embassy_rp::spi::Spi::new(
-        p.SPI1,
-        sck,
-        mosi,
-        miso,
-        p.DMA_CH2,
-        p.DMA_CH3,
-        Irqs,
-        embassy_rp::spi::Config::default(),
-    );
+        let spi = embassy_rp::spi::Spi::new(
+            p.SPI1,
+            sck,
+            mosi,
+            miso,
+            p.DMA_CH2,
+            p.DMA_CH3,
+            Irqs,
+            embassy_rp::spi::Config::default(),
+        );
 
-    type Spi1Bus = embassy_sync::mutex::Mutex<
-        embassy_sync::blocking_mutex::raw::NoopRawMutex,
-        embassy_rp::spi::Spi<'static, embassy_rp::peripherals::SPI1, embassy_rp::spi::Async>,
-    >;
+        let spi_bus = hardware::SPI_BUS1.init(embassy_sync::mutex::Mutex::new(spi));
 
-    static SPI_BUS1: static_cell::StaticCell<Spi1Bus> = static_cell::StaticCell::new();
-    let spi_bus1 = SPI_BUS1.init(embassy_sync::mutex::Mutex::new(spi));
+        let cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::High);
 
-    let cs = embassy_rp::gpio::Output::new(cs, embassy_rp::gpio::Level::High);
+        let spi_cfg = embassy_rp::spi::Config::default();
 
-    let spi_cfg = embassy_rp::spi::Config::default();
+        let mut spi_dev = embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
+            spi_bus, cs, spi_cfg,
+        );
 
-    let mut spi_dev = embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
-        spi_bus1, cs, spi_cfg,
-    );
+        let mut encoder = crate::hardware::mt6816::Mt6816::new(spi_dev);
 
-    let mut encoder = crate::hardware::mt6816::Mt6816::new(spi_dev);
+        let mut t0 = Instant::now();
+        let mut c = 0;
+        let interval = embassy_time::Duration::from_millis(500);
+        let mut max_time = t0 + interval;
 
-    let mut t0 = Instant::now();
-    let mut c = 0;
-    let interval = embassy_time::Duration::from_millis(500);
-    let mut max_time = t0 + interval;
+        let mut sum_angle = 0.0;
+    }
 
-    let mut sum_angle = 0.0;
+    let spi_bus1 = {
+        let miso = p.PIN_12;
+        let mosi = p.PIN_15;
+
+        let sck = p.PIN_14;
+        // let cs = p.PIN_13;
+
+        let spi = embassy_rp::spi::Spi::new(
+            p.SPI1,
+            sck,
+            mosi,
+            miso,
+            p.DMA_CH2,
+            p.DMA_CH3,
+            Irqs,
+            embassy_rp::spi::Config::default(),
+        );
+
+        // static SPI_BUS1: StaticCell<hardware::Spi1Bus> = StaticCell::new();
+        let spi_bus = hardware::SPI_BUS1.init(embassy_sync::mutex::Mutex::new(spi));
+        spi_bus
+    };
+
+    let mut encoder = {
+        let cs = embassy_rp::gpio::Output::new(p.PIN_13, embassy_rp::gpio::Level::High);
+
+        let spi_cfg = embassy_rp::spi::Config::default();
+
+        let mut spi_dev = embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig::new(
+            spi_bus1, cs, spi_cfg,
+        );
+
+        // crate::hardware::mt_6701_ssi::MT6701::new(spi_dev)
+        crate::hardware::mt6816::Mt6816::new(spi_dev)
+    };
 
     loop {
         let raw_angle = encoder.read_raw_angle().await.unwrap();
 
         // sum_angle += raw_angle as f32;
+        let raw_angle = (raw_angle as f32 / 16384_f32) * simplefoc::types::_2PI;
+
+        debug!("raw angle: {}", raw_angle);
 
         let t1 = Instant::now();
 
@@ -2166,7 +2202,7 @@ async fn main(spawner: Spawner) {
             c += 1;
         }
 
-        Timer::after_millis(500).await;
+        Timer::after_millis(200).await;
     }
 
     //
@@ -2230,7 +2266,7 @@ fn main() -> ! {
 
     // #[cfg(feature = "nope")]
     let encoder = {
-        let cs = embassy_rp::gpio::Output::new(p.PIN_21, embassy_rp::gpio::Level::High);
+        let cs = embassy_rp::gpio::Output::new(p.PIN_13, embassy_rp::gpio::Level::High);
 
         let spi_cfg = embassy_rp::spi::Config::default();
 
@@ -2398,7 +2434,7 @@ fn main() -> ! {
 
     // #[cfg(feature = "nope")]
     let encoder1 = {
-        let cs = embassy_rp::gpio::Output::new(p.PIN_21, embassy_rp::gpio::Level::High);
+        let cs = embassy_rp::gpio::Output::new(p.PIN_13, embassy_rp::gpio::Level::High);
 
         let spi_cfg = embassy_rp::spi::Config::default();
 
@@ -2644,7 +2680,7 @@ fn main() -> ! {
     let usb2 = usb.clone();
 
     let foc1 = crate::simplefoc::foc_types::SimpleFOC::new(
-        MOTOR_ID_B,
+        MOTOR_ID_A,
         encoder1,
         None::<()>,
         // Some(current_sensor),

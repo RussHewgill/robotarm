@@ -2,7 +2,7 @@ use defmt::{debug, error, info};
 
 use postcard::accumulator::FeedResult;
 
-use crate::{MOTOR_ID_A, MOTOR_ID_B, comms::CommsMutex};
+use crate::{MOTOR_ID_A, comms::CommsMutex};
 use robotarm_protocol::SerialCommand;
 
 pub async fn modbus_task(mut max485: crate::hardware::max485::Max485) {
@@ -20,8 +20,18 @@ pub async fn modbus_task(mut max485: crate::hardware::max485::Max485) {
 async fn rx485_logger_task(
     // mut usb_monitor: UsbMonitor,
     mut max485: crate::hardware::max485::Max485,
-    cmd_tx0: embassy_sync::channel::Sender<'static, CommsMutex, robotarm_protocol::SerialCommand, 5>,
-    cmd_tx1: embassy_sync::channel::Sender<'static, CommsMutex, robotarm_protocol::SerialCommand, 5>,
+    cmd_tx0: embassy_sync::channel::Sender<
+        'static,
+        CommsMutex,
+        robotarm_protocol::SerialCommand,
+        5,
+    >,
+    cmd_tx1: embassy_sync::channel::Sender<
+        'static,
+        CommsMutex,
+        robotarm_protocol::SerialCommand,
+        5,
+    >,
     log_rx: embassy_sync::channel::Receiver<
         'static,
         CommsMutex,
@@ -69,7 +79,7 @@ async fn rx485_logger_task(
                             loop {
                                 let tx = match data.id() {
                                     MOTOR_ID_A => &cmd_tx0,
-                                    MOTOR_ID_B => &cmd_tx1,
+                                    // MOTOR_ID_B => &cmd_tx1,
                                     _ => {
                                         error!(
                                             "Received command with invalid id: {}, dropping command",
