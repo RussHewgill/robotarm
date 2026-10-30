@@ -240,8 +240,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     //         .set_calibration_lut(crate::configs::ENCODER_LUT_GM5208_24);
     // }
 
-    foc.encoder
-        .set_calibration_lut(crate::configs::ENCODER_LUT_GM3506);
+    // foc.encoder
+    //     .set_calibration_lut(crate::configs::ENCODER_LUT_GM3506);
 
     // foc.calibrate_encoder().await;
     foc.encoder.enable_calibration(true);
@@ -288,10 +288,10 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // #[cfg(feature = "nope")]
     {
         // foc.state_observer.set_rotor_inertia(5000. * 1e-7);
-        foc.state_observer.set_rotor_inertia(10. * 1e-7);
-        foc.state_observer.set_speed_factor(5.);
-        foc.state_observer.set_observer_bandwidth(10.);
-        foc.state_observer.set_controller_bandwidth(2.);
+        foc.state_observer.set_rotor_inertia(200. * 1e-7);
+        foc.state_observer.set_speed_factor(25.);
+        foc.state_observer.set_observer_bandwidth(200.);
+        foc.state_observer.set_controller_bandwidth(20.);
     }
 
     // debug!("Finding angle limits");

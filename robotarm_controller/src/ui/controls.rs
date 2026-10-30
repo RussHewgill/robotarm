@@ -68,7 +68,8 @@ mod pid_settings {
         id: u8,
         decimals: usize,
         cmd_fn: impl Fn(u8, F) -> SerialCommand,
-    ) where
+    ) -> bool
+    where
         F: egui::emath::Numeric + Copy,
     {
         ui.label(label);
@@ -78,12 +79,13 @@ mod pid_settings {
         let send_resp = ui.button("Send");
         let zero_resp = ui.button("Zero");
 
-        if (resp.lost_focus()
+        let send = (resp.lost_focus()
             && resp
                 .ctx
                 .input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Tab)))
-            || send_resp.clicked()
-        {
+            || send_resp.clicked();
+
+        if send {
             let cmd = cmd_fn(id, *value);
             if let Err(e) = tx.try_send(cmd) {
                 error!("Failed to send command: {}", e);
@@ -97,6 +99,8 @@ mod pid_settings {
                 error!("Failed to send command: {}", e);
             }
         }
+
+        send
     }
 
     pub(super) fn pid_control<F>(
@@ -107,7 +111,8 @@ mod pid_settings {
         // tx: &crossbeam_channel::Sender<SerialCommand>,
         id: u8,
         cmd_fn: impl Fn(u8, F) -> SerialCommand,
-    ) where
+    ) -> bool
+    where
         F: egui::emath::Numeric + Copy,
     {
         ui.label(label);
@@ -117,12 +122,13 @@ mod pid_settings {
         let send_resp = ui.button("Send");
         let zero_resp = ui.button("Zero");
 
-        if (resp.lost_focus()
+        let send = (resp.lost_focus()
             && resp
                 .ctx
                 .input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Tab)))
-            || send_resp.clicked()
-        {
+            || send_resp.clicked();
+
+        if send {
             let cmd = cmd_fn(id, *value);
             if let Err(e) = tx.try_send(cmd) {
                 error!("Failed to send command: {}", e);
@@ -136,6 +142,8 @@ mod pid_settings {
                 error!("Failed to send command: {}", e);
             }
         }
+
+        send
     }
 
     pub(super) fn set_vel_p(id: u8, p: f32) -> SerialCommand {
@@ -1060,7 +1068,7 @@ impl App {
             );
             ui.end_row();
 
-            self::pid_settings::pid_control_dec(
+            let sent_wo = self::pid_settings::pid_control_dec(
                 ui,
                 "observer bw",
                 &mut self.status[id as usize].adrc_observer_bandwidth,
@@ -1077,7 +1085,7 @@ impl App {
             );
             ui.end_row();
 
-            self::pid_settings::pid_control_dec(
+            let sent_wc = self::pid_settings::pid_control_dec(
                 ui,
                 "controller bw",
                 &mut self.status[id as usize].adrc_controller_bandwidth,
@@ -1092,6 +1100,37 @@ impl App {
                     },
                 },
             );
+            ui.end_row();
+
+            if self.status[id as usize].adrc_mult_fix {
+                if sent_wo {
+                    self.status[id as usize].adrc_controller_bandwidth = self.status[id as usize]
+                        .adrc_observer_bandwidth
+                        / self.status[id as usize].adrc_mult;
+                } else if sent_wc {
+                    self.status[id as usize].adrc_observer_bandwidth = self.status[id as usize]
+                        .adrc_controller_bandwidth
+                        * self.status[id as usize].adrc_mult;
+                }
+            }
+
+            let resp = ui.add(
+                egui::DragValue::new(&mut self.status[id as usize].adrc_mult).fixed_decimals(1),
+            );
+
+            let but = egui::Button::new("Fix wo * wc");
+            let but = if self.status[id as usize].adrc_mult_fix {
+                but.fill(egui::Color32::LIGHT_GREEN)
+            } else {
+                but
+            };
+            if ui.add(but).clicked() {
+                self.status[id as usize].adrc_mult_fix = !self.status[id as usize].adrc_mult_fix;
+                self.status[id as usize].adrc_mult = self.status[id as usize]
+                    .adrc_observer_bandwidth
+                    / self.status[id as usize].adrc_controller_bandwidth;
+            }
+
             ui.end_row();
             ui.end_row();
 

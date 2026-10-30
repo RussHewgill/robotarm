@@ -63,6 +63,8 @@ pub struct FocStatus {
     pub adrc_kp: f32,
     pub adrc_observer_bandwidth: f32,
     pub adrc_controller_bandwidth: f32,
+    pub adrc_mult: f32,
+    pub adrc_mult_fix: bool,
 
     pub adrc_internals: ([f64; 2], [f64; 3], f64, f64),
 

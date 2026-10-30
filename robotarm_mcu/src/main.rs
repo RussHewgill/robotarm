@@ -2371,7 +2371,7 @@ fn main() -> ! {
     );
 
     // let voltage_limit = 2.0;
-    let voltage_limit = 4.;
+    let voltage_limit = 3.;
     // let voltage_limit_a = 6.;
     // let voltage_limit_b = 6.;
     // let voltage_limit = 8.;

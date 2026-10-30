@@ -128,6 +128,8 @@ pub struct DataPlot {
     #[serde(default)]
     window_scale: f64,
     #[serde(default)]
+    window_scale_vel: f64,
+    #[serde(default)]
     window_offset: f64,
     #[serde(skip)]
     prev_time: f64,
@@ -249,7 +251,9 @@ impl Default for DataPlot {
     fn default() -> Self {
         Self {
             window_time: 20.,
-            window_scale: 16.,
+            // window_scale: 16.,
+            window_scale: 2.,
+            window_scale_vel: 1.,
             window_offset: 0.,
             prev_time: 0.,
 
@@ -258,7 +262,7 @@ impl Default for DataPlot {
             // vel_min_max: (-15., 15.),
             draw_angle: true,
             angle: VecDeque::new(),
-            angle_scale: 1.0,
+            angle_scale: 2.0,
             draw_pos: true,
             pos: VecDeque::new(),
             draw_vel: true,
@@ -364,12 +368,20 @@ impl App {
             ));
             ui.end_row();
 
-            ui.label("Window scale");
+            ui.label("Window scale (angle)");
             ui.add(
-                egui::Slider::new(&mut self.plots[self.current_id].window_scale, 2.0..=60.0)
-                    .step_by(2.0),
+                egui::Slider::new(&mut self.plots[self.current_id].window_scale, 0.1..=2.0), // .step_by(2.0),
             );
             ui.end_row();
+
+            // ui.label("Window scale (velocity)");
+            // ui.add(
+            //     egui::Slider::new(
+            //         &mut self.plots[self.current_id].window_scale_vel,
+            //         0.1..=10.0,
+            //     ), // .step_by(2.0),
+            // );
+            // ui.end_row();
 
             ui.label("Window offset");
             ui.add(
@@ -419,9 +431,9 @@ impl App {
 
                 ui.add(
                     egui::Slider::new(
-                        &mut self.plots[self.current_id].angle_scale,
+                        &mut self.plots[self.current_id].window_scale_vel,
                         // log_min..=log_max,
-                        0.01..=20.0,
+                        0.01..=100.0,
                     )
                     .logarithmic(true)
                     .max_decimals(log_decimals),
@@ -1291,6 +1303,21 @@ impl DataPlot {
         let x_min = self.prev_time - self.window_time;
         let x_max = self.prev_time;
 
+        // let angle_offset = -PI;
+
+        // normalize to [-2PI, 2PI]
+        let angle_fn = |angle: f64| {
+            // (angle - PI) * 2.0
+            let mut a = angle;
+            while a > PI {
+                a -= 2.0 * PI;
+            }
+            while a < -PI {
+                a += 2.0 * PI;
+            }
+            a * self.window_scale
+        };
+
         let mut plot = egui_plot::Plot::new("data_plot")
             .legend(egui_plot::Legend::default().position(egui_plot::Corner::LeftTop))
             .height(ui.available_height())
@@ -1346,7 +1373,7 @@ impl DataPlot {
                     .angle
                     .iter()
                     .filter(|(t, _)| *t >= x_min)
-                    .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                    .map(|(t, angle)| [*t, angle_fn(*angle)])
                     .collect();
                 plot_ui.line(
                     Line::new("Angle", pts)
@@ -1361,7 +1388,7 @@ impl DataPlot {
                     .pos
                     .iter()
                     .filter(|(t, _)| *t >= x_min)
-                    .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                    .map(|(t, angle)| [*t, angle_fn(*angle)])
                     .collect();
                 plot_ui.line(
                     Line::new("Pos", pts)
@@ -1376,7 +1403,7 @@ impl DataPlot {
                     .vel
                     .iter()
                     .filter(|(t, _)| *t >= x_min)
-                    .map(|(t, vel)| [*t, *vel * self.scale_vel])
+                    .map(|(t, vel)| [*t, *vel * self.window_scale_vel])
                     .collect();
                 plot_ui.line(
                     Line::new("Vel", pts)
@@ -1391,7 +1418,7 @@ impl DataPlot {
                     .target_pos
                     .iter()
                     .filter(|(t, _)| *t >= x_min)
-                    .map(|(t, angle)| [*t, self.angle_scale * *angle])
+                    .map(|(t, angle)| [*t, angle_fn(*angle)])
                     .collect();
                 plot_ui.line(
                     Line::new("Target Pos", pts)
@@ -1406,7 +1433,7 @@ impl DataPlot {
                     .target_vel
                     .iter()
                     .filter(|(t, _)| *t >= x_min)
-                    .map(|(t, target)| [*t, *target * self.scale_vel])
+                    .map(|(t, target)| [*t, *target * self.window_scale_vel])
                     .collect();
                 plot_ui.line(
                     Line::new("", pts)

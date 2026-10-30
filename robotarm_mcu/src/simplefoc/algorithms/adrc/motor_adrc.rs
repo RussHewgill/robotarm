@@ -47,7 +47,9 @@ impl MotorADRC {
         wc: f32,
     ) -> Self {
         // let speed_factor = 500.0;
-        let step_size = 0.0001;
+        // let step_size = 0.0001;
+        let step_size = 1.0 / 20_000.;
+
         let td = TrackingDifferentiator::new(speed_factor, step_size);
 
         // let wo = 100.0;
@@ -92,6 +94,8 @@ impl MotorADRC {
         let dist_limit = b0 * 10.0;
         // let dist_limit = b0 * 1.0;
 
+        debug!("u limit: {}", u_limit);
+
         let adrc = Adrc::new(td, eso, nlsef, b0)
             .with_u_limits(-u_limit, u_limit)
             // .with_disturbance_limits(-dist_limit, dist_limit);
@@ -132,7 +136,10 @@ impl MotorADRC {
         let speed_factor = 20.0;
         // let speed_factor = 10.0;
         // let speed_factor = 1.0;
-        let step_size = 0.0001;
+        // let step_size = 0.0001;
+
+        let step_size = 1.0 / 20_000.;
+
         let td = TrackingDifferentiator::new(speed_factor, step_size);
 
         // let wo = 50.0;
