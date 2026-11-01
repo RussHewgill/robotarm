@@ -23,8 +23,8 @@ mod motor_configs {
     );
 
     // GM3506
-    // ADRC unloaded: b0 20_000, speed 20, wo 200, wc 20
-    // ADRC elbow rotator unloaded: b0 5000, speed 10, wo 100, wc 20
+    // ADRC unloaded: b0 600, speed 100, wo 150, wc 30
+    // ADRC elbow rotator unloaded: b0 0, speed 0, wo 0, wc 0
     pub const MOTOR_CONFIG_GM3506: BLDCMotor = BLDCMotor::new(
         11, // pole pairs
         // Some(5.6), // phase resistance

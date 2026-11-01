@@ -485,10 +485,12 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             #[cfg(not(feature = "current_sensing"))]
             let sensor_currents = None;
 
-            let v = self.sensor_direction.multiplier()
-                * self
-                    .lpf_velocity
-                    .filter_with_timestamp(self.encoder.get_velocity(), t_us);
+            // let v = self.sensor_direction.multiplier()
+            //     * self
+            //         .lpf_velocity
+            //         .filter_with_timestamp(self.encoder.get_velocity(), t_us);
+
+            let v = self.sensor_direction.multiplier() * self.encoder.get_velocity();
 
             // let v = Self::normalize_angle(
             //     self.sensor_direction.multiplier()
@@ -504,6 +506,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 // position: shaft_angle,
                 // position: self.encoder.get_angle(),
                 position: self.encoder.get_mechanical_angle() * self.sensor_direction.multiplier(),
+
+                // from state observer
                 angle: self.get_mechanical_angle(),
                 velocity: self.shaft_velocity,
                 target_position: self.motor.target_shaft_angle,
@@ -517,6 +521,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 // motor_voltage: (v, 0.),
                 motor_voltage: (self.motor.voltage.q, self.motor.voltage.d),
                 feed_forward: self.feed_forward_torque,
+                aux_velocity: v,
                 // pid_outputs: (
                 //     self.pid_velocity.prev_output(),
                 //     self.pid_angle.prev_output(),

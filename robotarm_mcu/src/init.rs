@@ -144,9 +144,9 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
 
     // foc.set_debug_freq(2);
     // foc.set_debug_freq(50);
-    foc.set_debug_freq(100);
+    // foc.set_debug_freq(100);
     // foc.set_debug_freq(200);
-    // foc.set_debug_freq(500);
+    foc.set_debug_freq(500);
     // foc.set_debug_freq(0);
 
     // info!("Starting main loop");
@@ -207,7 +207,7 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     // foc.set_zero_electric_angle(1.55);
     // foc.set_zero_electric_angle(1.61);
     // foc.set_zero_electric_angle(0.602);
-    foc.set_zero_electric_angle(1.84);
+    foc.set_zero_electric_angle(1.6636);
 
     // match foc.id {
     //     // MOTOR_ID_A => foc.set_zero_electric_angle(2.76),
@@ -240,8 +240,8 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
     //         .set_calibration_lut(crate::configs::ENCODER_LUT_GM5208_24);
     // }
 
-    // foc.encoder
-    //     .set_calibration_lut(crate::configs::ENCODER_LUT_GM3506);
+    foc.encoder
+        .set_calibration_lut(crate::configs::ENCODER_LUT_GM3506);
 
     // foc.calibrate_encoder().await;
     foc.encoder.enable_calibration(true);
@@ -285,13 +285,20 @@ pub async fn foc_task<SENSOR: EncoderSensor, CURRENT: CurrentSensor>(
         foc.state_observer.set_controller_bandwidth(200.);
     }
 
-    // #[cfg(feature = "nope")]
+    #[cfg(feature = "nope")]
     {
         // foc.state_observer.set_rotor_inertia(5000. * 1e-7);
-        foc.state_observer.set_rotor_inertia(200. * 1e-7);
+        foc.state_observer.set_rotor_inertia(2200. * 1e-7);
+        foc.state_observer.set_speed_factor(100.);
+        foc.state_observer.set_observer_bandwidth(150.);
+        foc.state_observer.set_controller_bandwidth(30.);
+    }
+
+    {
+        foc.state_observer.set_rotor_inertia(2200. * 1e-7);
         foc.state_observer.set_speed_factor(25.);
-        foc.state_observer.set_observer_bandwidth(200.);
-        foc.state_observer.set_controller_bandwidth(20.);
+        foc.state_observer.set_observer_bandwidth(100.);
+        foc.state_observer.set_controller_bandwidth(30.);
     }
 
     // debug!("Finding angle limits");

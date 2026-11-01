@@ -2082,8 +2082,8 @@ async fn main(spawner: Spawner) {
 }
 
 // MT6816 test
-#[cfg(feature = "nope")]
-// #[embassy_executor::main]
+// #[cfg(feature = "nope")]
+#[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -2126,13 +2126,6 @@ async fn main(spawner: Spawner) {
         );
 
         let mut encoder = crate::hardware::mt6816::Mt6816::new(spi_dev);
-
-        let mut t0 = Instant::now();
-        let mut c = 0;
-        let interval = embassy_time::Duration::from_millis(500);
-        let mut max_time = t0 + interval;
-
-        let mut sum_angle = 0.0;
     }
 
     let spi_bus1 = {
@@ -2171,23 +2164,75 @@ async fn main(spawner: Spawner) {
         crate::hardware::mt6816::Mt6816::new(spi_dev)
     };
 
+    let mut t0 = Instant::now();
+    let mut c = 0;
+    let interval = embassy_time::Duration::from_millis(1000);
+    let mut max_time = t0 + interval;
+
+    let mut sum_angle = 0.0;
+
+    // let mut min_angle = 0i32;
+    // let mut max_angle = 0i32;
+    let mut angles = heapless::Vec::<u16, 8196>::new();
+
+    let mut errors = (0, 0, 0);
+
+    // #[cfg(feature = "nope")]
     loop {
-        let raw_angle = encoder.read_raw_angle().await.unwrap();
+        // let raw_angle = encoder.read_raw_angle().await.unwrap();
 
+        let raw_angle = match encoder.read_raw_angle().await {
+            Ok(angle) => angle,
+            Err(crate::hardware::mt6816::MT6816Error::Magnet) => {
+                // error!("Magnet error reading raw angle");
+                errors.0 += 1;
+                continue;
+            }
+            Err(crate::hardware::mt6816::MT6816Error::Parity) => {
+                // error!("Parity error reading raw angle");
+                errors.1 += 1;
+                continue;
+            }
+            Err(crate::hardware::mt6816::MT6816Error::Spi) => {
+                // error!("SPI error reading raw angle");
+                errors.2 += 1;
+                continue;
+            }
+        };
+
+        // debug!("raw angle: {}", raw_angle);
+
+        angles.push(raw_angle).ok();
+
+        // let raw_angle = (raw_angle as f32 / 16384_f32) * simplefoc::types::_2PI;
         // sum_angle += raw_angle as f32;
-        let raw_angle = (raw_angle as f32 / 16384_f32) * simplefoc::types::_2PI;
-
-        debug!("raw angle: {}", raw_angle);
 
         let t1 = Instant::now();
 
-        #[cfg(feature = "nope")]
+        // Timer::after_millis(50).await;
+
+        // #[cfg(feature = "nope")]
         if t1 > max_time {
             let elapsed = t1 - t0;
             let freq = c as f32 / (elapsed.as_micros() as f32 * 1e-6);
 
-            debug!("Raw angle: {}", raw_angle);
-            debug!("Sum angle: {}", sum_angle);
+            // debug!("Raw angle: {}", raw_angle);
+            // debug!("Avg angle: {}", sum_angle / c as f32);
+            // sum_angle = 0.0;
+
+            let min_angle = angles.iter().min().copied().map(|x| x as i32).unwrap_or(-1);
+            let max_angle = angles.iter().max().copied().map(|x| x as i32).unwrap_or(-1);
+            angles.clear();
+
+            debug!("Min angle: {}", min_angle);
+            debug!("Max angle: {}", max_angle);
+            debug!("Angle range: {}", max_angle - min_angle);
+
+            debug!(
+                "Errors: Magnet: {}, Parity: {}, SPI: {}",
+                errors.0, errors.1, errors.2
+            );
+            errors = (0, 0, 0);
 
             info!(
                 "Elapsed: {}s, Cycles: {}, Freq: {}Hz",
@@ -2201,8 +2246,6 @@ async fn main(spawner: Spawner) {
         } else {
             c += 1;
         }
-
-        Timer::after_millis(200).await;
     }
 
     //
@@ -2350,8 +2393,8 @@ fn main() -> ! {
 }
 
 /// MARK: Main Prev
-// #[cfg(feature = "nope")]
-#[cortex_m_rt::entry]
+#[cfg(feature = "nope")]
+// #[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 

@@ -44,6 +44,8 @@ pub struct Mt6816<T: Instance + 'static> {
 
     lut: [f32; N_LUT],        // lookup table for magnet correction
     enable_calibration: bool, // flag to enable/disable calibration
+
+    velocity: f32,
 }
 
 #[derive(Copy, Clone)]
@@ -69,6 +71,7 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
         config.frequency = 4_000_000;
         // config.frequency = 2_000_000;
         // config.frequency = 1_000_000;
+        // config.frequency = 0_200_000;
         config.polarity = embassy_rp::spi::Polarity::IdleHigh;
         config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
 
@@ -82,6 +85,7 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
             full_rotations: 0,
             lut: [0.0; N_LUT],
             enable_calibration: false,
+            velocity: 0.0,
         }
     }
 
@@ -101,6 +105,15 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
         //         Operation::Write(&[0x84]),
         //         Operation::Read(buf1),
         //     ])
+        //     .await
+        //     .map_err(|_| MT6816Error::Spi)?;
+
+        // self.spi
+        //     .transaction(&mut [Operation::Write(&[0x83]), Operation::Read(buf0)])
+        //     .await
+        //     .map_err(|_| MT6816Error::Spi)?;
+        // self.spi
+        //     .transaction(&mut [Operation::Write(&[0x84]), Operation::Read(buf1)])
         //     .await
         //     .map_err(|_| MT6816Error::Spi)?;
 
@@ -126,12 +139,12 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
             //     "Parity error detected: calculated_parity = {}, parity_bit = {}, raw = {:016b}",
             //     calculated_parity, parity_bit, raw
             // );
-            // return Err(MT6816Error::Parity);
+            return Err(MT6816Error::Parity);
         }
 
         if magnet_bit {
             // warn!("Magnet error detected");
-            // return Err(MT6816Error::Magnet);
+            return Err(MT6816Error::Magnet);
         }
 
         // let angle_f32 = (raw_angle as f32 / 16384_f32) * _2PI;
@@ -168,7 +181,18 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
     // }
 
     async fn _update(&mut self, ts_us: u64) -> Result<(), MT6816Error> {
-        let raw_angle = self.read_raw_angle().await?;
+        let raw_angle = match self.read_raw_angle().await {
+            Ok(angle) => angle,
+            Err(MT6816Error::Magnet) => {
+                return Err(MT6816Error::Magnet);
+            }
+            Err(MT6816Error::Parity) => {
+                return Err(MT6816Error::Parity);
+            }
+            Err(MT6816Error::Spi) => {
+                return Err(MT6816Error::Spi);
+            }
+        };
 
         let raw_angle = (raw_angle as f32 / 16384_f32) * _2PI;
 
@@ -193,13 +217,64 @@ impl<T: embassy_rp::spi::Instance + 'static> Mt6816<T> {
 
         Ok(())
     }
+
+    fn calc_velocity(&mut self, current_angle: f32, t_us: u64) -> f32 {
+        if self.angles_prev.len() < 5 {
+            let _ = self.angles_prev.push_back(Sample {
+                sample_angle: current_angle,
+                sample_ts: t_us,
+                sample_full_rotations: self.full_rotations,
+            });
+
+            return 0.0;
+        }
+
+        if let Some(Sample {
+            sample_angle,
+            sample_ts,
+            sample_full_rotations,
+        }) = self.angles_prev.pop_front()
+        {
+            // let delta_angle = (self.full_rotations - vel_full_rotations) as f32 * _2PI
+            //     + (self.angle_prev - angle);
+            // self.velocity = delta_angle / ((t_us - timestamp) as f32 * 1e-6);
+
+            let delta_angle = (self.full_rotations - sample_full_rotations) as f32 * _2PI
+                + (current_angle - sample_angle);
+
+            self.velocity = delta_angle / ((t_us - sample_ts) as f32 * 1e-6);
+
+            let _ = self.angles_prev.push_back(Sample {
+                sample_angle: current_angle,
+                sample_ts: t_us,
+                sample_full_rotations: self.full_rotations,
+            });
+            // self.vel_full_rotations = self.full_rotations;
+            // self.vel_angle_prev = self.angle_prev;
+            // self.vel_angle_prev_ts = self.angle_prev_ts;
+
+            return self.velocity;
+        } else {
+            let _ = self.angles_prev.push_back(Sample {
+                sample_angle: current_angle,
+                sample_ts: t_us,
+                sample_full_rotations: self.full_rotations,
+            });
+            // self.vel_angle_prev = self.angle_prev;
+            // self.vel_full_rotations = self.full_rotations;
+            // self.vel_angle_prev_ts = self.angle_prev_ts;
+            return self.velocity;
+        }
+    }
 }
 
 impl<T: embassy_rp::spi::Instance + 'static> EncoderSensor for Mt6816<T> {
     type Error = MT6816Error;
 
     async fn update(&mut self, ts_us: u64) -> Result<(), Self::Error> {
-        self._update(ts_us).await
+        self._update(ts_us).await?;
+        self.calc_velocity(self.angle_prev, ts_us);
+        Ok(())
     }
 
     fn get_mechanical_angle(&self) -> f32 {
@@ -211,7 +286,7 @@ impl<T: embassy_rp::spi::Instance + 'static> EncoderSensor for Mt6816<T> {
     }
 
     fn get_velocity(&self) -> f32 {
-        0.0
+        self.velocity
     }
 
     fn reset_position(&mut self) {

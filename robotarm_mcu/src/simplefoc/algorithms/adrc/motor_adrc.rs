@@ -331,7 +331,14 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     ) {
         let dir = self.sensor_direction.multiplier();
 
-        let _ = self.encoder.update(t_us).await;
+        // let _ = self.encoder.update(t_us).await;
+        match self.encoder.update(t_us).await {
+            Ok(_) => {}
+            Err(_) => {
+                // self.disable();
+                // panic!()
+            }
+        }
         let measured_angle = self.encoder.get_angle();
 
         if self.prev_t_us == 0 {

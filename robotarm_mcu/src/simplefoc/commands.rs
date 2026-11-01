@@ -67,6 +67,25 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         }
     }
 
+    fn set_config(&mut self, config: robotarm_protocol::MotorConfigValue) {
+        match config {
+            robotarm_protocol::MotorConfigValue::DirClockwise(cw) => todo!(),
+            robotarm_protocol::MotorConfigValue::MotorParams {
+                pole_pairs,
+                phase_resistance,
+                motor_kv,
+            } => todo!(),
+            robotarm_protocol::MotorConfigValue::ZeroElectricalAngle(angle) => {
+                self.zero_electric_angle = angle;
+            }
+            robotarm_protocol::MotorConfigValue::DebugLogging(_) => todo!(),
+            robotarm_protocol::MotorConfigValue::VoltageLimit(voltage_limit) => {
+                self.set_voltage_limit(voltage_limit);
+                self.state_observer.set_max_voltage(voltage_limit);
+            }
+        }
+    }
+
     // #[inline(never)]
     // #[inline(always)]
     fn run_command(&mut self, cmd: SerialCommand) {
@@ -98,6 +117,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             SerialCommand::KeepAlive { id } => {
                 //
             }
+            SerialCommand::SetMotorConfig { id, config } => self.set_config(config),
             SerialCommand::SetEncoderCalibration { id, enable } => {
                 // debug!(
                 //     "Received SetEncoderCalibration command: id: {}, enable: {}",
@@ -108,25 +128,25 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             SerialCommand::ZeroPosition { id } => {
                 self.encoder.reset_position();
             }
-            SerialCommand::SetLPF {
-                id,
-                lpf_vel,
-                lpf_angle,
-            } => {
-                if let Some(lpf_vel) = lpf_vel {
-                    self.lpf_velocity.tf = lpf_vel;
-                }
-                if let Some(lpf_angle) = lpf_angle {
-                    self.lpf_angle.tf = lpf_angle;
-                }
-            }
+            // SerialCommand::SetLPF {
+            //     id,
+            //     lpf_vel,
+            //     lpf_angle,
+            // } => {
+            //     if let Some(lpf_vel) = lpf_vel {
+            //         self.lpf_velocity.tf = lpf_vel;
+            //     }
+            //     if let Some(lpf_angle) = lpf_angle {
+            //         self.lpf_angle.tf = lpf_angle;
+            //     }
+            // }
             SerialCommand::SetDebugRate { id, rate_hz } => {
                 self.set_debug_freq(rate_hz as u64);
             }
-            SerialCommand::SetVoltageLimit { id, voltage_limit } => {
-                self.set_voltage_limit(voltage_limit);
-                self.state_observer.set_max_voltage(voltage_limit);
-            }
+            // SerialCommand::SetVoltageLimit { id, voltage_limit } => {
+            //     self.set_voltage_limit(voltage_limit);
+            //     self.state_observer.set_max_voltage(voltage_limit);
+            // }
             // SerialCommand::SetSensorOffset { id, offset } => {
             //     if id == self.id {
             //         trace!(
@@ -143,9 +163,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             //         // self.zero_electric_angle = position;
             //     }
             // }
-            SerialCommand::SetFeedForward { id, ff } => {
-                self.feed_forward_torque = ff;
-            }
+            // SerialCommand::SetFeedForward { id, ff } => {
+            //     self.feed_forward_torque = ff;
+            // }
             SerialCommand::RequestSettings { id } => {
                 let (b0, speed_factor, observer_bandwidth, controller_bandwidth, _, _, _) =
                     self.state_observer.get_params();
@@ -232,32 +252,32 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             SerialCommand::SetModeAngleOpenLoop { id } => {
                 self.set_motion_control(MotionControlType::AngleOpenLoop);
             }
-            SerialCommand::SetVelocityPID { id, pid_settings } => {
-                if let Some(p) = pid_settings.p {
-                    self.pid_velocity.set_p(p);
-                }
-                if let Some(i) = pid_settings.i {
-                    self.pid_velocity.set_i(i);
-                }
-                if let Some(d) = pid_settings.d {
-                    self.pid_velocity.set_d(d);
-                }
-                if let Some(limit) = pid_settings.limit {
-                    self.pid_velocity.set_limit(limit);
-                }
-                // if let Some(ramp) = pid_settings.ramp {
-                //     self.pid_velocity.set_ramp(ramp);
-                // }
-                if let Some(i_band) = pid_settings.i_band {
-                    self.pid_velocity.set_i_band(i_band);
-                }
-                if let Some(d_lpf) = pid_settings.d_lpf {
-                    self.pid_velocity.set_d_low_pass(d_lpf);
-                }
-                if let Some(feed_forward) = pid_settings.feed_forward {
-                    self.pid_velocity.set_feed_forward(feed_forward);
-                }
-            }
+            // SerialCommand::SetVelocityPID { id, pid_settings } => {
+            //     if let Some(p) = pid_settings.p {
+            //         self.pid_velocity.set_p(p);
+            //     }
+            //     if let Some(i) = pid_settings.i {
+            //         self.pid_velocity.set_i(i);
+            //     }
+            //     if let Some(d) = pid_settings.d {
+            //         self.pid_velocity.set_d(d);
+            //     }
+            //     if let Some(limit) = pid_settings.limit {
+            //         self.pid_velocity.set_limit(limit);
+            //     }
+            //     // if let Some(ramp) = pid_settings.ramp {
+            //     //     self.pid_velocity.set_ramp(ramp);
+            //     // }
+            //     if let Some(i_band) = pid_settings.i_band {
+            //         self.pid_velocity.set_i_band(i_band);
+            //     }
+            //     if let Some(d_lpf) = pid_settings.d_lpf {
+            //         self.pid_velocity.set_d_low_pass(d_lpf);
+            //     }
+            //     if let Some(feed_forward) = pid_settings.feed_forward {
+            //         self.pid_velocity.set_feed_forward(feed_forward);
+            //     }
+            // }
             #[cfg(feature = "nope")]
             SerialCommand::SetAnglePID { id, pid_settings } => {
                 if let Some(p) = pid_settings.p {
@@ -295,22 +315,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 let (b0, speed_factor, observer_bandwidth, controller_bandwidth, _, _, _) =
                     self.state_observer.get_params();
             }
-            SerialCommand::SetZeroElectricalAngle { id, angle } => {
-                self.zero_electric_angle = angle;
-            }
-            SerialCommand::SetMotorConfig {
-                id,
-                pole_pairs,
-                phase_resistance,
-                motor_kv,
-            } => {
-                unimplemented!("SetMotorConfig command is not implemented yet");
-            }
+            // SerialCommand::SetZeroElectricalAngle { id, angle } => {
+            //     self.zero_electric_angle = angle;
+            // }
             SerialCommand::SetThermalConfig { id } => {
                 unimplemented!("SetThermalConfig command is not implemented yet");
-            }
-            SerialCommand::ToggleDebugLogging { id } => {
-                unimplemented!("ToggleDebugLogging command is not implemented yet");
             }
             SerialCommand::ResetADRC { id } => {
                 self.state_observer.reset();

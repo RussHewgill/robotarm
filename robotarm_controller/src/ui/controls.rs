@@ -7,7 +7,7 @@ use egui::{Color32, RichText, Sense, Stroke, Vec2};
 use egui_extras::Size;
 
 use crate::ui::{app::App, controls::scrollable::make_scrollable};
-use robotarm_protocol::SerialCommand;
+use robotarm_protocol::{MotorConfigValue, SerialCommand};
 
 mod pid_settings {
     use anyhow::{Context, Result, anyhow, bail, ensure};
@@ -146,83 +146,83 @@ mod pid_settings {
         send
     }
 
-    pub(super) fn set_vel_p(id: u8, p: f32) -> SerialCommand {
-        SerialCommand::SetVelocityPID {
-            id,
-            pid_settings: robotarm_protocol::types::PIDSettings {
-                p: Some(p),
-                ..Default::default()
-            },
-        }
-    }
+    // pub(super) fn set_vel_p(id: u8, p: f32) -> SerialCommand {
+    //     SerialCommand::SetVelocityPID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             p: Some(p),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 
-    pub(super) fn set_vel_i(id: u8, i: f32) -> SerialCommand {
-        SerialCommand::SetVelocityPID {
-            id,
-            pid_settings: robotarm_protocol::types::PIDSettings {
-                i: Some(i),
-                ..Default::default()
-            },
-        }
-    }
+    // pub(super) fn set_vel_i(id: u8, i: f32) -> SerialCommand {
+    //     SerialCommand::SetVelocityPID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             i: Some(i),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 
-    pub(super) fn set_vel_d(id: u8, d: f32) -> SerialCommand {
-        SerialCommand::SetVelocityPID {
-            id,
-            pid_settings: robotarm_protocol::types::PIDSettings {
-                d: Some(d),
-                ..Default::default()
-            },
-        }
-    }
+    // pub(super) fn set_vel_d(id: u8, d: f32) -> SerialCommand {
+    //     SerialCommand::SetVelocityPID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             d: Some(d),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 
-    pub(super) fn set_vel_lpf(id: u8, lpf: f32) -> SerialCommand {
-        SerialCommand::SetLPF {
-            id,
-            lpf_vel: Some(lpf),
-            lpf_angle: None,
-        }
-    }
+    // pub(super) fn set_vel_lpf(id: u8, lpf: f32) -> SerialCommand {
+    //     SerialCommand::SetLPF {
+    //         id,
+    //         lpf_vel: Some(lpf),
+    //         lpf_angle: None,
+    //     }
+    // }
 
-    pub(super) fn set_vel_limit(id: u8, limit: f64) -> SerialCommand {
-        SerialCommand::SetVelocityPID {
-            id,
-            pid_settings: robotarm_protocol::types::PIDSettings {
-                limit: Some(limit as f32),
-                ..Default::default()
-            },
-        }
-    }
+    // pub(super) fn set_vel_limit(id: u8, limit: f64) -> SerialCommand {
+    //     SerialCommand::SetVelocityPID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             limit: Some(limit as f32),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 
-    pub(super) fn set_vel_i_band(id: u8, i_band: f64) -> SerialCommand {
-        SerialCommand::SetVelocityPID {
-            id,
-            pid_settings: robotarm_protocol::types::PIDSettings {
-                i_band: Some(i_band as f32),
-                ..Default::default()
-            },
-        }
-    }
+    // pub(super) fn set_vel_i_band(id: u8, i_band: f64) -> SerialCommand {
+    //     SerialCommand::SetVelocityPID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             i_band: Some(i_band as f32),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 
-    pub(super) fn set_vel_d_lpf(id: u8, d_lpf: f64) -> SerialCommand {
-        SerialCommand::SetVelocityPID {
-            id,
-            pid_settings: robotarm_protocol::types::PIDSettings {
-                d_lpf: Some(d_lpf as f32),
-                ..Default::default()
-            },
-        }
-    }
+    // pub(super) fn set_vel_d_lpf(id: u8, d_lpf: f64) -> SerialCommand {
+    //     SerialCommand::SetVelocityPID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             d_lpf: Some(d_lpf as f32),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 
-    pub(super) fn set_vel_feed_forward(id: u8, ff: f64) -> SerialCommand {
-        SerialCommand::SetVelocityPID {
-            id,
-            pid_settings: robotarm_protocol::types::PIDSettings {
-                feed_forward: Some(ff as f32),
-                ..Default::default()
-            },
-        }
-    }
+    // pub(super) fn set_vel_feed_forward(id: u8, ff: f64) -> SerialCommand {
+    //     SerialCommand::SetVelocityPID {
+    //         id,
+    //         pid_settings: robotarm_protocol::types::PIDSettings {
+    //             feed_forward: Some(ff as f32),
+    //             ..Default::default()
+    //         },
+    //     }
+    // }
 
     // pub(super) fn set_pos_limit(id: u8, limit: f32) -> SerialCommand {
     //     SerialCommand::SetAnglePID {
@@ -974,17 +974,25 @@ impl App {
             let inc = 0.01;
             if ui.button("+").clicked() {
                 self.status[id as usize].zero_electrical_angle += inc;
-                let cmd = SerialCommand::SetZeroElectricalAngle {
+                // let cmd = SerialCommand::SetZeroElectricalAngle {
+                //     id,
+                //     angle: self.status[id as usize].zero_electrical_angle as f32,
+                // };
+                let cmd = SerialCommand::SetMotorConfig {
                     id,
-                    angle: self.status[id as usize].zero_electrical_angle as f32,
+                    config: MotorConfigValue::ZeroElectricalAngle(
+                        self.status[id as usize].zero_electrical_angle as f32,
+                    ),
                 };
                 self.send_command(cmd);
             }
             if ui.button("-").clicked() {
                 self.status[id as usize].zero_electrical_angle -= inc;
-                let cmd = SerialCommand::SetZeroElectricalAngle {
+                let cmd = SerialCommand::SetMotorConfig {
                     id,
-                    angle: self.status[id as usize].zero_electrical_angle as f32,
+                    config: MotorConfigValue::ZeroElectricalAngle(
+                        self.status[id as usize].zero_electrical_angle as f32,
+                    ),
                 };
                 self.send_command(cmd);
             }
@@ -1001,13 +1009,15 @@ impl App {
             let mut send_target = None;
 
             if resp.changed() {
-                send_target = Some(self.status[id as usize].feed_forward);
+                send_target = Some(self.status[id as usize].zero_electrical_angle);
             }
 
             if let Some(tgt) = send_target {
-                let cmd = SerialCommand::SetZeroElectricalAngle {
+                let cmd = SerialCommand::SetMotorConfig {
                     id,
-                    angle: self.status[id as usize].zero_electrical_angle as f32,
+                    config: MotorConfigValue::ZeroElectricalAngle(
+                        self.status[id as usize].zero_electrical_angle as f32,
+                    ),
                 };
                 self.send_command(cmd);
             }
@@ -1308,15 +1318,15 @@ impl App {
             }
             ui.end_row();
 
-            self::pid_settings::pid_control(
-                ui,
-                "Velocity LPF",
-                &mut self.status[id as usize].lpf_vel,
-                &self.serial_cmd_tx.as_ref().unwrap(),
-                id,
-                self::pid_settings::set_vel_lpf,
-            );
-            ui.end_row();
+            // self::pid_settings::pid_control(
+            //     ui,
+            //     "Velocity LPF",
+            //     &mut self.status[id as usize].lpf_vel,
+            //     &self.serial_cmd_tx.as_ref().unwrap(),
+            //     id,
+            //     self::pid_settings::set_vel_lpf,
+            // );
+            // ui.end_row();
         });
     }
 

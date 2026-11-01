@@ -126,7 +126,7 @@ pub struct DataPlot {
     #[serde(default)]
     window_time: f64,
     #[serde(default)]
-    window_scale: f64,
+    window_scale_angle: f64,
     #[serde(default)]
     window_scale_vel: f64,
     #[serde(default)]
@@ -163,6 +163,10 @@ pub struct DataPlot {
     pub draw_voltage: bool,
     #[serde(skip)]
     voltage: VecDeque<(f64, f64)>,
+
+    pub draw_aux_velocity: bool,
+    #[serde(skip)]
+    aux_velocity: VecDeque<(f64, f64)>,
 
     pub draw_current: bool,
     #[serde(skip)]
@@ -252,7 +256,7 @@ impl Default for DataPlot {
         Self {
             window_time: 20.,
             // window_scale: 16.,
-            window_scale: 2.,
+            window_scale_angle: 2.,
             window_scale_vel: 1.,
             window_offset: 0.,
             prev_time: 0.,
@@ -263,15 +267,17 @@ impl Default for DataPlot {
             draw_angle: true,
             angle: VecDeque::new(),
             angle_scale: 2.0,
-            draw_pos: true,
+            draw_pos: false,
             pos: VecDeque::new(),
             draw_vel: true,
             vel: VecDeque::new(),
             vel_bounds: (-6.28, 6.28),
             draw_target_pos: true,
             target_pos: VecDeque::new(),
-            draw_target_vel: true,
+            draw_target_vel: false,
             target_vel: VecDeque::new(),
+            draw_aux_velocity: false,
+            aux_velocity: VecDeque::new(),
             draw_voltage: false,
             voltage: VecDeque::new(),
             draw_current: false,
@@ -370,7 +376,11 @@ impl App {
 
             ui.label("Window scale (angle)");
             ui.add(
-                egui::Slider::new(&mut self.plots[self.current_id].window_scale, 0.1..=2.0), // .step_by(2.0),
+                egui::Slider::new(
+                    &mut self.plots[self.current_id].window_scale_angle,
+                    0.1..=10_000.0,
+                )
+                .logarithmic(true), // .step_by(2.0),
             );
             ui.end_row();
 
@@ -429,6 +439,10 @@ impl App {
                 ui.end_row();
                 ui.checkbox(&mut self.plots[self.current_id].draw_angle, "Angle");
 
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_id].draw_pos, "Position");
+                ui.end_row();
+                ui.checkbox(&mut self.plots[self.current_id].draw_vel, "Velocity");
                 ui.add(
                     egui::Slider::new(
                         &mut self.plots[self.current_id].window_scale_vel,
@@ -438,11 +452,6 @@ impl App {
                     .logarithmic(true)
                     .max_decimals(log_decimals),
                 );
-
-                ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_id].draw_pos, "Position");
-                ui.end_row();
-                ui.checkbox(&mut self.plots[self.current_id].draw_vel, "Velocity");
                 ui.end_row();
                 ui.checkbox(
                     &mut self.plots[self.current_id].draw_target_pos,
@@ -452,6 +461,11 @@ impl App {
                 ui.checkbox(
                     &mut self.plots[self.current_id].draw_target_vel,
                     "Target velocity",
+                );
+                ui.end_row();
+                ui.checkbox(
+                    &mut self.plots[self.current_id].draw_aux_velocity,
+                    "Aux Velocity",
                 );
                 ui.end_row();
                 ui.checkbox(&mut self.plots[self.current_id].draw_voltage, "Voltage");
@@ -827,6 +841,12 @@ impl DataPlot {
         // self.prev_time = t.max(self.prev_time);
     }
 
+    pub fn add_point_aux_velocity(&mut self, t: f64, aux_velocity: f64) {
+        self.aux_velocity.push_back((t, aux_velocity));
+        // self.prev_time = t;
+        // self.prev_time = t.max(self.prev_time);
+    }
+
     pub fn add_point_voltage(&mut self, t: f64, voltage: f64) {
         // let voltage = self.angle_scale * (voltage - PI) / PI;
         // let voltage = normalize_angle(voltage);
@@ -900,6 +920,8 @@ impl DataPlot {
         self.target_pos
             .retain(|(t, _)| *t >= current_time - self.window_time);
         self.target_vel
+            .retain(|(t, _)| *t >= current_time - self.window_time);
+        self.aux_velocity
             .retain(|(t, _)| *t >= current_time - self.window_time);
         self.voltage
             .retain(|(t, _)| *t >= current_time - self.window_time);
@@ -1093,6 +1115,7 @@ impl DataPlot {
         self.pos.clear();
         self.target_pos.clear();
         self.target_vel.clear();
+        self.aux_velocity.clear();
         self.voltage.clear();
         self.current_d.clear();
         self.current_q.clear();
@@ -1215,7 +1238,7 @@ impl DataPlot {
                     .map(|(t, vs)| [*t, vs[0] * self.adrc_v1_scale])
                     .collect();
                 plot_ui.line(
-                    Line::new("", pts)
+                    Line::new(LABEL_V1, pts)
                         .name(LABEL_V1)
                         .color(COLOR_V1)
                         .width(self.stroke_width as f32),
@@ -1230,7 +1253,7 @@ impl DataPlot {
                     .map(|(t, vs)| [*t, vs[1] * self.adrc_v2_scale])
                     .collect();
                 plot_ui.line(
-                    Line::new("", pts)
+                    Line::new(LABEL_V2, pts)
                         .name(LABEL_V2)
                         .color(COLOR_V2)
                         .width(self.stroke_width as f32),
@@ -1245,7 +1268,7 @@ impl DataPlot {
                     .map(|(t, xs)| [*t, xs[0] * self.adrc_v1_scale])
                     .collect();
                 plot_ui.line(
-                    Line::new("", pts)
+                    Line::new(LABEL_X1, pts)
                         .name(LABEL_X1)
                         .color(COLOR_X1)
                         .width(self.stroke_width as f32),
@@ -1260,7 +1283,7 @@ impl DataPlot {
                     .map(|(t, xs)| [*t, xs[1] * self.adrc_v2_scale])
                     .collect();
                 plot_ui.line(
-                    Line::new("", pts)
+                    Line::new(LABEL_X2, pts)
                         .name(LABEL_X2)
                         .color(COLOR_X2)
                         .width(self.stroke_width as f32),
@@ -1275,7 +1298,7 @@ impl DataPlot {
                     .map(|(t, xs)| [*t, xs[2] * self.adrc_x3_scale])
                     .collect();
                 plot_ui.line(
-                    Line::new("", pts)
+                    Line::new(LABEL_X3, pts)
                         .name(LABEL_X3)
                         .color(COLOR_X3)
                         .width(self.stroke_width as f32),
@@ -1290,7 +1313,7 @@ impl DataPlot {
                     .map(|(t, u)| [*t, *u * self.adrc_u_scale])
                     .collect();
                 plot_ui.line(
-                    Line::new("", pts)
+                    Line::new("ADRC u", pts)
                         .name("ADRC u")
                         .color(COLOR_U)
                         .width(self.stroke_width as f32),
@@ -1315,7 +1338,7 @@ impl DataPlot {
             while a < -PI {
                 a += 2.0 * PI;
             }
-            a * self.window_scale
+            a * self.window_scale_angle
         };
 
         let mut plot = egui_plot::Plot::new("data_plot")
@@ -1376,8 +1399,8 @@ impl DataPlot {
                     .map(|(t, angle)| [*t, angle_fn(*angle)])
                     .collect();
                 plot_ui.line(
-                    Line::new("Angle", pts)
-                        .name("Angle")
+                    Line::new("Angle (observer)", pts)
+                        .name("Angle (observer)")
                         .color(GREEN)
                         .width(self.stroke_width as f32),
                 );
@@ -1391,8 +1414,8 @@ impl DataPlot {
                     .map(|(t, angle)| [*t, angle_fn(*angle)])
                     .collect();
                 plot_ui.line(
-                    Line::new("Pos", pts)
-                        .name("Position")
+                    Line::new("Angle (encoder)", pts)
+                        .name("Angle (encoder)")
                         .color(TEAL)
                         .width(self.stroke_width as f32),
                 );
@@ -1407,7 +1430,7 @@ impl DataPlot {
                     .collect();
                 plot_ui.line(
                     Line::new("Vel", pts)
-                        .name("Velocity")
+                        .name("Vel")
                         .color(BLUE)
                         .width(self.stroke_width as f32),
                 );
@@ -1436,9 +1459,24 @@ impl DataPlot {
                     .map(|(t, target)| [*t, *target * self.window_scale_vel])
                     .collect();
                 plot_ui.line(
-                    Line::new("", pts)
+                    Line::new("Target Vel", pts)
                         .name("Target Vel")
                         .color(MAGENTA)
+                        .width(self.stroke_width as f32),
+                );
+            }
+
+            if self.draw_aux_velocity {
+                let pts: Vec<[f64; 2]> = self
+                    .aux_velocity
+                    .iter()
+                    .filter(|(t, _)| *t >= x_min)
+                    .map(|(t, aux)| [*t, *aux * self.window_scale_vel])
+                    .collect();
+                plot_ui.line(
+                    Line::new("Aux Vel", pts)
+                        .name("Aux Vel")
+                        .color(PURPLE)
                         .width(self.stroke_width as f32),
                 );
             }
@@ -1451,8 +1489,8 @@ impl DataPlot {
                     .map(|(t, v)| [*t, *v * self.scale_vel])
                     .collect();
                 plot_ui.line(
-                    Line::new("", pts)
-                        .name("Raw Vel")
+                    Line::new("Voltage", pts)
+                        .name("Voltage")
                         .color(ORANGE)
                         .width(self.stroke_width as f32),
                 );

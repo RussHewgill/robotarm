@@ -222,6 +222,7 @@ impl App {
                         feed_forward,
                         // pid_outputs,
                         // pid_internals_vel,
+                        aux_velocity,
                     } => {
                         // debug!("Got motor data {:#?}", msg);
                         // debug!("Got motor data");
@@ -257,12 +258,18 @@ impl App {
 
                             // debug!("Got motor data, t = {:.6} s", t);
 
+                            // state observer angle
                             self.plots[id as usize].add_point_angle(t, angle as f64);
+
+                            // encoder angle
                             self.plots[id as usize].add_point_pos(t, position as f64);
+
                             self.plots[id as usize].add_point_vel(t, velocity as f64);
                             self.plots[id as usize].add_point_target_vel(t, target_velocity as f64);
                             self.plots[id as usize].add_point_target_pos(t, target_position as f64);
                             self.plots[id as usize].add_point_voltage(t, motor_voltage.0 as f64);
+                            self.plots[id as usize].add_point_aux_velocity(t, aux_velocity as f64);
+
                             // self.plots[id as usize]
                             //     .add_point_pid_output_vel(t, pid_outputs.0 as f64);
                             // self.plots[id as usize]
@@ -347,6 +354,9 @@ impl App {
                         debug!("Got EncoderCalibrationData: id={}, index={}", id, index);
 
                         // let cal = &mut self.status[id as usize].encoder_calibration;
+                    }
+                    SerialLogMessage::ReportConfig { id, config } => {
+                        debug!("Got ReportConfig: id={}, config={:?}", id, config);
                     }
                 }
             }

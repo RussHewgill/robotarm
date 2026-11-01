@@ -27,6 +27,7 @@ pub enum SerialLogMessage {
         // raw_currents: Option<(f32, f32)>,
         motor_voltage: (f32, f32),
         feed_forward: f32,
+        aux_velocity: f32,
         // pid_outputs: (f32, f32),
         // pid_internals_vel: (f32, f32, f32, f32),
         // pid_internals_pos: (f32, f32, f32, f32),
@@ -36,6 +37,10 @@ pub enum SerialLogMessage {
         // timestamp: u64,
         start_new: bool,
         data: [f32; 8],
+    },
+    ReportConfig {
+        id: u8,
+        config: MotorConfigValue,
     },
     // PIDDebugData {
     //     id: u8,
@@ -110,6 +115,7 @@ impl SerialLogMessage {
     pub fn id(&self) -> u8 {
         match self {
             SerialLogMessage::MotorData { id, .. } => *id,
+            SerialLogMessage::ReportConfig { id, .. } => *id,
             SerialLogMessage::DebugData { id, .. } => *id,
             SerialLogMessage::EncoderData { id, .. } => *id,
             // SerialLogMessage::MotorPID { id, .. } => *id,
@@ -132,6 +138,10 @@ pub enum SerialCommand {
     },
     KeepAlive {
         id: u8,
+    },
+    SetMotorConfig {
+        id: u8,
+        config: MotorConfigValue,
     },
     RequestSettings {
         id: u8,
@@ -170,10 +180,10 @@ pub enum SerialCommand {
     SetModeAngleOpenLoop {
         id: u8,
     },
-    SetVelocityPID {
-        id: u8,
-        pid_settings: PIDSettings,
-    },
+    // SetVelocityPID {
+    //     id: u8,
+    //     pid_settings: PIDSettings,
+    // },
     // SetAnglePID {
     //     id: u8,
     //     pid_settings: PIDSettings,
@@ -182,15 +192,15 @@ pub enum SerialCommand {
         id: u8,
         adrc_settings: ADRCSettings,
     },
-    SetLPF {
-        id: u8,
-        lpf_vel: Option<f32>,
-        lpf_angle: Option<f32>,
-    },
-    SetFeedForward {
-        id: u8,
-        ff: f32,
-    },
+    // SetLPF {
+    //     id: u8,
+    //     lpf_vel: Option<f32>,
+    //     lpf_angle: Option<f32>,
+    // },
+    // SetFeedForward {
+    //     id: u8,
+    //     ff: f32,
+    // },
     SetMotorTarget {
         id: u8,
         target: f32,
@@ -198,23 +208,17 @@ pub enum SerialCommand {
     ZeroPosition {
         id: u8,
     },
-    SetVoltageLimit {
-        id: u8,
-        voltage_limit: f32,
-    },
-    SetZeroElectricalAngle {
-        id: u8,
-        angle: f32,
-    },
-    SetMotorConfig {
-        id: u8,
-        pole_pairs: u8,
-        phase_resistance: f32,
-        motor_kv: f32,
-    },
-    ToggleDebugLogging {
-        id: u8,
-    },
+    // SetVoltageLimit {
+    //     id: u8,
+    //     voltage_limit: f32,
+    // },
+    // SetZeroElectricalAngle {
+    //     id: u8,
+    //     angle: f32,
+    // },
+    // ToggleDebugLogging {
+    //     id: u8,
+    // },
     SetThermalConfig {
         id: u8,
         // TODO
@@ -247,17 +251,17 @@ impl SerialCommand {
             SerialCommand::SetModeVelocity { id } => *id,
             SerialCommand::SetModeAngle { id } => *id,
             SerialCommand::SetModeAngleOpenLoop { id } => *id,
-            SerialCommand::SetVelocityPID { id, .. } => *id,
+            // SerialCommand::SetVelocityPID { id, .. } => *id,
             // SerialCommand::SetAnglePID { id, .. } => *id,
-            SerialCommand::SetLPF { id, .. } => *id,
-            SerialCommand::SetFeedForward { id, .. } => *id,
+            // SerialCommand::SetLPF { id, .. } => *id,
+            // SerialCommand::SetFeedForward { id, .. } => *id,
             SerialCommand::SetMotorTarget { id, .. } => *id,
             SerialCommand::ZeroPosition { id } => *id,
-            SerialCommand::SetVoltageLimit { id, .. } => *id,
-            SerialCommand::SetZeroElectricalAngle { id, .. } => *id,
+            // SerialCommand::SetVoltageLimit { id, .. } => *id,
+            // SerialCommand::SetZeroElectricalAngle { id, .. } => *id,
             SerialCommand::SetADRCParam { id, .. } => *id,
             SerialCommand::SetMotorConfig { id, .. } => *id,
-            SerialCommand::ToggleDebugLogging { id } => *id,
+            // SerialCommand::ToggleDebugLogging { id } => *id,
             SerialCommand::SetThermalConfig { id } => *id,
             SerialCommand::ResetADRC { id } => *id,
             SerialCommand::SendEncoderCalibration { id, .. } => *id,
