@@ -10,7 +10,7 @@ pub enum MotorConfigValue {
         phase_resistance: f32,
         motor_kv: f32,
     },
-    ZeroElectricalAngle(f32),
+    ZeroElectricalAngle(Option<f32>),
     DebugLogging(bool),
     VoltageLimit(f32),
 }

@@ -29,6 +29,7 @@ impl<I2C> M24C64<I2C> {
     }
 }
 
+#[derive(defmt::Format)]
 pub enum M24C64Error {
     I2CReadError,
     I2CWriteError,
@@ -58,25 +59,25 @@ impl<I2C: embedded_hal_async::i2c::I2c> M24C64<I2C> {
             // Handle the result
             match result {
                 Ok(_) => {
-                    #[cfg(feature = "defmt")]
-                    defmt::trace!(
-                        "[EEPROM M24C64 Unit {:b}] Writing to address {:#x} took {} tries",
-                        self.e_addr,
-                        address,
-                        i + 1
-                    );
+                    // #[cfg(feature = "defmt")]
+                    // defmt::trace!(
+                    //     "[EEPROM M24C64 Unit {:b}] Writing to address {:#x} took {} tries",
+                    //     self.e_addr,
+                    //     address,
+                    //     i + 1
+                    // );
 
                     return Ok(());
                 }
                 Err(_) if i < 10 => (),
                 Err(e) => {
-                    #[cfg(feature = "defmt")]
-                    defmt::error!(
-                        "[EEPROM M24C64 Unit {:b}] Writing to address {:#x} failed: {}",
-                        self.e_addr,
-                        address,
-                        e.kind()
-                    );
+                    // #[cfg(feature = "defmt")]
+                    // defmt::error!(
+                    //     "[EEPROM M24C64 Unit {:b}] Writing to address {:#x} failed: {}",
+                    //     self.e_addr,
+                    //     address,
+                    //     e.kind()
+                    // );
 
                     // return Err(e);
                     return Err(M24C64Error::I2CWriteError);
@@ -86,6 +87,71 @@ impl<I2C: embedded_hal_async::i2c::I2c> M24C64<I2C> {
             i += 1;
             Timer::after_millis(1).await;
         }
+    }
+
+    async fn read_raw(&mut self, address: usize, bytes: &mut [u8]) -> Result<(), M24C64Error> {
+        self.cmd_buf[0] = (address >> 8) as u8;
+        self.cmd_buf[1] = (address & 0xFF) as u8;
+
+        self.i2c
+            .write_read(self.e_addr | 0x50, &self.cmd_buf[0..2], bytes)
+            .await
+            .map_err(|_| M24C64Error::I2CWriteError)?;
+        Ok(())
+    }
+
+    /// Write an arbitrary number of bytes into the EEPROM, starting at `address`.
+    /// This function will automatically paginate.
+    pub async fn write(&mut self, address: usize, data: &[u8]) -> Result<(), M24C64Error> {
+        // #[cfg(feature = "defmt")]
+        // defmt::info!(
+        //     "[EEPROM M24C64 Unit {:b}] Writing to address {:#x} with {} bytes",
+        //     self.e_addr,
+        //     address,
+        //     data.len()
+        // );
+
+        // Chunk the write into pages
+        let mut i = address;
+        while i < (address + data.len()) {
+            let page_offset = i % 32;
+            self.write_raw(
+                i,
+                &data[(i - address)..(i - address + (32 - page_offset)).min(data.len())],
+            )
+            .await?;
+            i += 32 - page_offset;
+        }
+        Ok(())
+    }
+
+    /// Read an arbitrary number of bytes from the EEPROM, starting at `address`.
+    /// This function will automatically paginate.
+    pub async fn read(&mut self, address: usize, data: &mut [u8]) -> Result<(), M24C64Error> {
+        // No need to do this per-page
+        // self.read_raw(address, data)
+
+        // #[cfg(feature = "defmt")]
+        // defmt::info!(
+        //     "[EEPROM M24C64 Unit {:b}] Reading from address {:#x} with {} bytes",
+        //     self.e_addr,
+        //     address,
+        //     data.len()
+        // );
+
+        // Chunk the read into pages
+        let len = data.len();
+        let mut i = address;
+        while i < (address + data.len()) {
+            let page_offset = i % 32;
+            self.read_raw(
+                i,
+                &mut data[(i - address)..(i - address + (32 - page_offset)).min(len)],
+            )
+            .await?;
+            i += 32 - page_offset;
+        }
+        Ok(())
     }
 }
 

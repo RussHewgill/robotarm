@@ -7,7 +7,7 @@ use egui::{Color32, RichText, Sense, Stroke, Vec2};
 use egui_extras::Size;
 
 use crate::ui::{app::App, controls::scrollable::make_scrollable};
-use robotarm_protocol::{MotorConfigValue, SerialCommand};
+use robotarm_protocol::{MotionControlType, MotorConfigValue, SerialCommand};
 
 mod pid_settings {
     use anyhow::{Context, Result, anyhow, bail, ensure};
@@ -568,7 +568,10 @@ impl App {
                 but
             };
             if ui.add(but).clicked() {
-                let cmd = SerialCommand::SetModeTorque { id };
+                let cmd = SerialCommand::SetMotionControl {
+                    id,
+                    control_type: MotionControlType::Torque,
+                };
                 self.send_command(cmd);
             }
             ui.end_row();
@@ -583,7 +586,10 @@ impl App {
                 but
             };
             if ui.add(but).clicked() {
-                self.send_command(SerialCommand::SetModeVelocity { id });
+                self.send_command(SerialCommand::SetMotionControl {
+                    id,
+                    control_type: MotionControlType::Velocity,
+                });
             }
             // ui.end_row();
 
@@ -597,7 +603,10 @@ impl App {
                 but
             };
             if ui.add(but).clicked() {
-                let cmd = SerialCommand::SetModeVelocityOpenLoop { id };
+                let cmd = SerialCommand::SetMotionControl {
+                    id,
+                    control_type: MotionControlType::VelocityOpenLoop,
+                };
                 self.send_command(cmd);
             }
             ui.end_row();
@@ -612,7 +621,10 @@ impl App {
                 but
             };
             if ui.add(but).clicked() {
-                self.send_command(SerialCommand::SetModeAngle { id });
+                self.send_command(SerialCommand::SetMotionControl {
+                    id,
+                    control_type: MotionControlType::Angle,
+                });
             }
             // ui.end_row();
 
@@ -626,7 +638,10 @@ impl App {
                 but
             };
             if ui.add(but).clicked() {
-                let cmd = SerialCommand::SetModeAngleOpenLoop { id };
+                let cmd = SerialCommand::SetMotionControl {
+                    id,
+                    control_type: MotionControlType::AngleOpenLoop,
+                };
                 self.send_command(cmd);
             }
             ui.end_row();

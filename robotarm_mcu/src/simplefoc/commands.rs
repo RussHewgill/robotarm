@@ -8,8 +8,17 @@ use crate::{
 };
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> PreFOC<'a, ENCODER, CURRENT> {
-    // fn run_command(&mut self, cmd: SerialCommand) {
-    // }
+    fn run_command(&mut self, cmd: SerialCommand) {
+        // if cmd.id() != self.id {
+        //     return;
+        // }
+        match cmd {
+            SerialCommand::Init { id } => {
+                //
+            }
+            _ => (),
+        }
+    }
 }
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
@@ -75,9 +84,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 phase_resistance,
                 motor_kv,
             } => todo!(),
-            robotarm_protocol::MotorConfigValue::ZeroElectricalAngle(angle) => {
-                self.zero_electric_angle = angle;
-            }
+            robotarm_protocol::MotorConfigValue::ZeroElectricalAngle(angle) => match angle {
+                Some(angle) => self.zero_electric_angle = angle,
+                None => (),
+            },
             robotarm_protocol::MotorConfigValue::DebugLogging(_) => todo!(),
             robotarm_protocol::MotorConfigValue::VoltageLimit(voltage_limit) => {
                 self.set_voltage_limit(voltage_limit);
@@ -116,6 +126,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
             SerialCommand::KeepAlive { id } => {
                 //
+            }
+            SerialCommand::SaveConfigToFlash { id } => {
+                todo!()
             }
             SerialCommand::SetMotorConfig { id, config } => self.set_config(config),
             SerialCommand::SetEncoderCalibration { id, enable } => {
@@ -234,24 +247,44 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 }
                 // self.set_target_position(target);
             }
-            SerialCommand::SetModeTorque { id } => {
-                self.set_motion_control(MotionControlType::Torque);
-                self.state_observer.reset();
-            }
-            SerialCommand::SetModeAngle { id } => {
-                self.set_motion_control(MotionControlType::Angle);
-                self.state_observer.reset();
-            }
-            SerialCommand::SetModeVelocity { id } => {
-                self.set_motion_control(MotionControlType::Velocity);
-                self.state_observer.reset();
-            }
-            SerialCommand::SetModeVelocityOpenLoop { id } => {
-                self.set_motion_control(MotionControlType::VelocityOpenLoop);
-            }
-            SerialCommand::SetModeAngleOpenLoop { id } => {
-                self.set_motion_control(MotionControlType::AngleOpenLoop);
-            }
+            SerialCommand::SetMotionControl { id, control_type } => match control_type {
+                MotionControlType::Torque => {
+                    self.set_motion_control(MotionControlType::Torque);
+                    self.state_observer.reset();
+                }
+                MotionControlType::Angle => {
+                    self.set_motion_control(MotionControlType::Angle);
+                    self.state_observer.reset();
+                }
+                MotionControlType::Velocity => {
+                    self.set_motion_control(MotionControlType::Velocity);
+                    self.state_observer.reset();
+                }
+                MotionControlType::VelocityOpenLoop => {
+                    self.set_motion_control(MotionControlType::VelocityOpenLoop);
+                }
+                MotionControlType::AngleOpenLoop => {
+                    self.set_motion_control(MotionControlType::AngleOpenLoop);
+                }
+            },
+            // SerialCommand::SetModeTorque { id } => {
+            //     self.set_motion_control(MotionControlType::Torque);
+            //     self.state_observer.reset();
+            // }
+            // SerialCommand::SetModeAngle { id } => {
+            //     self.set_motion_control(MotionControlType::Angle);
+            //     self.state_observer.reset();
+            // }
+            // SerialCommand::SetModeVelocity { id } => {
+            //     self.set_motion_control(MotionControlType::Velocity);
+            //     self.state_observer.reset();
+            // }
+            // SerialCommand::SetModeVelocityOpenLoop { id } => {
+            //     self.set_motion_control(MotionControlType::VelocityOpenLoop);
+            // }
+            // SerialCommand::SetModeAngleOpenLoop { id } => {
+            //     self.set_motion_control(MotionControlType::AngleOpenLoop);
+            // }
             // SerialCommand::SetVelocityPID { id, pid_settings } => {
             //     if let Some(p) = pid_settings.p {
             //         self.pid_velocity.set_p(p);

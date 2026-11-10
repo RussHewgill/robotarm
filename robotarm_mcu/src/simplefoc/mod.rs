@@ -6,6 +6,7 @@ pub mod algorithms;
 pub mod encoder_calibration;
 pub mod foc;
 pub mod foc_types;
+pub mod memory;
 pub mod pwm_driver;
 pub mod shaft_position;
 pub mod types;

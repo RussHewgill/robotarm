@@ -2082,8 +2082,8 @@ async fn main(spawner: Spawner) {
 }
 
 // MT6816 test
-// #[cfg(feature = "nope")]
-#[embassy_executor::main]
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -2247,6 +2247,29 @@ async fn main(spawner: Spawner) {
             c += 1;
         }
     }
+
+    //
+}
+
+// EEPROM test
+// #[cfg(feature = "nope")]
+#[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    debug!("Starting EEPROM test");
+
+    let sda = p.PIN_6;
+    let scl = p.PIN_7;
+
+    let mut i2c_config = embassy_rp::i2c::Config::default();
+    i2c_config.frequency = 400_000; // 400 kHz
+    // i2c_config.frequency = 1_000_000; // 1 MHz
+    let mut i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
+    // let mut i2c = embassy_rp::i2c::I2c::new_blocking(p.I2C0, scl, sda, i2c_config);
+
+    let addr = 0x00; // TODO
+    let mut eeprom = crate::hardware::m24c64::M24C64::new(i2c, addr);
 
     //
 }

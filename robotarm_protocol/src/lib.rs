@@ -1,4 +1,5 @@
 #![no_std]
+pub mod saved_config;
 pub mod types;
 
 use postcard::experimental::max_size::MaxSize;
@@ -139,6 +140,9 @@ pub enum SerialCommand {
     KeepAlive {
         id: u8,
     },
+    SaveConfigToFlash {
+        id: u8,
+    },
     SetMotorConfig {
         id: u8,
         config: MotorConfigValue,
@@ -153,10 +157,6 @@ pub enum SerialCommand {
         id: u8,
         enabled: bool,
     },
-    // SetSensorOffset {
-    //     id: u8,
-    //     offset: Option<f32>,
-    // },
     SetDebugRate {
         id: u8,
         rate_hz: u16,
@@ -165,42 +165,14 @@ pub enum SerialCommand {
         id: u8,
         enable: bool,
     },
-    SetModeTorque {
+    SetMotionControl {
         id: u8,
+        control_type: MotionControlType,
     },
-    SetModeVelocityOpenLoop {
-        id: u8,
-    },
-    SetModeVelocity {
-        id: u8,
-    },
-    SetModeAngle {
-        id: u8,
-    },
-    SetModeAngleOpenLoop {
-        id: u8,
-    },
-    // SetVelocityPID {
-    //     id: u8,
-    //     pid_settings: PIDSettings,
-    // },
-    // SetAnglePID {
-    //     id: u8,
-    //     pid_settings: PIDSettings,
-    // },
     SetADRCParam {
         id: u8,
         adrc_settings: ADRCSettings,
     },
-    // SetLPF {
-    //     id: u8,
-    //     lpf_vel: Option<f32>,
-    //     lpf_angle: Option<f32>,
-    // },
-    // SetFeedForward {
-    //     id: u8,
-    //     ff: f32,
-    // },
     SetMotorTarget {
         id: u8,
         target: f32,
@@ -208,17 +180,6 @@ pub enum SerialCommand {
     ZeroPosition {
         id: u8,
     },
-    // SetVoltageLimit {
-    //     id: u8,
-    //     voltage_limit: f32,
-    // },
-    // SetZeroElectricalAngle {
-    //     id: u8,
-    //     angle: f32,
-    // },
-    // ToggleDebugLogging {
-    //     id: u8,
-    // },
     SetThermalConfig {
         id: u8,
         // TODO
@@ -241,16 +202,18 @@ impl SerialCommand {
         match self {
             SerialCommand::Init { id } => *id,
             SerialCommand::KeepAlive { id } => *id,
+            SerialCommand::SaveConfigToFlash { id } => *id,
             SerialCommand::RequestSettings { id } => *id,
             SerialCommand::RequestDebugData { id } => *id,
             SerialCommand::SetEnabled { id, .. } => *id,
             SerialCommand::SetDebugRate { id, .. } => *id,
             SerialCommand::SetEncoderCalibration { id, .. } => *id,
-            SerialCommand::SetModeTorque { id } => *id,
-            SerialCommand::SetModeVelocityOpenLoop { id } => *id,
-            SerialCommand::SetModeVelocity { id } => *id,
-            SerialCommand::SetModeAngle { id } => *id,
-            SerialCommand::SetModeAngleOpenLoop { id } => *id,
+            SerialCommand::SetMotionControl { id, .. } => *id,
+            // SerialCommand::SetModeTorque { id } => *id,
+            // SerialCommand::SetModeVelocityOpenLoop { id } => *id,
+            // SerialCommand::SetModeVelocity { id } => *id,
+            // SerialCommand::SetModeAngle { id } => *id,
+            // SerialCommand::SetModeAngleOpenLoop { id } => *id,
             // SerialCommand::SetVelocityPID { id, .. } => *id,
             // SerialCommand::SetAnglePID { id, .. } => *id,
             // SerialCommand::SetLPF { id, .. } => *id,
