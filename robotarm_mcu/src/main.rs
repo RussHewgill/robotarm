@@ -23,8 +23,8 @@ use embassy_executor::{Spawner, raw};
 use embassy_rp::{bind_interrupts, gpio::Output, pwm::SetDutyCycle};
 use embassy_time::{Instant, Ticker, Timer};
 
-use crate::configs::*;
 use crate::hardware::encoder_sensor::EncoderSensor;
+use crate::{configs::*, simplefoc::pre_foc::PreFOC};
 
 // use crate::simplefoc::SimpleFOC;
 
@@ -2259,17 +2259,47 @@ async fn main(spawner: Spawner) {
 
     debug!("Starting EEPROM test");
 
-    let sda = p.PIN_6;
-    let scl = p.PIN_7;
+    {
+        // add some delay to give an attached debug probe time to parse the
+        // defmt RTT header. Reading that header might touch flash memory, which
+        // interferes with flash write operations.
+        // https://github.com/knurling-rs/defmt/pull/683
+        Timer::after_millis(10).await;
 
-    let mut i2c_config = embassy_rp::i2c::Config::default();
-    i2c_config.frequency = 400_000; // 400 kHz
-    // i2c_config.frequency = 1_000_000; // 1 MHz
-    let mut i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
-    // let mut i2c = embassy_rp::i2c::I2c::new_blocking(p.I2C0, scl, sda, i2c_config);
+        // let uid = embassy_rp::otp::get_chipid();
+        // debug!("Chip UID: {:x}", uid);
+    }
 
-    let addr = 0x00; // TODO
-    let mut eeprom = crate::hardware::m24c64::M24C64::new(i2c, addr);
+    const VERSION: u32 = 1;
+    const MAGIC_BYTES: [u8; 4] = [0xd2, 0xc9, 0x99, 0xb3];
+
+    // let mut buf = heapless::Vec::<u8, { 10 * 32 }>::new();
+
+    // let data = [0u8, 2, 3, 4, 5, 6, 7];
+
+    // let counter = 3u32;
+
+    // buf.extend_from_slice(&MAGIC_BYTES).unwrap();
+    // buf.extend_from_slice(&VERSION.to_le_bytes()).unwrap();
+    // buf.extend_from_slice(&counter.to_le_bytes()).unwrap();
+    // buf.extend_from_slice(&(data.len() as u32).to_le_bytes())
+    //     .unwrap();
+    // buf.extend_from_slice(&data).unwrap();
+
+    // let crc = crc32fast::hash(&buf);
+    // buf.extend_from_slice(&crc.to_le_bytes()).unwrap();
+
+    // let sda = p.PIN_6;
+    // let scl = p.PIN_7;
+
+    // let mut i2c_config = embassy_rp::i2c::Config::default();
+    // i2c_config.frequency = 400_000; // 400 kHz
+    // // i2c_config.frequency = 1_000_000; // 1 MHz
+    // let mut i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, i2c_config);
+    // // let mut i2c = embassy_rp::i2c::I2c::new_blocking(p.I2C0, scl, sda, i2c_config);
+
+    // let addr = 0x00; // TODO
+    // let mut eeprom = crate::hardware::m24c64::M24C64::new(i2c, addr);
 
     //
 }
@@ -2403,15 +2433,16 @@ fn main() -> ! {
     let usb = comms::logger::CommsLogger::new();
     let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
-    let pre_foc = simplefoc::foc_types::PreFOC::new(encoder, None::<()>, pwm_driver1, usb);
+    let pre_foc = PreFOC::new(encoder, None::<()>, pwm_driver1, usb);
 
     let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
     executor0.run(|spawner| {
         // crate::comms::usb_raw::usb_init(&spawner, driver);
 
+        // TODO: check if it's better to run the comms on the other core
         crate::comms::usb_raw::usb_init(&spawner, driver);
 
-        spawner.spawn(crate::init::core0_task(pre_foc).unwrap());
+        spawner.spawn(crate::init::core0_task(spawner, pre_foc).unwrap());
     });
 }
 

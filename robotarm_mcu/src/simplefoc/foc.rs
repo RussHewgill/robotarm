@@ -38,7 +38,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         // if let Some(logger) = &mut self.usb_logger {
         //     logger.send_log_msg(message);
         // }
-        self.usb_logger.send_log_msg(message);
+        self.logger.send_log_msg(message);
     }
 }
 

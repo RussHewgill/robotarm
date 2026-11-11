@@ -4,17 +4,45 @@ use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlTyp
 
 use crate::{
     hardware::{current_sensor::CurrentSensor, encoder_sensor::EncoderSensor},
-    simplefoc::foc_types::{PreFOC, SimpleFOC},
+    simplefoc::{foc_types::SimpleFOC, pre_foc::PreFOC},
 };
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> PreFOC<'a, ENCODER, CURRENT> {
+    pub fn run_commands(&mut self) {
+        while let Ok(cmd) = self.logger.recv() {
+            self.run_command(cmd);
+        }
+    }
+
     fn run_command(&mut self, cmd: SerialCommand) {
-        // if cmd.id() != self.id {
-        //     return;
-        // }
+        if cmd.is_handshake() {
+            match cmd {
+                SerialCommand::HandshakeRequest {} => {
+                    let hardware_id = embassy_rp::otp::get_chipid().unwrap();
+                    self.logger
+                        .send_log_msg(SerialLogMessage::HandshakeResponse { hardware_id });
+                }
+                SerialCommand::HandshakeAssignment {
+                    hardware_id,
+                    new_id,
+                } => {
+                    let own_hardware_id = embassy_rp::otp::get_chipid().unwrap();
+                    if own_hardware_id == hardware_id {
+                        self.id = Some(new_id);
+                    }
+                }
+                _ => (),
+            }
+        }
+        if Some(cmd.id()) != self.id {
+            // no ID set yet
+            return;
+        }
         match cmd {
-            SerialCommand::Init { id } => {
-                //
+            SerialCommand::Init { .. } => {
+                if self.check_ready() {
+                    self.ready = true;
+                }
             }
             _ => (),
         }
@@ -29,7 +57,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         //     self.run_command(cmd);
         // }
 
-        while let Ok(cmd) = self.usb_logger.recv(self.id) {
+        while let Ok(cmd) = self.logger.recv() {
             self.run_command(cmd);
         }
     }
@@ -99,6 +127,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     // #[inline(never)]
     // #[inline(always)]
     fn run_command(&mut self, cmd: SerialCommand) {
+        if cmd.is_handshake() {
+            // handshake should only be run pre-init
+            return;
+        }
+
         if cmd.id() != self.id {
             // error!(
             //     "Received command for different id: {}, expected id: {}, dropping command",
@@ -121,7 +154,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // #[cfg(feature = "nope")]
         match cmd {
-            SerialCommand::Init { id } => {
+            SerialCommand::HandshakeAssignment { .. } => (),
+            SerialCommand::HandshakeRequest { .. } => (),
+            SerialCommand::Init { .. } => {
                 //
             }
             SerialCommand::KeepAlive { id } => {
@@ -182,7 +217,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             SerialCommand::RequestSettings { id } => {
                 let (b0, speed_factor, observer_bandwidth, controller_bandwidth, _, _, _) =
                     self.state_observer.get_params();
-                self.usb_logger.send_log_msg(SerialLogMessage::MotorADRC {
+                self.logger.send_log_msg(SerialLogMessage::MotorADRC {
                     id,
                     b0,
                     speed_factor,
@@ -223,7 +258,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 //         zero_electrical_angle: self.zero_electric_angle,
                 //     });
                 // }
-                self.usb_logger.send_log_msg(SerialLogMessage::DebugData {
+                self.logger.send_log_msg(SerialLogMessage::DebugData {
                     id,
                     timestamp: embassy_time::Instant::now().as_micros(),
                     zero_electrical_angle: self.zero_electric_angle,

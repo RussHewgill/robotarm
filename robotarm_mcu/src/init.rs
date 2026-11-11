@@ -13,6 +13,7 @@ use crate::{
         // ina226::INA226,
         // ina240::INA240,
     },
+    simplefoc::pre_foc::PreFOC,
 };
 
 // pub static mut CORE1_STACK: embassy_rp::multicore::Stack<{1024 * 4}> =
@@ -88,13 +89,49 @@ pub async fn core1_task(
 #[embassy_executor::task]
 // #[cfg(feature = "nope")]
 pub async fn core0_task(
-    pre_foc: crate::simplefoc::foc_types::PreFOC<
+    spawner: embassy_executor::Spawner,
+    pre_foc: PreFOC<
+        'static,
+        crate::hardware::mt6816::Mt6816<embassy_rp::peripherals::SPI1>,
+        (),
+        //
+    >,
+) {
+    match pre_foc_task(pre_foc).await {
+        Some(foc) => {
+            spawner.spawn(core1_task(foc, None).unwrap());
+        }
+        None => {
+            error!("Pre-FOC task failed");
+        }
+    }
+}
+
+pub async fn pre_foc_task(
+    mut pre_foc: crate::simplefoc::pre_foc::PreFOC<
         'static,
         crate::hardware::mt6816::Mt6816<embassy_rp::peripherals::SPI1>,
         (),
     >,
-) {
-    unimplemented!()
+) -> Option<
+    crate::simplefoc::foc_types::SimpleFOC<
+        'static,
+        crate::hardware::mt6816::Mt6816<embassy_rp::peripherals::SPI1>,
+        (),
+    >,
+> {
+    debug!("Starting pre-FOC task");
+
+    // needed on multicore?
+    Timer::after_millis(100).await;
+
+    loop {
+        yield_now().await;
+
+        let t_us = Instant::now().as_micros();
+
+        // pre_foc.run
+    }
 }
 
 // #[embassy_executor::task]

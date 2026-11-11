@@ -13,6 +13,9 @@ const ENCODER_CALIBRATION_CHUNK_SIZE: usize = 8;
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SerialLogMessage {
+    HandshakeResponse {
+        hardware_id: u64,
+    },
     // Ping,
     MotorData {
         id: u8,
@@ -115,6 +118,7 @@ pub enum SerialLogMessage {
 impl SerialLogMessage {
     pub fn id(&self) -> u8 {
         match self {
+            SerialLogMessage::HandshakeResponse { .. } => 0,
             SerialLogMessage::MotorData { id, .. } => *id,
             SerialLogMessage::ReportConfig { id, .. } => *id,
             SerialLogMessage::DebugData { id, .. } => *id,
@@ -130,10 +134,22 @@ impl SerialLogMessage {
     }
 }
 
+/// Handshake:
+/// 1. control app sends handshake request command
+/// 2. MCU responds with handshake acknowledgment, containing unique hardware ID
+/// 3. control app assigns a 1 byte ID to each MCU
+
 /// Data from Controller to MCU
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SerialCommand {
+    HandshakeRequest {
+        //
+    },
+    HandshakeAssignment {
+        hardware_id: u64,
+        new_id: u8,
+    },
     Init {
         id: u8,
     },
@@ -198,9 +214,19 @@ pub enum SerialCommand {
 }
 
 impl SerialCommand {
+    pub fn is_handshake(&self) -> bool {
+        match self {
+            SerialCommand::HandshakeRequest { .. } => true,
+            SerialCommand::HandshakeAssignment { .. } => true,
+            _ => false,
+        }
+    }
+
     pub fn id(&self) -> u8 {
         match self {
             SerialCommand::Init { id } => *id,
+            SerialCommand::HandshakeRequest { .. } => 0,
+            SerialCommand::HandshakeAssignment { .. } => 0,
             SerialCommand::KeepAlive { id } => *id,
             SerialCommand::SaveConfigToFlash { id } => *id,
             SerialCommand::RequestSettings { id } => *id,
