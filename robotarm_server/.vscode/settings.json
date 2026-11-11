@@ -1,0 +1,8 @@
+{
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "rust-analyzer.server.extraEnv": {
+    },
+    "rust-analyzer.check.extraArgs": [
+        "--target-dir=target/analyzer"
+    ]
+}
