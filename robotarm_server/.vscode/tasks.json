@@ -2,23 +2,75 @@
     "version": "2.0.0",
     "tasks": [
         {
-            // "label": "build_copy_run",
-            "label": "custom_run",
+            "label": "1. Build (Cross-compile)",
             "type": "shell",
-            // "options": {
-            //     "env": {
-            //         "CARGO_LOG": "cargo::core::compiler::fingerprint=info",
-            //     }
-            // },
-            "command": "cargo run",
-            // "command": "cargo run --release",
-            "problemMatcher": []
+            "command": "cargo",
+            "args": [
+                "zigbuild",
+                "--target",
+                "aarch64-unknown-linux-gnu",
+                "--release"
+            ],
+            "group": "build",
+            "problemMatcher": ["$rustc"]
         },
         {
-            "label": "custom_run2",
+            "label": "2. Deploy (SCP)",
             "type": "shell",
-            "command": "cargo run --release",
-            "problemMatcher": []
-        }
+            "command": "scp",
+            "args": [
+                "target/aarch64-unknown-linux-gnu/release/robotarm_server",
+                "ubuntu@pitest:/home/ubuntu/robotarm/robotarm_server"
+            ],
+            "dependsOn": ["1. Build (Cross-compile)"]
+        },
+        {
+            "label": "3. Run on Pi",
+            "type": "shell",
+            "command": "ssh",
+            "args": [
+                "-t",
+                "ubuntu@pitest",
+                "chmod +x /home/ubuntu/robotarm/robotarm_server && /home/ubuntu/robotarm/robotarm_server"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            // "label": "Build, Deploy & Run",
+            // "label": "custom_run2",
+            "label": "custom_run",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "2. Deploy (SCP)",
+                "3. Run on Pi"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        // {
+        //     // "label": "build_copy_run",
+        //     "label": "custom_run",
+        //     "type": "shell",
+        //     // "options": {
+        //     //     "env": {
+        //     //         "CARGO_LOG": "cargo::core::compiler::fingerprint=info",
+        //     //     }
+        //     // },
+        //     "command": "cargo run",
+        //     // "command": "cargo run --release",
+        //     "problemMatcher": []
+        // },
+        // {
+        //     "label": "custom_run2",
+        //     "type": "shell",
+        //     "command": "cargo run --release",
+        //     "problemMatcher": []
+        // }
     ]
 }

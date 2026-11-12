@@ -4,5 +4,6 @@
     },
     "rust-analyzer.check.extraArgs": [
         "--target-dir=target/analyzer"
-    ]
+    ],
+    "rust-analyzer.cargo.target": "aarch64-unknown-linux-gnu"
 }

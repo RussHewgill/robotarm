@@ -159,8 +159,9 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             SerialCommand::Init { .. } => {
                 //
             }
-            SerialCommand::KeepAlive { id } => {
+            SerialCommand::PingRequest { id, hardware_id } => {
                 //
+                error!("Ping Request TODO");
             }
             SerialCommand::SaveConfigToFlash { id } => {
                 todo!()

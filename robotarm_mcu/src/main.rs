@@ -1865,15 +1865,15 @@ async fn main(spawner: Spawner) {
 }
 
 // RS485 test
-#[cfg(feature = "nope")]
-// #[embassy_executor::main]
+// #[cfg(feature = "nope")]
+#[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    let pin_tx = p.PIN_12; // yellow
-    let pin_rx = p.PIN_13; // orange
+    let pin_tx = p.PIN_20; // purple
+    let pin_rx = p.PIN_21; // blue
 
-    let pin_de = p.PIN_14; // red
+    let pin_de = p.PIN_19; // grey
 
     // let mut pin_tx = embassy_rp::gpio::Output::new(pin_tx, embassy_rp::gpio::Level::Low);
     // let mut pin_rx = embassy_rp::gpio::Input::new(pin_rx, embassy_rp::gpio::Pull::None);
@@ -1883,17 +1883,17 @@ async fn main(spawner: Spawner) {
 
     debug!("Starting RS485 test");
 
-    // let mut config = embassy_rp::uart::Config::default();
-    // config.baudrate = 9600;
+    let mut config = embassy_rp::uart::Config::default();
+    config.baudrate = 9600;
 
-    // let mut uart = embassy_rp::uart::Uart::new_blocking(p.UART0, pin_tx, pin_rx, config);
+    let mut uart = embassy_rp::uart::Uart::new_blocking(p.UART1, pin_tx, pin_rx, config);
 
-    let embassy_rp::pio::Pio {
-        mut common,
-        sm0,
-        sm1,
-        ..
-    } = embassy_rp::pio::Pio::new(p.PIO0, Irqs);
+    // let embassy_rp::pio::Pio {
+    //     mut common,
+    //     sm0,
+    //     sm1,
+    //     ..
+    // } = embassy_rp::pio::Pio::new(p.PIO0, Irqs);
 
     // let tx_program = embassy_rp::pio_programs::uart::PioUartTxProgram::new(&mut common);
     // let mut uart_tx = embassy_rp::pio_programs::uart::PioUartTx::new(
@@ -1913,13 +1913,14 @@ async fn main(spawner: Spawner) {
     //     &rx_program,
     // );
 
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     loop {
         pin_de.set_high();
 
-        let msg = [0b1100_1010u8; 16];
+        // let msg = [0b1100_1010u8; 16];
+        let msg = b"testing\n";
 
-        uart.blocking_write(&msg).unwrap();
+        uart.blocking_write(msg).unwrap();
         uart.blocking_flush().unwrap();
 
         pin_de.set_low();
@@ -2252,8 +2253,8 @@ async fn main(spawner: Spawner) {
 }
 
 // EEPROM test
-// #[cfg(feature = "nope")]
-#[embassy_executor::main]
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 

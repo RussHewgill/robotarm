@@ -5,17 +5,6 @@ use postcard::accumulator::FeedResult;
 use crate::{MOTOR_ID_A, comms::CommsMutex};
 use robotarm_protocol::SerialCommand;
 
-pub async fn modbus_task(mut max485: crate::hardware::max485::Max485) {
-    info!("Starting rs485 task");
-
-    const UNIT: u8 = 0;
-
-    loop {
-
-        //
-    }
-}
-
 #[embassy_executor::task]
 async fn rx485_logger_task(
     // mut usb_monitor: UsbMonitor,

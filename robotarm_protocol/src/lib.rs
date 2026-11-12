@@ -16,7 +16,9 @@ pub enum SerialLogMessage {
     HandshakeResponse {
         hardware_id: u64,
     },
-    // Ping,
+    PingResponse {
+        id: u8,
+    },
     MotorData {
         id: u8,
         timestamp: u64,
@@ -119,6 +121,7 @@ impl SerialLogMessage {
     pub fn id(&self) -> u8 {
         match self {
             SerialLogMessage::HandshakeResponse { .. } => 0,
+            SerialLogMessage::PingResponse { id } => *id,
             SerialLogMessage::MotorData { id, .. } => *id,
             SerialLogMessage::ReportConfig { id, .. } => *id,
             SerialLogMessage::DebugData { id, .. } => *id,
@@ -153,8 +156,9 @@ pub enum SerialCommand {
     Init {
         id: u8,
     },
-    KeepAlive {
+    PingRequest {
         id: u8,
+        hardware_id: u64,
     },
     SaveConfigToFlash {
         id: u8,
@@ -227,7 +231,7 @@ impl SerialCommand {
             SerialCommand::Init { id } => *id,
             SerialCommand::HandshakeRequest { .. } => 0,
             SerialCommand::HandshakeAssignment { .. } => 0,
-            SerialCommand::KeepAlive { id } => *id,
+            SerialCommand::PingRequest { id, .. } => *id,
             SerialCommand::SaveConfigToFlash { id } => *id,
             SerialCommand::RequestSettings { id } => *id,
             SerialCommand::RequestDebugData { id } => *id,
