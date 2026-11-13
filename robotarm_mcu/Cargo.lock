@@ -1427,6 +1427,7 @@ dependencies = [
 name = "robotarm_protocol"
 version = "0.1.0"
 dependencies = [
+ "crc32fast",
  "defmt",
  "heapless 0.9.3",
  "postcard",

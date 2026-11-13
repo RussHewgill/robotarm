@@ -7,6 +7,8 @@
 
 pub mod logging;
 pub mod rs485;
+pub mod rs485_listener;
+pub mod websocket_listener;
 pub mod websocket_server;
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
@@ -15,6 +17,8 @@ use tracing::{debug, error, info, trace, warn};
 use serialport::SerialPortType;
 use tokio::net::TcpListener;
 use tokio_serial::SerialPortBuilderExt;
+
+use robotarm_protocol::{SerialCommand, SerialLogMessage};
 
 pub const SERVER_ADDR: &str = "0.0.0.0:8080";
 
@@ -31,13 +35,17 @@ async fn main() -> Result<()> {
     let listener = try_socket.expect("Failed to bind");
     info!("Listening on: {}", SERVER_ADDR);
 
-    // Let's spawn the handling of each connection in a separate task.
-    while let Ok((stream, addr)) = listener.accept().await {
-        tokio::spawn(websocket_server::handle_connection(
-            state.clone(),
-            stream,
-            addr,
-        ));
+    // // Let's spawn the handling of each connection in a separate task.
+    // while let Ok((stream, addr)) = listener.accept().await {
+    //     tokio::spawn(websocket_server::handle_connection(
+    //         state.clone(),
+    //         stream,
+    //         addr,
+    //     ));
+    // }
+
+    while let Ok((stream, _)) = listener.accept().await {
+        tokio::spawn(websocket_server::accept_connection(stream));
     }
 
     // rs485 test
