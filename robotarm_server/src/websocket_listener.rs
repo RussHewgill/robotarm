@@ -9,3 +9,9 @@ pub struct WebsocketListener {
     pub tx_command: UnboundedReceiver<SerialCommand>,
     pub rx_msg: UnboundedSender<SerialLogMessage>,
 }
+
+impl WebsocketListener {
+    pub fn run(&mut self) {
+        //
+    }
+}

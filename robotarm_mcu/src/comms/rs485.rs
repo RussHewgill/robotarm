@@ -8,7 +8,7 @@ use robotarm_protocol::SerialCommand;
 #[embassy_executor::task]
 async fn rx485_logger_task(
     // mut usb_monitor: UsbMonitor,
-    mut max485: crate::hardware::max485::Max485,
+    mut rs485: crate::hardware::sp3485::Sp3485,
     cmd_tx0: embassy_sync::channel::Sender<
         'static,
         CommsMutex,
@@ -29,7 +29,9 @@ async fn rx485_logger_task(
     >,
 ) -> ! {
     let mut buf: [u8; 1024];
-    let mut tx_buf: [u8; 256] = [0; 256];
+    // let mut tx_buf: [u8; 256] = [0; 256];
+    let mut tx_buf = heapless::Vec::<u8, 256>::new();
+    let mut tx_buf2 = heapless::Vec::<u8, 256>::new();
     let mut accum = postcard::accumulator::CobsAccumulator::<1024>::new();
 
     loop {
@@ -40,17 +42,29 @@ async fn rx485_logger_task(
             // usb_monitor.class.read_packet(&mut buf),
             // usb_monitor.rx.read_packet(&mut buf),
             // usb_monitor.read_ep.read(&mut buf),
-            max485.receive(&mut buf),
+            rs485.receive(&mut buf),
         )
         .await
         {
             embassy_futures::select::Either::First(msg) => {
-                if let Ok(encoded) = postcard::to_slice_cobs(&msg, &mut tx_buf) {
-                    // debug!("Encoded len = {}", encoded.len());
-                    if let Err(e) = max485.send(&encoded).await {
-                        error!("Failed to write RS485 packet: {:?}", e);
+                tx_buf.clear();
+
+                if let Ok(encoded) = postcard::to_slice(&msg, &mut tx_buf) {
+                    let crc = crc32fast::hash(&encoded);
+                    tx_buf.extend_from_slice(&crc.to_le_bytes()).unwrap();
+                    if let Ok(encoded) = postcard::to_slice_cobs(&tx_buf, &mut tx_buf2) {
+                        if let Err(e) = rs485.send(encoded).await {
+                            error!("Failed to write RS485 packet: {:?}", e);
+                        }
                     }
                 }
+
+                // if let Ok(encoded) = postcard::to_slice_cobs(&msg, &mut tx_buf) {
+                //     // debug!("Encoded len = {}", encoded.len());
+                //     if let Err(e) = max485.send(&encoded).await {
+                //         error!("Failed to write RS485 packet: {:?}", e);
+                //     }
+                // }
             }
             embassy_futures::select::Either::Second(Err(e)) => {
                 unimplemented!()

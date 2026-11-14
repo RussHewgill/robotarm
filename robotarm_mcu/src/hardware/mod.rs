@@ -15,6 +15,7 @@ pub mod mt6816;
 // pub mod smooth_sensor;
 pub mod m24c64;
 pub mod max485;
+pub mod sp3485;
 // pub mod pwm_adc;
 
 pub type Spi0Bus = embassy_sync::mutex::Mutex<

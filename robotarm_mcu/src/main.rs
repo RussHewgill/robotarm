@@ -1913,18 +1913,30 @@ async fn main(spawner: Spawner) {
     //     &rx_program,
     // );
 
+    let mut x = 0;
     // #[cfg(feature = "nope")]
     loop {
         pin_de.set_high();
 
         // let msg = [0b1100_1010u8; 16];
-        let msg = b"testing\n";
+        let mut msg = heapless::Vec::<u8, 64>::from_slice(b"testing").unwrap();
 
-        uart.blocking_write(msg).unwrap();
-        uart.blocking_flush().unwrap();
+        let mut n = itoa::Buffer::new();
+        let n = n.format(x);
+        x += 1;
+        msg.extend_from_slice(n.as_bytes()).unwrap();
+
+        let crc = crc32fast::hash(&msg);
+        msg.extend_from_slice(&crc.to_le_bytes()).unwrap();
+
+        // let buf: heapless::Vec<u8, 64> = postcard::to_vec_cobs(&false).unwrap();
+        let ser: heapless::Vec<u8, 32> = postcard::to_vec_cobs(&false).unwrap();
+
+        // uart.blocking_write(&buf).unwrap();
+        // uart.blocking_flush().unwrap();
 
         pin_de.set_low();
-        Timer::after_millis(10).await;
+        Timer::after_millis(100).await;
     }
 
     //
