@@ -1884,7 +1884,10 @@ async fn main(spawner: Spawner) {
     debug!("Starting RS485 test");
 
     let mut config = embassy_rp::uart::Config::default();
-    config.baudrate = 9600;
+    // config.baudrate = 9600;
+    // config.baudrate = 115_200;
+    config.baudrate = 921_600;
+    // config.baudrate = 921_600 * 2;
 
     let mut uart = embassy_rp::uart::Uart::new_blocking(p.UART1, pin_tx, pin_rx, config);
 
@@ -1919,24 +1922,38 @@ async fn main(spawner: Spawner) {
         pin_de.set_high();
 
         // let msg = [0b1100_1010u8; 16];
-        let mut msg = heapless::Vec::<u8, 64>::from_slice(b"testing").unwrap();
-
-        let mut n = itoa::Buffer::new();
-        let n = n.format(x);
+        // let mut msg = heapless::Vec::<u8, 64>::from_slice(b"testing").unwrap();
+        let msg0 = robotarm_protocol::SerialLogMessage::PingResponse { id: x };
         x += 1;
-        msg.extend_from_slice(n.as_bytes()).unwrap();
+
+        let mut buf0 = [0u8; 64];
+        let msg = postcard::to_slice(&msg0, &mut buf0).unwrap();
+        let mut buf1 = heapless::Vec::<u8, 64>::from_slice(&msg).unwrap();
 
         let crc = crc32fast::hash(&msg);
-        msg.extend_from_slice(&crc.to_le_bytes()).unwrap();
+        buf1.extend_from_slice(&crc.to_le_bytes()).unwrap();
 
-        // let buf: heapless::Vec<u8, 64> = postcard::to_vec_cobs(&false).unwrap();
-        let ser: heapless::Vec<u8, 32> = postcard::to_vec_cobs(&false).unwrap();
+        let buf = postcard::to_slice_cobs(&buf1, &mut buf0).unwrap();
+        debug!("buf len: {}", buf.len());
+        // debug!("buf: {:02x?}", buf);
+        // debug!("buf: {:?}", buf);
 
-        // uart.blocking_write(&buf).unwrap();
-        // uart.blocking_flush().unwrap();
+        uart.blocking_write(&buf).unwrap();
+        uart.blocking_flush().unwrap();
 
+        // let delay
+
+        let mut n = 0;
+        while uart.busy() {
+            Timer::after_micros(1).await;
+            n += 1;
+        }
+
+        // Timer::after_micros(11).await;
         pin_de.set_low();
-        Timer::after_millis(100).await;
+
+        debug!("uart busy wait iterations: {}", n);
+        Timer::after_millis(1000).await;
     }
 
     //

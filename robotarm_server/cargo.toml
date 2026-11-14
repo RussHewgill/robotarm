@@ -32,3 +32,9 @@ tokio-serial = { version = "5.5.0", features = [] }
 
 rpi-pal = { version = "0.22.3", features = [] }
 serialport = { version = "4.10.1", default-features = false, features = [] }
+
+bytes = "1.12.1"
+heapless = { version = "0.9.3", features = ["serde"] }
+
+# serial2 = { version = "0.2.39", features = ["rs4xx"]}
+# serial2-tokio = { version = "0.1.26", features = ["rs4xx"]}

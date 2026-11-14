@@ -34,27 +34,72 @@ async fn main() -> Result<()> {
         debug!("Found port: {:?}", port);
     }
 
-    let port = "/dev/ttyS0";
-    let baudrate = 9600;
+    // let port = "/dev/ttyS0";
+    let port = "/dev/ttyAMA0";
+    // let baud_rate = 9600;
+    // let baud_rate = 115_200;
+    let baud_rate = 921_600;
+    // let baud_rate = 921_600 * 2;
 
-    let mut port = tokio_serial::new(port, 9600).open_native_async()?;
-    debug!("Opened port");
+    let (tx_command, rx_command) = tokio::sync::mpsc::unbounded_channel();
+    let (tx_msg, rx_msg) = tokio::sync::mpsc::unbounded_channel();
 
-    port.set_exclusive(false)
-        .expect("Unable to set serial port non-exclusive");
-    debug!("Set port to non-exclusive");
+    let mut rs485 = crate::rs485_listener::Rs485Listener::new(rx_command, tx_msg, port, baud_rate);
 
-    use tokio::io::AsyncReadExt;
+    debug!("Starting RS485 listener");
+    rs485.listen().await?;
 
-    let mut buf = [0u8; 1024];
-    loop {
-        let n = port.read(&mut buf).await?;
-        if n > 0 {
-            debug!("Read {} bytes: {:?}", n, &buf[..n]);
-        }
-    }
+    // let buf = [3, 6, 1, 5, 190, 35, 194, 88, 0];
+    // // [03, 06, 01, 05, be, 23, c2, 58, 00]
+    // debug!("Buffer: {:02x?}", &buf);
 
-    // Ok(())
+    // rs485.debug_accum(&buf);
+
+    // rs485.debug_accum(&[3]);
+    // rs485.debug_accum(&[6, 1, 5, 190, 35, 194, 88, 0]);
+
+    // let mut port = serial2_tokio::SerialPort::open(port, baud_rate)?;
+
+    // let mut rs485_config = serial2::rs4xx::Rs485Config::new();
+    // rs485_config.set_bus_termination(false);
+    // rs485_config.set_full_duplex(false);
+    // port.set_rs4xx_mode(rs485_config)?;
+
+    // let mut buf = [0u8; 1024];
+    // loop {
+    //     match port.read(&mut buf).await {
+    //         Ok(n) => {
+    //             if n > 0 {
+    //                 debug!("Read {} bytes: {:?}", n, &buf[..n]);
+    //             }
+    //         }
+    //         Err(e) => {
+    //             debug!("Error reading from serial port: {:?}", e);
+    //         }
+    //     }
+
+    //     //
+    // }
+
+    // let mut port = tokio_serial::new(port, 9600).open_native_async()?;
+    // debug!("Opened port");
+
+    // port.set_exclusive(false)
+    //     .expect("Unable to set serial port non-exclusive");
+    // debug!("Set port to non-exclusive");
+
+    // use tokio::io::AsyncReadExt;
+
+    // let mut buf = [0u8; 1024];
+    // loop {
+    //     if let Ok(n) = port.try_read(&mut buf) {
+    //         if n > 0 {
+    //             debug!("Read {} bytes: {:?}", n, &buf[..n]);
+    //         }
+    //     }
+    // }
+
+    Ok(())
 }
 
 /// Main

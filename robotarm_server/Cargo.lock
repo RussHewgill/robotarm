@@ -747,9 +747,11 @@ name = "robotarm_server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "crc32fast",
  "env_logger",
  "futures-util",
+ "heapless",
  "postcard",
  "robotarm_protocol",
  "rpi-pal",
