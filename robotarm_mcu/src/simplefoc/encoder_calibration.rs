@@ -2,6 +2,7 @@ use defmt::{debug, error, info, trace, warn};
 use embassy_time::{Duration, Instant, Timer};
 
 use micromath::F32Ext;
+use robotarm_protocol::MotorId;
 
 use crate::{
     hardware::{

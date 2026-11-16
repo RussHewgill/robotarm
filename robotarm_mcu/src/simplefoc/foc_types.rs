@@ -1,6 +1,6 @@
 use defmt::{debug, error, info, trace, warn};
 use embassy_rp::gpio::Output;
-use robotarm_protocol::types::MotionControlType;
+use robotarm_protocol::{MotorId, types::MotionControlType};
 
 use crate::{
     comms::logger::CommsLogger,
@@ -48,7 +48,7 @@ pub enum FOCModulation {
 }
 
 pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
-    pub id: u8,
+    pub id: MotorId,
 
     pub prev_t_us: u64,
 
@@ -144,7 +144,7 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
     pub fn new(
-        id: u8,
+        id: MotorId,
         // encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
         // encoder: MT6701<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
         encoder: ENCODER,
@@ -476,7 +476,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 }
 
 pub struct SavedFOCState {
-    pub id: u8,
+    pub id: MotorId,
     pub prev_t_us: u64,
     pub debug: bool,
     pub debug_us_interval: u64,

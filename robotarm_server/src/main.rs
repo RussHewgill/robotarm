@@ -37,67 +37,57 @@ async fn main() -> Result<()> {
     // let port = "/dev/ttyS0";
     let port = "/dev/ttyAMA0";
     // let baud_rate = 9600;
-    // let baud_rate = 115_200;
-    let baud_rate = 921_600;
+    let baud_rate = 115_200;
+    // let baud_rate = 921_600;
     // let baud_rate = 921_600 * 2;
 
-    let (tx_command, rx_command) = tokio::sync::mpsc::unbounded_channel();
-    let (tx_msg, rx_msg) = tokio::sync::mpsc::unbounded_channel();
+    // let (tx_command, rx_command) = tokio::sync::mpsc::unbounded_channel();
+    // let (tx_msg, rx_msg) = tokio::sync::mpsc::unbounded_channel();
 
-    let mut rs485 = crate::rs485_listener::Rs485Listener::new(rx_command, tx_msg, port, baud_rate);
+    // let mut rs485 = crate::rs485_listener::Rs485Listener::new(rx_command, tx_msg, port, baud_rate);
 
-    debug!("Starting RS485 listener");
-    rs485.listen().await?;
+    let mut port = tokio_serial::new(port, baud_rate).open_native_async()?;
+    port.set_exclusive(false)
+        .expect("Unable to set serial port non-exclusive");
 
-    // let buf = [3, 6, 1, 5, 190, 35, 194, 88, 0];
-    // // [03, 06, 01, 05, be, 23, c2, 58, 00]
-    // debug!("Buffer: {:02x?}", &buf);
+    let mut x = 0;
+    #[cfg(feature = "nope")]
+    loop {
+        let msg = SerialCommand::PingRequest {
+            id: 0,
+            hardware_id: x,
+        };
+        x += 1;
+        let mut buf = postcard::to_stdvec(&msg).context("Failed to serialize buffer")?;
+        let crc = crc32fast::hash(&buf);
+        buf.extend_from_slice(&crc.to_le_bytes());
+        let buf = postcard::to_stdvec_cobs(&buf).context("Failed to serialize buffer")?;
 
-    // rs485.debug_accum(&buf);
+        match port.try_write(&buf) {
+            Ok(n) => {
+                debug!("Wrote {} bytes", n);
+            }
+            Err(e) => {
+                error!("Error writing to serial port: {:?}", e);
+            }
+        }
 
-    // rs485.debug_accum(&[3]);
-    // rs485.debug_accum(&[6, 1, 5, 190, 35, 194, 88, 0]);
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+    }
 
-    // let mut port = serial2_tokio::SerialPort::open(port, baud_rate)?;
+    // debug!("Starting RS485 listener");
+    // rs485.listen().await?;
 
-    // let mut rs485_config = serial2::rs4xx::Rs485Config::new();
-    // rs485_config.set_bus_termination(false);
-    // rs485_config.set_full_duplex(false);
-    // port.set_rs4xx_mode(rs485_config)?;
+    // use postcard::experimental::max_size::MaxSize;
+    // let size = robotarm_protocol::SerialLogMessage::POSTCARD_MAX_SIZE;
 
-    // let mut buf = [0u8; 1024];
-    // loop {
-    //     match port.read(&mut buf).await {
-    //         Ok(n) => {
-    //             if n > 0 {
-    //                 debug!("Read {} bytes: {:?}", n, &buf[..n]);
-    //             }
-    //         }
-    //         Err(e) => {
-    //             debug!("Error reading from serial port: {:?}", e);
-    //         }
-    //     }
+    // debug!("SerialLogMessage max size: {}", size);
 
-    //     //
-    // }
+    // let size = std::mem::size_of::<heapless::index_map::FnvIndexMap<u8, f32, 4>>();
+    // let map = std::collections::HashMap::<u8, f32>::with_capacity(8);
+    // let size = std::mem::size_of_val(&map);
 
-    // let mut port = tokio_serial::new(port, 9600).open_native_async()?;
-    // debug!("Opened port");
-
-    // port.set_exclusive(false)
-    //     .expect("Unable to set serial port non-exclusive");
-    // debug!("Set port to non-exclusive");
-
-    // use tokio::io::AsyncReadExt;
-
-    // let mut buf = [0u8; 1024];
-    // loop {
-    //     if let Ok(n) = port.try_read(&mut buf) {
-    //         if n > 0 {
-    //             debug!("Read {} bytes: {:?}", n, &buf[..n]);
-    //         }
-    //     }
-    // }
+    // debug!("Size: {}", size);
 
     Ok(())
 }

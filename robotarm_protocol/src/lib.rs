@@ -18,10 +18,10 @@ pub enum SerialLogMessage {
         hardware_id: u64,
     },
     PingResponse {
-        id: u8,
+        id: MotorId,
     },
     MotorData {
-        id: u8,
+        id: MotorId,
         timestamp: u64,
         motion_control: MotionControlType,
         position: f32,
@@ -31,50 +31,55 @@ pub enum SerialLogMessage {
         target_velocity: f32,
         motor_current: f32,
         sensor_currents: Option<(f32, f32)>,
-        // raw_currents: Option<(f32, f32)>,
         motor_voltage: (f32, f32),
         feed_forward: f32,
         aux_velocity: f32,
-        // pid_outputs: (f32, f32),
-        // pid_internals_vel: (f32, f32, f32, f32),
-        // pid_internals_pos: (f32, f32, f32, f32),
     },
+    // MotorDataExtended {
+    //     id: MotorId,
+    //     timestamp: u64,
+    //     motor_current: f32,
+    //     sensor_currents: Option<(f32, f32)>,
+    //     motor_voltage: (f32, f32),
+    //     feed_forward: f32,
+    //     aux_velocity: f32,
+    // },
     LogData {
-        id: u8,
+        id: MotorId,
         // timestamp: u64,
         start_new: bool,
         data: [f32; 8],
     },
     ReportConfig {
-        id: u8,
+        id: MotorId,
         config: MotorConfigValue,
     },
     // PIDDebugData {
-    //     id: u8,
+    //     id: MotorId,
     //     timestamp: u64,
     //     // (error, p_term, i_term, d_term)
     //     pid_internals_vel: (f32, f32, f32, f32),
     //     pid_internals_pos: (f32, f32, f32, f32),
     // },
     DebugData {
-        id: u8,
+        id: MotorId,
         timestamp: u64,
         zero_electrical_angle: f32,
         encoder_calibration_enabled: bool,
     },
     FocLoopRate {
-        id: u8,
+        id: MotorId,
         timestamp: u64,
         loop_rate_hz: f32,
     },
     EncoderData {
-        id: u8,
+        id: MotorId,
         timestamp: u64,
         position: f32,
         velocity: Option<f32>,
     },
     // MotorPID {
-    //     id: u8,
+    //     id: MotorId,
     //     vel_p: f32,
     //     vel_i: f32,
     //     vel_d: f32,
@@ -97,14 +102,14 @@ pub enum SerialLogMessage {
     //     pos_d_lpf: f32,
     // },
     MotorADRC {
-        id: u8,
+        id: MotorId,
         b0: f32,
         speed_factor: f32,
         observer_bandwidth: f32,
         controller_bandwidth: f32,
     },
     ADRCDebugData {
-        id: u8,
+        id: MotorId,
         timestamp: u64,
         vs: [f32; 2],
         state: [f32; 3],
@@ -112,18 +117,19 @@ pub enum SerialLogMessage {
         u0: f32,
     },
     EncoderCalibrationData {
-        id: u8,
+        id: MotorId,
         index: usize,
         chunk: [f32; ENCODER_CALIBRATION_CHUNK_SIZE],
     },
 }
 
 impl SerialLogMessage {
-    pub fn id(&self) -> u8 {
+    pub fn id(&self) -> MotorId {
         match self {
-            SerialLogMessage::HandshakeResponse { .. } => 0,
+            SerialLogMessage::HandshakeResponse { .. } => MotorId(0),
             SerialLogMessage::PingResponse { id } => *id,
             SerialLogMessage::MotorData { id, .. } => *id,
+            // SerialLogMessage::MotorDataExtended { id, .. } => *id,
             SerialLogMessage::ReportConfig { id, .. } => *id,
             SerialLogMessage::DebugData { id, .. } => *id,
             SerialLogMessage::EncoderData { id, .. } => *id,
@@ -143,76 +149,87 @@ impl SerialLogMessage {
 /// 2. MCU responds with handshake acknowledgment, containing unique hardware ID
 /// 3. control app assigns a 1 byte ID to each MCU
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct SerialCommandPacket {
+    pub command: heapless::Vec<MotorId, 64>,
+    pub crc: u32,
+    pub msg_id: u64,
+}
+
 /// Data from Controller to MCU
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SerialCommand {
+    BroadcastPositions {
+        positions: [(MotorId, f32); 6],
+    },
     HandshakeRequest {
         //
     },
     HandshakeAssignment {
         hardware_id: u64,
-        new_id: u8,
+        new_id: MotorId,
     },
     Init {
-        id: u8,
+        id: MotorId,
     },
     PingRequest {
-        id: u8,
+        id: MotorId,
         hardware_id: u64,
     },
     SaveConfigToFlash {
-        id: u8,
+        id: MotorId,
     },
     SetMotorConfig {
-        id: u8,
+        id: MotorId,
         config: MotorConfigValue,
     },
     RequestSettings {
-        id: u8,
+        id: MotorId,
     },
     RequestDebugData {
-        id: u8,
+        id: MotorId,
     },
     SetEnabled {
-        id: u8,
+        id: MotorId,
         enabled: bool,
     },
     SetDebugRate {
-        id: u8,
+        id: MotorId,
         rate_hz: u16,
     },
     SetEncoderCalibration {
-        id: u8,
+        id: MotorId,
         enable: bool,
     },
     SetMotionControl {
-        id: u8,
+        id: MotorId,
         control_type: MotionControlType,
     },
     SetADRCParam {
-        id: u8,
+        id: MotorId,
         adrc_settings: ADRCSettings,
     },
     SetMotorTarget {
-        id: u8,
+        id: MotorId,
         target: f32,
     },
     ZeroPosition {
-        id: u8,
+        id: MotorId,
     },
     SetThermalConfig {
-        id: u8,
+        id: MotorId,
         // TODO
     },
     ResetADRC {
-        id: u8,
+        id: MotorId,
     },
     SendEncoderCalibration {
-        id: u8,
+        id: MotorId,
     },
     SetEncoderCalibrationData {
-        id: u8,
+        id: MotorId,
         index: usize,
         chunk: [f32; ENCODER_CALIBRATION_CHUNK_SIZE],
     },
@@ -227,11 +244,20 @@ impl SerialCommand {
         }
     }
 
-    pub fn id(&self) -> u8 {
+    pub fn is_broadcast(&self) -> bool {
         match self {
+            // SerialCommand::HandshakeRequest { .. } => true,
+            // SerialCommand::HandshakeAssignment { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn id(&self) -> MotorId {
+        match self {
+            SerialCommand::BroadcastPositions { .. } => MotorId(0),
             SerialCommand::Init { id } => *id,
-            SerialCommand::HandshakeRequest { .. } => 0,
-            SerialCommand::HandshakeAssignment { .. } => 0,
+            SerialCommand::HandshakeRequest { .. } => MotorId(0),
+            SerialCommand::HandshakeAssignment { .. } => MotorId(0),
             SerialCommand::PingRequest { id, .. } => *id,
             SerialCommand::SaveConfigToFlash { id } => *id,
             SerialCommand::RequestSettings { id } => *id,

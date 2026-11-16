@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct MotorId(pub u8);
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum MotorConfigValue {
     DirClockwise(bool),
     MotorParams {

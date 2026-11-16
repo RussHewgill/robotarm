@@ -48,6 +48,9 @@
                 "2. Deploy (SCP)",
                 "3. Run on Pi"
             ],
+            // "runOptions": {
+            //     "instanceLimit": 1
+            // },
             "group": {
                 "kind": "build",
                 "isDefault": true
@@ -66,11 +69,11 @@
         //     // "command": "cargo run --release",
         //     "problemMatcher": []
         // },
-        // {
-        //     "label": "custom_run2",
-        //     "type": "shell",
-        //     "command": "cargo run --release",
-        //     "problemMatcher": []
-        // }
+        {
+            "label": "custom_run2",
+            "type": "shell",
+            "command": "cargo run --release",
+            "problemMatcher": []
+        }
     ]
 }

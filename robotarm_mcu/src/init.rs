@@ -13,7 +13,6 @@ use crate::{
         // ina226::INA226,
         // ina240::INA240,
     },
-    simplefoc::pre_foc::PreFOC,
 };
 
 // pub static mut CORE1_STACK: embassy_rp::multicore::Stack<{1024 * 4}> =
@@ -86,8 +85,8 @@ pub async fn core1_task(
     // foc_task(foc).await;
 }
 
-#[embassy_executor::task]
-// #[cfg(feature = "nope")]
+// #[embassy_executor::task]
+#[cfg(feature = "nope")]
 pub async fn core0_task(
     spawner: embassy_executor::Spawner,
     pre_foc: PreFOC<
@@ -107,6 +106,7 @@ pub async fn core0_task(
     }
 }
 
+#[cfg(feature = "nope")]
 pub async fn pre_foc_task(
     mut pre_foc: crate::simplefoc::pre_foc::PreFOC<
         'static,

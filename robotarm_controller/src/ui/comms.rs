@@ -28,6 +28,8 @@ impl App {
             while let Ok(msg) = rx.try_recv() {
                 // debug!("Got serial log message {:#?}", msg);
                 match msg {
+                    SerialLogMessage::HandshakeResponse { hardware_id } => {}
+                    SerialLogMessage::PingResponse { id } => {}
                     SerialLogMessage::DebugData {
                         id,
                         timestamp,

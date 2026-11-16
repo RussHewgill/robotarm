@@ -2,10 +2,7 @@ use defmt::{debug, error, info};
 
 use embassy_sync::channel::TryReceiveError;
 
-use crate::{
-    MOTOR_ID_A,
-    comms::{CMD_CHAN0, CMD_CHAN1, CommsMutex, LOG_CHAN},
-};
+use crate::comms::{CMD_CHAN0, CommsMutex, LOG_CHAN};
 
 /// owned by FOC loop task
 #[derive(Clone)]

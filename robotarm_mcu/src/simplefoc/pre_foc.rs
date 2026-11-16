@@ -1,6 +1,6 @@
 use defmt::{debug, error, info, trace, warn};
 
-use robotarm_protocol::types::MotionControlType;
+use robotarm_protocol::{MotorId, types::MotionControlType};
 
 use crate::{
     comms::logger::CommsLogger,
@@ -24,7 +24,7 @@ use crate::{
 pub struct PreFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     pub ready: bool,
 
-    pub id: Option<u8>,
+    pub id: Option<MotorId>,
 
     pub encoder: ENCODER,
     pub current_sensor: Option<CURRENT>,

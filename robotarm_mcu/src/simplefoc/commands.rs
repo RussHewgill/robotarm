@@ -1,12 +1,12 @@
-use cortex_m::register::control;
-use defmt::{debug, error, trace};
-use robotarm_protocol::{SerialCommand, SerialLogMessage, types::MotionControlType};
+use defmt::{debug, error, trace, warn};
+use robotarm_protocol::{MotorId, SerialCommand, SerialLogMessage, types::MotionControlType};
 
 use crate::{
     hardware::{current_sensor::CurrentSensor, encoder_sensor::EncoderSensor},
-    simplefoc::{foc_types::SimpleFOC, pre_foc::PreFOC},
+    simplefoc::foc_types::SimpleFOC,
 };
 
+#[cfg(feature = "nope")]
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> PreFOC<'a, ENCODER, CURRENT> {
     pub fn run_commands(&mut self) {
         while let Ok(cmd) = self.logger.recv() {
@@ -33,6 +33,11 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> PreFOC<'a, ENCODER, CUR
                 }
                 _ => (),
             }
+        }
+        if cmd.is_broadcast() {
+            // self.run_command_broadcast(cmd);
+            // todo
+            warn!("TODO: broadcast commands");
         }
         if Some(cmd.id()) != self.id {
             // no ID set yet
@@ -124,6 +129,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         }
     }
 
+    fn run_command_broadcast(&mut self, cmd: SerialCommand) {
+        // todo
+    }
+
     // #[inline(never)]
     // #[inline(always)]
     fn run_command(&mut self, cmd: SerialCommand) {
@@ -132,7 +141,10 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             return;
         }
 
-        if cmd.id() != self.id {
+        if cmd.is_broadcast() {
+            self.run_command_broadcast(cmd);
+            return;
+        } else if cmd.id() != self.id {
             // error!(
             //     "Received command for different id: {}, expected id: {}, dropping command",
             //     cmd.id(),
@@ -154,14 +166,16 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         // #[cfg(feature = "nope")]
         match cmd {
+            SerialCommand::BroadcastPositions { positions } => {
+                //
+            }
             SerialCommand::HandshakeAssignment { .. } => (),
             SerialCommand::HandshakeRequest { .. } => (),
             SerialCommand::Init { .. } => {
                 //
             }
             SerialCommand::PingRequest { id, hardware_id } => {
-                //
-                error!("Ping Request TODO");
+                // ping request should be handled by comms task
             }
             SerialCommand::SaveConfigToFlash { id } => {
                 todo!()

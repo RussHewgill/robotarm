@@ -467,6 +467,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
         #[cfg(feature = "debug_logging")]
         if self.debug {
+            use robotarm_protocol::MotorId;
+
             #[cfg(feature = "current_sensing")]
             let sensor_currents = if let Some(current_sensor) = &self.current_sensor {
                 // match current_sensor.prev_phase_currents() {

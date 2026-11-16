@@ -115,10 +115,14 @@ impl Rs485Listener {
         Ok(())
     }
 
-    pub fn debug_accum(&mut self, buf: &[u8]) {
-        self.bytes.extend_from_slice(buf);
-        self.run_accum(buf.len()).unwrap();
-    }
+    // pub fn debug_accum(&mut self, buf: &[u8]) {
+    //     self.bytes.extend_from_slice(buf);
+    //     self.run_accum(buf.len()).unwrap();
+    // }
+
+    // pub fn debug_send(&mut self, buf: &[u8]) -> Result<()> {
+    //     // self.port
+    // }
 
     fn run_accum(&mut self, n: usize) -> Result<()> {
         debug!("Running accumulator with {} bytes", n);

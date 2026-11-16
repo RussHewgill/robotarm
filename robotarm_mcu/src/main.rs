@@ -23,8 +23,8 @@ use embassy_executor::{Spawner, raw};
 use embassy_rp::{bind_interrupts, gpio::Output, pwm::SetDutyCycle};
 use embassy_time::{Instant, Ticker, Timer};
 
+use crate::configs::*;
 use crate::hardware::encoder_sensor::EncoderSensor;
-use crate::{configs::*, simplefoc::pre_foc::PreFOC};
 
 // use crate::simplefoc::SimpleFOC;
 
@@ -91,8 +91,10 @@ bind_interrupts!(struct Irqs {
         embassy_rp::dma::InterruptHandler<rpp::DMA_CH4>;
     // DMA_IRQ_1 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH2>, embassy_rp::dma::InterruptHandler<rpp::DMA_CH3>;
     // DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH4>;
-    // UART0_IRQ => embassy_rp::uart::InterruptHandler<rpp::UART0>;
-    UART0_IRQ => embassy_rp::uart::BufferedInterruptHandler<rpp::UART0>;
+    // UART0_IRQ => embassy_rp::uart::BufferedInterruptHandler<rpp::UART0>;
+    // UART1_IRQ => embassy_rp::uart::BufferedInterruptHandler<rpp::UART1>;
+    UART0_IRQ => embassy_rp::uart::InterruptHandler<rpp::UART0>;
+    UART1_IRQ => embassy_rp::uart::InterruptHandler<rpp::UART1>;
     PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<rpp::PIO0>;
 });
 
@@ -1870,10 +1872,13 @@ async fn main(spawner: Spawner) {
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    let pin_tx = p.PIN_20; // purple
-    let pin_rx = p.PIN_21; // blue
+    // let pin_tx = p.PIN_20; // purple
+    // let pin_rx = p.PIN_21; // blue
+    // let pin_de = p.PIN_19; // grey
 
-    let pin_de = p.PIN_19; // grey
+    let pin_tx = p.PIN_28; // purple
+    let pin_rx = p.PIN_21; // blue
+    let pin_de = p.PIN_22; // grey
 
     // let mut pin_tx = embassy_rp::gpio::Output::new(pin_tx, embassy_rp::gpio::Level::Low);
     // let mut pin_rx = embassy_rp::gpio::Input::new(pin_rx, embassy_rp::gpio::Pull::None);
@@ -1885,11 +1890,27 @@ async fn main(spawner: Spawner) {
 
     let mut config = embassy_rp::uart::Config::default();
     // config.baudrate = 9600;
-    // config.baudrate = 115_200;
-    config.baudrate = 921_600;
+    config.baudrate = 115_200;
+    // config.baudrate = 921_600;
     // config.baudrate = 921_600 * 2;
 
-    let mut uart = embassy_rp::uart::Uart::new_blocking(p.UART1, pin_tx, pin_rx, config);
+    // static TX_BUF: StaticCell<[u8; 128]> = StaticCell::new();
+    // let tx_buf = &mut TX_BUF.init([0; 128])[..];
+    static RX_BUF: StaticCell<[u8; 128]> = StaticCell::new();
+    let rx_buf = &mut RX_BUF.init([0; 128])[..];
+
+    // let mut uart = embassy_rp::uart::Uart::new_blocking(p.UART1, pin_tx, pin_rx, config);
+    // let mut uart =
+    //     embassy_rp::uart::BufferedUart::new(p.UART1, pin_tx, pin_rx, Irqs, tx_buf, rx_buf, config);
+    // let mut uart = embassy_rp::uart::BufferedUart::new_with_rtscts(p.UART1, pin_tx, pin_rx, rts, cts, irq, tx_buffer, rx_buffer, config)
+
+    let mut uart_tx = embassy_rp::uart::UartTx::new(p.UART0, pin_tx, p.DMA_CH0, Irqs, config);
+    // let mut uart_tx = embassy_rp::uart::BufferedUartTx::new(p.UART0, Irqs, pin_tx, tx_buf, config);
+
+    let mut uart_rx = embassy_rp::uart::UartRx::new(p.UART1, pin_rx, Irqs, p.DMA_CH1, config);
+    // let mut uart_rx = embassy_rp::uart::BufferedUartRx::new(p.UART1, Irqs, pin_rx, rx_buf, config);
+
+    let mut rs485 = crate::hardware::sp3485::Sp3485::new(uart_rx, uart_tx, pin_de);
 
     // let embassy_rp::pio::Pio {
     //     mut common,
@@ -1916,8 +1937,123 @@ async fn main(spawner: Spawner) {
     //     &rx_program,
     // );
 
-    let mut x = 0;
-    // #[cfg(feature = "nope")]
+    let mut buf = [0u8; 256];
+    let mut buf1 = heapless::Vec::<u8, 256>::new();
+
+    let mut accum = postcard::accumulator::CobsAccumulator::<1024>::new();
+
+    use postcard::accumulator::FeedResult;
+
+    use postcard::experimental::max_size::MaxSize;
+    let size = robotarm_protocol::SerialCommand::POSTCARD_MAX_SIZE;
+
+    debug!("SerialCommand POSTCARD_MAX_SIZE: {}", size);
+
+    cortex_m::peripheral::SCB::sys_reset();
+
+    #[cfg(feature = "nope")]
+    loop {
+        let byte = match rs485.receive().await {
+            Ok(byte) => byte,
+            Err(e) => {
+                error!("Failed to receive byte: {:?}", e);
+                continue;
+            }
+        };
+
+        match accum.feed::<heapless::Vec<u8, 64>>(&[byte]) {
+            FeedResult::Consumed => {}
+            FeedResult::Success { data, remaining } => {
+                if remaining.len() > 0 {
+                    error!("Remaining unprocessed bytes: {:?}", remaining);
+                }
+
+                let crc0 = u32::from_le_bytes(data[data.len() - 4..].try_into().unwrap());
+                let data = &data[..data.len() - 4];
+                let crc = crc32fast::hash(data);
+                if crc != crc0 {
+                    error!("CRC mismatch: expected {:08x}, got {:08x}", crc0, crc);
+                    error!("TODO: request retransmit");
+                    continue;
+                }
+
+                let data = match postcard::from_bytes::<robotarm_protocol::SerialCommand>(&data) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        error!("Failed to deserialize incoming data");
+                        continue;
+                    }
+                };
+
+                debug!("Got message: {:?}", data);
+
+                // let mut retries = 0;
+                #[cfg(feature = "nope")]
+                'sendloop: loop {
+                    if !data.is_broadcast() && !data.is_handshake() && data.id() != MOTOR_ID_A {
+                        error!(
+                            "Received command with invalid id: {}, dropping command",
+                            data.id()
+                        );
+                        break 'sendloop;
+                    }
+
+                    match cmd_tx0.try_send(data) {
+                        Ok(()) => break 'sendloop,
+                        Err(e) => {
+                            error!("Failed to send command to main task, retrying...");
+                            if retries >= 5 {
+                                error!(
+                                    "Failed to send command after {} retries, dropping command",
+                                    retries
+                                );
+                                break 'sendloop;
+                            } else {
+                                retries += 1;
+                                embassy_futures::yield_now().await;
+                            }
+                        }
+                    }
+                }
+            }
+            FeedResult::DeserError(e) => {
+                error!("Failed to parse incoming byte");
+            }
+            FeedResult::OverFull(e) => {
+                error!("Incoming byte buffer overflowed");
+            }
+        }
+    }
+
+    #[cfg(feature = "nope")]
+    loop {
+        match rs485.receive(&mut buf).await {
+            Ok(bytes) => {
+                debug!("Read bytes: {:?}", &bytes);
+
+                buf1.clear();
+                buf1.extend_from_slice(&bytes).unwrap();
+
+                let msg: Result<[u8; 3], _> = postcard::from_bytes_cobs(&mut buf1);
+                match msg {
+                    Ok(msg) => {
+                        debug!("Received message: {:?}", msg);
+                    }
+                    Err(e) => {
+                        error!("Failed to parse message");
+                    }
+                }
+            }
+            Err(e) => {
+                error!("UART read error: {:?}", e);
+            }
+        }
+
+        //
+    }
+
+    // let mut x = 0;
+    #[cfg(feature = "nope")]
     loop {
         pin_de.set_high();
 
@@ -1938,21 +2074,21 @@ async fn main(spawner: Spawner) {
         // debug!("buf: {:02x?}", buf);
         // debug!("buf: {:?}", buf);
 
-        uart.blocking_write(&buf).unwrap();
-        uart.blocking_flush().unwrap();
+        uart_tx.blocking_write(&buf).unwrap();
+        uart_tx.blocking_flush().unwrap();
 
         // let delay
 
-        let mut n = 0;
-        while uart.busy() {
+        // let mut n = 0;
+        while uart_tx.busy() {
             Timer::after_micros(1).await;
-            n += 1;
+            // n += 1;
         }
 
         // Timer::after_micros(11).await;
         pin_de.set_low();
 
-        debug!("uart busy wait iterations: {}", n);
+        // debug!("uart busy wait iterations: {}", n);
         Timer::after_millis(1000).await;
     }
 
@@ -2460,19 +2596,32 @@ fn main() -> ! {
         (driver0, driver1)
     };
 
-    let usb = comms::logger::CommsLogger::new();
-    let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
+    // let usb = comms::logger::CommsLogger::new();
+    // let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
-    let pre_foc = PreFOC::new(encoder, None::<()>, pwm_driver1, usb);
+    // let pre_foc = PreFOC::new(encoder, None::<()>, pwm_driver1, usb);
+
+    // second core runs rs485
+    #[cfg(feature = "nope")]
+    embassy_rp::multicore::spawn_core1(
+        p.CORE1,
+        unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
+        move || {
+            let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
+            executor1.run(|spawner| {
+                crate::comms::max485::init_rs485_logger(&spawner, max485);
+            });
+        },
+    );
 
     let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
     executor0.run(|spawner| {
         // crate::comms::usb_raw::usb_init(&spawner, driver);
 
-        // TODO: check if it's better to run the comms on the other core
-        crate::comms::usb_raw::usb_init(&spawner, driver);
+        // // TODO: check if it's better to run the comms on the other core
+        // crate::comms::usb_raw::usb_init(&spawner, driver);
 
-        spawner.spawn(crate::init::core0_task(spawner, pre_foc).unwrap());
+        // spawner.spawn(crate::init::core0_task(spawner, pre_foc).unwrap());
     });
 }
 
@@ -2782,7 +2931,7 @@ fn main() -> ! {
     let output_encoder1 = Some(output_encoder0);
 
     let usb = comms::logger::CommsLogger::new();
-    let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
+    // let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
 
     #[cfg(feature = "nope")]
     let max485 = {
@@ -2894,14 +3043,41 @@ fn main() -> ! {
         },
     );
 
+    let pin_tx = p.PIN_20; // purple
+    let pin_rx = p.PIN_21; // blue
+    let pin_de = p.PIN_19; // grey
+    let uart = p.UART1;
+
     // second core runs rs485
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     embassy_rp::multicore::spawn_core1(
         p.CORE1,
         unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
         move || {
             let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
-            executor1.run(|spawner| crate::comms::max485::init_rs485_logger(&spawner, max485));
+            executor1.run(|spawner| {
+                let mut pin_de =
+                    embassy_rp::gpio::Output::new(pin_de, embassy_rp::gpio::Level::Low);
+                let mut config = embassy_rp::uart::Config::default();
+                // config.baudrate = 9600;
+                config.baudrate = 115_200;
+                // config.baudrate = 921_600;
+                // config.baudrate = 921_600 * 2;
+                // let mut uart = embassy_rp::uart::Uart::new_blocking(uart, pin_tx, pin_rx, config);
+
+                let cmd_tx0 = crate::comms::CMD_CHAN0.sender();
+                let log_rx = crate::comms::LOG_CHAN.receiver();
+
+                // let rs485 = crate::hardware::sp3485::Sp3485::new(uart, pin_de);
+
+                // spawner
+                //     .spawn(crate::comms::rs485::rs485_logger_task(
+                //         rs485, cmd_tx0, log_rx, pin_de,
+                //     ))
+                //     .unwrap();
+
+                // crate::comms::max485::init_rs485_logger(&spawner, max485);
+            });
         },
     );
 
@@ -2931,7 +3107,7 @@ fn main() -> ! {
         // crate::comms::usb::UsbMonitor::init(&spawner, driver);
         // crate::comms::usb_raw::usb_init(&spawner, driver);
 
-        crate::comms::usb_raw::usb_init(&spawner, driver);
+        // crate::comms::usb_raw::usb_init(&spawner, driver);
 
         spawner.spawn(crate::init::core1_task(foc1, None).unwrap());
 

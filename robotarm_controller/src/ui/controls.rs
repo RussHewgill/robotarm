@@ -995,9 +995,9 @@ impl App {
                 // };
                 let cmd = SerialCommand::SetMotorConfig {
                     id,
-                    config: MotorConfigValue::ZeroElectricalAngle(
+                    config: MotorConfigValue::ZeroElectricalAngle(Some(
                         self.status[id as usize].zero_electrical_angle as f32,
-                    ),
+                    )),
                 };
                 self.send_command(cmd);
             }
@@ -1005,9 +1005,9 @@ impl App {
                 self.status[id as usize].zero_electrical_angle -= inc;
                 let cmd = SerialCommand::SetMotorConfig {
                     id,
-                    config: MotorConfigValue::ZeroElectricalAngle(
+                    config: MotorConfigValue::ZeroElectricalAngle(Some(
                         self.status[id as usize].zero_electrical_angle as f32,
-                    ),
+                    )),
                 };
                 self.send_command(cmd);
             }
@@ -1030,9 +1030,9 @@ impl App {
             if let Some(tgt) = send_target {
                 let cmd = SerialCommand::SetMotorConfig {
                     id,
-                    config: MotorConfigValue::ZeroElectricalAngle(
+                    config: MotorConfigValue::ZeroElectricalAngle(Some(
                         self.status[id as usize].zero_electrical_angle as f32,
-                    ),
+                    )),
                 };
                 self.send_command(cmd);
             }

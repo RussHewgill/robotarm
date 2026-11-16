@@ -12,7 +12,7 @@ use static_cell::StaticCell;
 
 use crate::{
     MOTOR_ID_A,
-    comms::{CMD_CHAN0, CMD_CHAN1, CommsMutex, LOG_CHAN},
+    comms::{CMD_CHAN0, CommsMutex, LOG_CHAN},
 };
 
 // pub type UsbMutex = embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -137,9 +137,9 @@ pub fn usb_init(
     };
     let log_rx = LOG_CHAN.receiver();
     let cmd_tx0 = CMD_CHAN0.sender();
-    let cmd_tx1 = CMD_CHAN1.sender();
+    // let cmd_tx1 = CMD_CHAN1.sender();
 
-    spawner.spawn(usb_logger_task(usb_monitor, cmd_tx0, cmd_tx1, log_rx).unwrap());
+    spawner.spawn(usb_logger_task(usb_monitor, cmd_tx0, log_rx).unwrap());
 
     // // Run everything concurrently.
     // // If we had made everything `'static` above instead, we could do this using separate tasks instead.
@@ -155,12 +155,12 @@ async fn usb_logger_task(
         robotarm_protocol::SerialCommand,
         5,
     >,
-    cmd_tx1: embassy_sync::channel::Sender<
-        'static,
-        CommsMutex,
-        robotarm_protocol::SerialCommand,
-        5,
-    >,
+    // cmd_tx1: embassy_sync::channel::Sender<
+    //     'static,
+    //     CommsMutex,
+    //     robotarm_protocol::SerialCommand,
+    //     5,
+    // >,
     log_rx: embassy_sync::channel::Receiver<
         'static,
         CommsMutex,
