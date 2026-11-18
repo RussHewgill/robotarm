@@ -5,8 +5,8 @@
 #![allow(unused_doc_comments)]
 #![allow(unexpected_cfgs)]
 
+pub mod comms_controller;
 pub mod logging;
-pub mod rs485;
 pub mod rs485_listener;
 pub mod websocket_listener;
 pub mod websocket_server;

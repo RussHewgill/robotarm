@@ -48,7 +48,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         self.enabled = true;
         // self.enable_pin.set_high();
         self.pwm_driver.enable();
-        self.pid_velocity.reset();
+        // self.pid_velocity.reset();
         // self.pid_angle.reset();
         // self.pid_current_q.reset();
         // self.pid_current_d.reset();

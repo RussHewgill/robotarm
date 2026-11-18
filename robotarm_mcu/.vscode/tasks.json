@@ -16,8 +16,47 @@
         },
         {
             "label": "custom_run2",
+            // "type": "shell",
+            // "command": "cargo embed --release",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "build",
+                "picotool_convert",
+                "picotool_flash",
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "build",
             "type": "shell",
-            "command": "cargo embed --release",
+            "command": "cargo build --release --target thumbv8m.main-none-eabihf",
+            "problemMatcher": []
+        },
+        {
+            "label": "picotool_convert",
+            "type": "shell",
+            "command": "picotool",
+            "args": [
+                "uf2",
+                "convert",
+                "target/thumbv8m.main-none-eabihf/release/robotarm_mcu",
+                "-t",
+                "elf",
+                "robotarm_mcu.uf2"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "picotool_flash",
+            "type": "shell",
+            "command": "picotool",
+            "args": [
+                "load",
+                "-v",
+                "-x",
+                "robotarm_mcu.uf2",
+                "-f"
+            ],
             "problemMatcher": []
         }
     ]

@@ -6,3 +6,4 @@ robotarm_mcu/assets/
 *.xlsx
 *.csv
 */.env
+robotarm_mcu/robotarm_mcu.uf2

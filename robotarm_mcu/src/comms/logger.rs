@@ -12,6 +12,8 @@ pub struct CommsLogger {
     // rx1: embassy_sync::channel::Receiver<'static, UsbMutex, robotarm_protocol::SerialCommand, 5>,
     /// MCU sends log to USB task
     tx: embassy_sync::channel::Sender<'static, CommsMutex, robotarm_protocol::SerialLogMessage, 5>,
+    // status: embassy_sync::signal::Signal<>
+    // status: embassy_sync::signal::Signal<CommsMutex, crate::hardware::LED::LEDState>,
 }
 
 impl CommsLogger {
@@ -23,6 +25,7 @@ impl CommsLogger {
         let rx0 = CMD_CHAN0.receiver();
         // let rx1 = CMD_CHAN1.receiver();
         let tx = LOG_CHAN.sender();
+        // let status = crate::comms::STATUS_CHAN;
         // Self { rx0, rx1, tx }
         Self { rx0, tx }
     }

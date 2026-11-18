@@ -1,9 +1,11 @@
 use defmt::{debug, error, trace, warn};
-use robotarm_protocol::{MotorId, SerialCommand, SerialLogMessage, types::MotionControlType};
+use robotarm_protocol::{
+    MotorId, SerialCommand, SerialLogMessage, saved_config::SavedConfig, types::MotionControlType,
+};
 
 use crate::{
     hardware::{current_sensor::CurrentSensor, encoder_sensor::EncoderSensor},
-    simplefoc::foc_types::SimpleFOC,
+    simplefoc::{foc_types::SimpleFOC, types::NOT_SET},
 };
 
 #[cfg(feature = "nope")]
@@ -67,48 +69,6 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         }
     }
 
-    #[cfg(feature = "nope")]
-    pub async fn run_commands(&mut self) {
-        let mut cmds = heapless::Vec::<SerialCommand, 8>::new();
-        if let Some(logger) = &mut self.usb_logger {
-            while let Ok(cmd) = logger.recv(self.id).await {
-                // debug!("Received command: {:#?}", cmd);
-
-                // let _ = cmds.push(cmd);
-                if cmd.id() == self.id {
-                    cmds.push(cmd).unwrap_or_else(|_| {
-                        error!("Command queue full, dropping command");
-                    });
-                } else {
-                    error!(
-                        "Received command for different id: {}, expected id: {}, dropping command",
-                        cmd.id(),
-                        self.id
-                    );
-                }
-            }
-        }
-
-        for cmd in cmds {
-            self.run_command(cmd);
-        }
-    }
-
-    #[cfg(feature = "nope")]
-    pub async fn run_commands(&mut self, cmd_buf: &mut heapless::Vec<SerialCommand, 4>) {
-        if let Some(logger) = &mut self.usb_logger {
-            while let Ok(cmd) = logger.recv().await {
-                cmd_buf.push(cmd).unwrap_or_else(|_| {
-                    error!("Command queue full, dropping command");
-                });
-            }
-        }
-
-        for cmd in cmd_buf.drain(..) {
-            self.run_command(cmd);
-        }
-    }
-
     fn set_config(&mut self, config: robotarm_protocol::MotorConfigValue) {
         match config {
             robotarm_protocol::MotorConfigValue::DirClockwise(cw) => todo!(),
@@ -130,7 +90,20 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
     }
 
     fn run_command_broadcast(&mut self, cmd: SerialCommand) {
-        // todo
+        match cmd {
+            SerialCommand::BroadcastPositions { positions } => {
+                for (id, pos) in positions {
+                    if self.id == id {
+                        match self.motion_control {
+                            MotionControlType::Angle => self.set_target_position(pos),
+                            _ => {}
+                        }
+                    }
+                }
+                //
+            }
+            _ => {}
+        }
     }
 
     // #[inline(never)]
@@ -619,5 +592,72 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 );
             }
         }
+    }
+}
+
+/// EEPROM
+impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
+    async fn save_config_reboot(&mut self) {
+        let adrc = {
+            let (b0, r, wo, wc, inertia, torque_constant, phase_resistance) =
+                self.state_observer.get_params();
+            robotarm_protocol::types::ADRCSettings {
+                b0: Some(b0),
+                speed_factor: Some(r),
+                observer_bandwidth: Some(wo),
+                controller_bandwidth: Some(wc),
+            }
+        };
+
+        let config = SavedConfig {
+            id: self.id,
+            // motor_direction_cw: self.sensor_direction == super::types::SensorDirection::Cw,
+            motor_direction_cw: match self.sensor_direction {
+                super::types::SensorDirection::Unknown => None,
+                super::types::SensorDirection::CW => Some(true),
+                super::types::SensorDirection::CCW => Some(false),
+            },
+            motor_pole_pairs: if self.motor.pole_pairs == 0 {
+                None
+            } else {
+                Some(self.motor.pole_pairs)
+            },
+            motor_phase_resistance: self.motor.phase_resistance,
+            motor_kv: self.motor.motor_kv,
+            motor_zero_electrical_angle: if self.zero_electric_angle == NOT_SET {
+                None
+            } else {
+                Some(self.zero_electric_angle)
+            },
+            motor_voltage_limit: self.pwm_driver.voltage_limit,
+
+            encoder_calibration: if let Some(calibration) =
+                self.encoder.get_encoder_calibration_lut()
+            {
+                Some(robotarm_protocol::saved_config::EncoderCalibration { calibration })
+            } else {
+                None
+            },
+
+            adrc: Some(adrc),
+        };
+
+        self.memory.save_config(&config).await;
+
+        //
+    }
+
+    async fn load_config(&mut self) {
+        let Some(config) = self.memory.load_config().await else {
+            error!("Failed to load configuration from memory");
+            return;
+        };
+
+        if self.id != config.id {
+            error!("Configuration ID does not match");
+            return;
+        }
+
+        //
     }
 }

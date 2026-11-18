@@ -32,7 +32,9 @@ pub async fn accept_connection(stream: TcpStream) {
     let mut id = 0;
     loop {
         debug!("Looping");
-        let msg = robotarm_protocol::SerialLogMessage::PingResponse { id };
+        let msg = robotarm_protocol::SerialLogMessage::PingResponse {
+            id: robotarm_protocol::MotorId(id),
+        };
         id += 1;
 
         let mut msg = postcard::to_stdvec(&msg).unwrap();

@@ -13,7 +13,9 @@ pub type LogChannel =
     embassy_sync::channel::Channel<CommsMutex, robotarm_protocol::SerialLogMessage, 5>;
 pub type CmdChannel =
     embassy_sync::channel::Channel<CommsMutex, robotarm_protocol::SerialCommand, 5>;
+// pub type StatusChannel = embassy_sync::signal::Signal<CommsMutex, crate::hardware::led::LEDState>;
 
 pub static LOG_CHAN: LogChannel = LogChannel::new();
 pub static CMD_CHAN0: CmdChannel = CmdChannel::new();
 // pub static CMD_CHAN1: CmdChannel = CmdChannel::new();
+// pub static STATUS_CHAN: StatusChannel = StatusChannel::new();

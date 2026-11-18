@@ -1,22 +1,22 @@
 use serde::{Deserialize, Serialize};
 
-use crate::ADRCSettings;
+use crate::{ADRCSettings, MotorId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 // #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct SavedConfig {
-    id: u8,
+    pub id: MotorId,
 
-    motor_direction_cw: bool,
-    motor_pole_pairs: u8,
-    motor_phase_resistance: f32,
-    motor_kv: f32,
-    motor_zero_electrical_angle: Option<f32>,
-    motor_voltage_limit: f32,
+    pub motor_direction_cw: Option<bool>,
+    pub motor_pole_pairs: Option<u8>,
+    pub motor_phase_resistance: Option<f32>,
+    pub motor_kv: Option<f32>,
+    pub motor_zero_electrical_angle: Option<f32>,
+    pub motor_voltage_limit: f32,
 
-    encoder_calibration: Option<EncoderCalibration>,
+    pub encoder_calibration: Option<EncoderCalibration>,
 
-    adrc: ADRCSettings,
+    pub adrc: Option<ADRCSettings>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

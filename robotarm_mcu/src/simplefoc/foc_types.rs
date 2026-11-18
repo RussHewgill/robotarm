@@ -11,8 +11,8 @@ use crate::{
     },
     simplefoc::{
         bldc::BLDCMotor,
-        // current_read_task::{CurrentReadRx, ElecAngleReadTx},
         lowpass::LowPassFilter,
+        memory::MemoryController,
         pid::PIDController,
         types::{
             DQCurrents, DQVoltages, NOT_SET, PhaseVoltages, SensorDirection, TorqueControlType,
@@ -70,6 +70,8 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     // pub usb_logger: Option<UsbLogger>,
     pub logger: CommsLogger,
 
+    pub memory: MemoryController,
+
     pub(super) debug: bool,
     pub(super) prev_debug_us: u64,
     // debug_freq_hz: u64,
@@ -117,7 +119,7 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
     // // not used except with current sensor
     // // pub(super) lpf_current_q: LowPassFilter,
     // // pub(super) lpf_current_d: LowPassFilter,
-    pub pid_velocity: PIDController<f32>,
+    // pub pid_velocity: PIDController<f32>,
     // pub pid_angle: PIDController<f32>,
 
     // pub state_observer: crate::simplefoc::luenberger::LuenbergerObserver<f32, 3, 1, 1>,
@@ -143,6 +145,7 @@ pub struct SimpleFOC<'a, ENCODER: EncoderSensor, CURRENT = ()> {
 }
 
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
+    #[cfg(feature = "nope")]
     pub fn new(
         id: MotorId,
         // encoder: AS5600<embassy_rp::i2c::I2c<'a, I2C, embassy_rp::i2c::Async>>,
@@ -156,6 +159,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
         motor: BLDCMotor,
 
         logger: CommsLogger,
+        memory: MemoryController,
     ) -> Self {
         // const PID_CURRENT_KP: f32 = 3.;
         // const PID_CURRENT_KI: f32 = 300.;
@@ -304,6 +308,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             motor,
 
             logger,
+            memory,
 
             debug: false,
             prev_debug_us: 0,
@@ -356,6 +361,111 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
             // pid_angle_tuner: None,
             // pid_velocity_tuner: None,
+            lpf_velocity: LowPassFilter::new(VEL_LPF_TF),
+            lpf_angle: LowPassFilter::new(ANGLE_LPF_TF),
+
+            lpf_current_q: LowPassFilter::new(0.0001),
+            lpf_current_d: LowPassFilter::new(0.0001),
+
+            pid_current_q: PIDController::new(
+                PID_CURR_KP,
+                PID_CURR_KI,
+                PID_CURR_KD,
+                PID_CURR_RAMP,
+                PID_CURR_LIMIT,
+            ),
+            pid_current_d: PIDController::new(
+                PID_CURR_KP,
+                PID_CURR_KI,
+                PID_CURR_KD,
+                PID_CURR_RAMP,
+                PID_CURR_LIMIT,
+            ),
+            // max_current: 2.0,
+            openloop_shaft_angle: 0.,
+            shaft_velocity: 0.0,
+        }
+    }
+
+    pub fn new(
+        encoder: ENCODER,
+        current_sensor: Option<CURRENT>,
+        pwm_driver: crate::simplefoc::pwm_driver::PWMDriver<'a>,
+        motor: BLDCMotor,
+        logger: CommsLogger,
+        memory: MemoryController,
+    ) -> Self {
+        const VEL_LPF_TF: f32 = 0.05;
+        const ANGLE_LPF_TF: f32 = 0.005;
+
+        const PID_CURR_KP: f32 = 3.0;
+        const PID_CURR_KI: f32 = 300.0;
+        const PID_CURR_KD: f32 = 0.0;
+        const PID_CURR_RAMP: f32 = 0.0;
+        const PID_CURR_LIMIT: f32 = 12.0;
+
+        let state_observer = {
+            // let kv = motor.motor_kv.unwrap_or(0.0);
+            let torque_constant = if let Some(kv) = motor.motor_kv {
+                9.549 / kv
+            } else {
+                0.0
+            };
+
+            let adrc = crate::simplefoc::algorithms::adrc::motor_adrc::MotorADRC::new_default(
+                // motor.rotor_inertia.unwrap_or(0.0),
+                0.0,
+                torque_constant,
+                motor.phase_resistance.unwrap_or(0.0),
+                pwm_driver.voltage_limit,
+                0.01,
+            );
+            adrc
+        };
+
+        Self {
+            id: MotorId::UNSET,
+            prev_t_us: 0,
+            encoder,
+            current_sensor,
+            pwm_driver,
+            logger,
+            memory,
+
+            debug: false,
+            prev_debug_us: 0,
+            debug_us_interval: 0,
+
+            motion_downsample: 0,
+            motion_downsample_counter: 0,
+
+            current_sensor_downsample: 0,
+            current_sensor_downsample_counter: 0,
+
+            enabled: false,
+            motor,
+
+            sensor_direction: SensorDirection::Unknown,
+
+            zero_electric_angle: NOT_SET,
+
+            output_sensor_direction: SensorDirection::Unknown,
+            output_sensor_offset: 0.0,
+
+            lpf_output: LowPassFilter::new(0.1),
+            motion_control: MotionControlType::Angle,
+            torque_controller: TorqueControlType::Voltage,
+
+            feed_forward_torque: 0.0,
+            feed_forward_voltage: DQVoltages::default(),
+            feed_forward_current: DQCurrents::default(),
+
+            phase_v: PhaseVoltages::default(),
+
+            modulation: FOCModulation::SpaceVectorPWM,
+            // pid_velocity,
+            state_observer,
+
             lpf_velocity: LowPassFilter::new(VEL_LPF_TF),
             lpf_angle: LowPassFilter::new(ANGLE_LPF_TF),
 

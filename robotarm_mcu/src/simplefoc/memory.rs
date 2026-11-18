@@ -1,6 +1,12 @@
 use defmt::{debug, error, info, warn};
-use robotarm_protocol::saved_config::SavedConfig;
 use serde::{Deserialize, Serialize};
+
+use embassy_rp::{
+    i2c::{Async, I2c},
+    peripherals::I2C1,
+};
+
+use robotarm_protocol::saved_config::SavedConfig;
 
 use crate::hardware::m24c64::M24C64;
 
@@ -8,16 +14,17 @@ const VERSION: u32 = 1;
 const MAGIC_BYTES: [u8; 4] = [0xd2, 0xc9, 0x99, 0xb3];
 pub const EEPROM_DATA_LEN: usize = 32 * 10; // 320
 
-pub struct MemoryController<I2C> {
-    eeprom: M24C64<I2C>,
+pub struct MemoryController {
+    // eeprom: M24C64<I2C>,
+    eeprom: M24C64<I2c<'static, I2C1, Async>>,
     address_id: usize,
     address_a: usize,
     address_b: usize,
     counter: u32,
 }
 
-impl<I2C> MemoryController<I2C> {
-    pub fn new(eeprom: M24C64<I2C>) -> Self {
+impl MemoryController {
+    pub fn new(eeprom: M24C64<I2c<'static, I2C1, Async>>) -> Self {
         Self {
             eeprom,
             address_id: 0x000,
@@ -28,7 +35,8 @@ impl<I2C> MemoryController<I2C> {
     }
 }
 
-impl<I2C: embedded_hal_async::i2c::I2c> MemoryController<I2C> {
+/// async
+impl MemoryController {
     pub async fn save_id(&mut self, id: u8) -> Result<(), ()> {
         if let Err(e) = self.eeprom.write(self.address_id, &[id]).await {
             error!("Failed to write ID to EEPROM: {:?}", e);
@@ -52,7 +60,7 @@ impl<I2C: embedded_hal_async::i2c::I2c> MemoryController<I2C> {
         Ok(buf[0])
     }
 
-    pub async fn save(&mut self, config: &SavedConfig, sequence: u32) {
+    pub async fn save_config(&mut self, config: &SavedConfig) {
         let mut buf = [0u8; EEPROM_DATA_LEN];
         let data = match postcard::to_slice(config, &mut buf) {
             Ok(slice) => slice,
@@ -78,11 +86,12 @@ impl<I2C: embedded_hal_async::i2c::I2c> MemoryController<I2C> {
 
         let saved_values = SavedValues {
             version: 1,
-            sequence,
+            sequence: self.counter,
             len: data.len(),
             data: heapless::Vec::from_slice(&data).unwrap(),
             crc: crc32fast::hash(&data),
         };
+        self.counter += 1;
 
         let serialized = postcard::to_slice(&saved_values, &mut buf);
         if let Err(_) = serialized {
@@ -156,7 +165,7 @@ impl<I2C: embedded_hal_async::i2c::I2c> MemoryController<I2C> {
         }
     }
 
-    pub async fn load(&mut self) -> Option<SavedConfig> {
+    pub async fn load_config(&mut self) -> Option<SavedConfig> {
         let mut buf = [0u8; EEPROM_DATA_LEN];
 
         self.eeprom.read(self.address_a, &mut buf).await.ok()?;

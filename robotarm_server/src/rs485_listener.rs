@@ -12,8 +12,11 @@ use tokio_serial::SerialPortBuilderExt;
 use robotarm_protocol::{SerialCommand, SerialLogMessage};
 
 pub struct Rs485Listener {
+    /// get commands from websocket
     pub rx_command: UnboundedReceiver<SerialCommand>,
-    pub tx_msg: UnboundedSender<SerialLogMessage>,
+    /// send messages to websocket
+    // pub tx_msg: UnboundedSender<SerialLogMessage>,
+    pub tx_msg: tokio::sync::broadcast::Sender<SerialLogMessage>,
 
     port: String,
     baud_rate: u32,
@@ -26,14 +29,14 @@ pub struct Rs485Listener {
 impl Rs485Listener {
     pub fn new(
         rx_command: UnboundedReceiver<SerialCommand>,
-        tx_msg: UnboundedSender<SerialLogMessage>,
-        port: &str,
+        tx_msg: tokio::sync::broadcast::Sender<SerialLogMessage>,
+        port: String,
         baud_rate: u32,
     ) -> Self {
         Self {
             rx_command,
             tx_msg,
-            port: port.to_string(),
+            port,
             baud_rate,
             bytes: BytesMut::new(),
             raw_buf: [0; 1024],
@@ -58,7 +61,16 @@ impl Rs485Listener {
     async fn _listen(&mut self, port: &mut tokio_serial::SerialStream) -> Result<()> {
         tokio::select! {
             Some(cmd) = self.rx_command.recv() => {
-                unimplemented!()
+                let cmd = self.rx_command.recv().await.unwrap();
+
+                if let Some(packet) = robotarm_protocol::serialize_std(cmd) {
+                    match port.try_write(&packet) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            debug!("Error writing to serial port: {:?}", e);
+                        }
+                    }
+                }
             }
             res = port.readable() => {
                 match port.try_read(&mut self.raw_buf) {

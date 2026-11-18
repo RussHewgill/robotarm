@@ -11,13 +11,15 @@ mod comms;
 mod configs;
 mod hardware;
 mod init;
+mod panic;
 mod simplefoc;
 
 use defmt::{debug, error, info, trace, warn};
 use static_cell::StaticCell;
 
 // use rtt_target::{rprintln, rtt_init};
-use {defmt_rtt as _, panic_probe as _};
+// use {defmt_rtt as _, panic_probe as _};
+use defmt_rtt as _;
 
 use embassy_executor::{Spawner, raw};
 use embassy_rp::{bind_interrupts, gpio::Output, pwm::SetDutyCycle};
@@ -97,6 +99,11 @@ bind_interrupts!(struct Irqs {
     UART1_IRQ => embassy_rp::uart::InterruptHandler<rpp::UART1>;
     PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<rpp::PIO0>;
 });
+
+// bind_interrupts!(struct Irqs {
+//     PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<rpp::PIO0>;
+//     DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<rpp::DMA_CH0>;
+// });
 
 /// rtt tests
 // #[embassy_executor::main]
@@ -1867,8 +1874,8 @@ async fn main(spawner: Spawner) {
 }
 
 // RS485 test
-// #[cfg(feature = "nope")]
-#[embassy_executor::main]
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -2470,22 +2477,304 @@ async fn main(spawner: Spawner) {
     //
 }
 
+// CRC32 test
+// #[cfg(feature = "nope")]
+#[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    debug!("Starting CRC32 test");
+
+    let mut buf = [0u8, 1, 2, 3, 4];
+
+    loop {
+        buf[0] += 1;
+        let crc = robotarm_protocol::CRC.checksum(&buf);
+        debug!("CRC32: {:08x}", crc);
+        Timer::after_millis(500).await;
+    }
+
+    //
+}
+
+// Panic test
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    debug!("Starting Panic test");
+
+    // panic!("test panic");
+
+    let mut led0 = Output::new(p.PIN_25, embassy_rp::gpio::Level::Low);
+
+    for _ in 0..2 {
+        led0.set_low();
+        Timer::after_millis(300).await;
+        led0.set_high();
+        Timer::after_millis(300).await;
+    }
+
+    Timer::after_millis(1000).await;
+
+    let embassy_rp::pio::Pio {
+        mut common, sm0, ..
+    } = embassy_rp::pio::Pio::new(p.PIO0, Irqs);
+
+    let mut leds =
+        crate::hardware::rgb_led::StatusLEDs::new(led0, common, sm0, p.DMA_CH0, p.PIN_22);
+
+    let mut led_pwr = Output::new(p.PIN_23, embassy_rp::gpio::Level::Low);
+    led_pwr.set_high();
+
+    leds.set_color(smart_leds::RGB8 { r: 0, g: 0, b: 255 })
+        .await;
+
+    Timer::after_millis(1000).await;
+
+    // #[cfg(feature = "nope")]
+    {
+        let pin = 22;
+        let pin_pwr = 23;
+        use embassy_rp::pac;
+
+        // set pin to SIO
+        pac::IO_BANK0.gpio(pin).ctrl().write(|w| {
+            w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0 as u8);
+        });
+        // pac::IO_BANK0.gpio(pin_pwr).ctrl().write(|w| {
+        //     w.set_funcsel(pac::io::vals::Gpio0ctrlFuncsel::SIOB_PROC_0 as u8);
+        // });
+
+        pac::PADS_BANK0.gpio(pin).modify(|w| {
+            w.set_iso(false); // clear pad isolation
+            w.set_od(false); // clear output disable
+        });
+        // pac::PADS_BANK0.gpio(pin_pwr).modify(|w| {
+        //     w.set_iso(false); // clear pad isolation
+        //     w.set_od(false); // clear output disable
+        // });
+
+        assert!(pin < 32);
+
+        let bank = pin / 32;
+        let pin_mask = 1u32 << pin;
+        let bank_pwr = pin_pwr / 32;
+        let pin_mask_pwr = 1u32 << pin_pwr;
+
+        // set pin as output in SIO
+        pac::SIO.gpio_oe(bank).value_set().write_value(pin_mask);
+        // pac::SIO
+        //     .gpio_oe(bank_pwr)
+        //     .value_set()
+        //     .write_value(pin_mask_pwr);
+
+        let out_set_ptr = pac::SIO.gpio_out(bank).value_set().as_ptr();
+        let out_clr_ptr = pac::SIO.gpio_out(bank).value_clr().as_ptr();
+
+        // pac::SIO
+        //     .gpio_out(bank_pwr)
+        //     .value_set()
+        //     .write_value(pin_mask_pwr);
+
+        let freq = match embassy_rp::clocks::clk_sys_freq() {
+            0 => 150_000_000,
+            f => f,
+        };
+
+        // Helper: convert nanoseconds to cortex_m::asm::delay counts (~3 cycles/loop)
+        let ns_to_delay = |ns: u64| -> u32 {
+            let total_cycles = (ns * freq as u64) / 1_000_000_000;
+            // Subtract 1-2 iterations to account for register writes and loop branches
+            ((total_cycles / 3).saturating_sub(1)) as u32
+        };
+
+        // WS2812 timing targets:
+        // '0' bit: High ~320ns (spec: 220-380ns), Low ~800ns (spec: 580-1000ns)
+        // '1' bit: High ~800ns (spec: 580-1000ns), Low ~380ns (spec: 220-420ns)
+        let t0h = ns_to_delay(320);
+        let t0l = ns_to_delay(800);
+        let t1h = ns_to_delay(800);
+        let t1l = ns_to_delay(380);
+
+        // Reset pulse (> 300 µs = 300,000 ns)
+        let reset_delay = ((300_000u64 * freq as u64) / 3_000_000_000) as u32;
+
+        // debug!("t0h: {}", t0h);
+        // let t0 = Instant::now();
+        // cortex_m::asm::delay(t0h);
+        // let t1 = Instant::now();
+        // debug!("t1: {}", t1.duration_since(t0).as_nanos());
+
+        unsafe {
+            out_clr_ptr.write_volatile(pin_mask);
+            cortex_m::asm::delay(reset_delay);
+
+            let grb: u32 = 0x00_30_00;
+
+            // for _ in 0..5 {
+            //     out_clr_ptr.write_volatile(pin_mask);
+            //     cortex_m::asm::delay(50_000_000);
+            //     out_set_ptr.write_volatile(pin_mask);
+            //     cortex_m::asm::delay(50_000_000);
+            // }
+
+            for i in (0..24).rev() {
+                let bit = (grb >> i) & 1 != 0;
+                if bit {
+                    out_set_ptr.write_volatile(pin_mask);
+                    cortex_m::asm::delay(t1h);
+                    out_clr_ptr.write_volatile(pin_mask);
+                    cortex_m::asm::delay(t1l);
+                } else {
+                    out_set_ptr.write_volatile(pin_mask);
+                    cortex_m::asm::delay(t0h);
+                    out_clr_ptr.write_volatile(pin_mask);
+                    cortex_m::asm::delay(t0l);
+                }
+            }
+
+            // Latch pulse (> 300 µs low)
+            out_clr_ptr.write_volatile(pin_mask);
+            cortex_m::asm::delay(reset_delay);
+
+            //
+        }
+
+        //
+    }
+
+    // let mut led_pwr = Output::new(p.PIN_23, embassy_rp::gpio::Level::Low);
+    // led_pwr.set_high();
+
+    // let mut n = 0;
+    // for _ in 0..5 {
+    //     n = (n + 1) % 3;
+
+    //     let color = match n {
+    //         0 => smart_leds::RGB8 { r: 255, g: 0, b: 0 },
+    //         1 => smart_leds::RGB8 { r: 0, g: 255, b: 0 },
+    //         2 => smart_leds::RGB8 { r: 0, g: 0, b: 255 },
+    //         _ => smart_leds::RGB8 { r: 0, g: 0, b: 0 },
+    //     };
+
+    //     leds.set_color(color).await;
+
+    //     Timer::after_millis(300).await;
+    // }
+
+    panic!("test panic");
+
+    // let mut ticker = Ticker::every(embassy_time::Duration::from_millis(10));
+    // let mut data = [smart_leds::RGB8::default(); 1];
+    // loop {
+    //     for j in 0..(256 * 5) {
+    //         debug!("New Colors:");
+    //         data[0] = wheel(((256 as u16 / 1 as u16 + j as u16) & 255) as u8);
+    //         // debug!("R: {} G: {} B: {}", data[i].r, data[i].g, data[i].b);
+    //         leds.set_color(data[0]);
+
+    //         ticker.next().await;
+    //     }
+    // }
+
+    //
+}
+
+// LED test
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+
+    debug!("Starting LED test");
+
+    let embassy_rp::pio::Pio {
+        mut common, sm0, ..
+    } = embassy_rp::pio::Pio::new(p.PIO0, Irqs);
+
+    let mut data = [smart_leds::RGB8::default(); 1];
+
+    let program = embassy_rp::pio_programs::ws2812::PioWs2812Program::new(&mut common);
+    let mut ws2812 = embassy_rp::pio_programs::ws2812::PioWs2812::new(
+        &mut common,
+        sm0,
+        p.DMA_CH0,
+        Irqs,
+        p.PIN_22,
+        &program,
+    );
+
+    fn wheel(mut wheel_pos: u8) -> smart_leds::RGB8 {
+        wheel_pos = 255 - wheel_pos;
+        if wheel_pos < 85 {
+            return (255 - wheel_pos * 3, 0, wheel_pos * 3).into();
+        }
+        if wheel_pos < 170 {
+            wheel_pos -= 85;
+            return (0, wheel_pos * 3, 255 - wheel_pos * 3).into();
+        }
+        wheel_pos -= 170;
+        (wheel_pos * 3, 255 - wheel_pos * 3, 0).into()
+    }
+
+    let mut led0 = Output::new(p.PIN_25, embassy_rp::gpio::Level::Low);
+    led0.set_high();
+    // Timer::after_millis(1000).await;
+    // led0.set_low();
+
+    let mut ticker = Ticker::every(embassy_time::Duration::from_millis(10));
+    loop {
+        for j in 0..(256 * 5) {
+            debug!("New Colors:");
+            for i in 0..1 {
+                data[i] = wheel((((i * 256) as u16 / 1 as u16 + j as u16) & 255) as u8);
+                debug!("R: {} G: {} B: {}", data[i].r, data[i].g, data[i].b);
+            }
+            ws2812.write(&data).await;
+
+            ticker.next().await;
+        }
+    }
+
+    //
+}
+
 /// MARK: Main
 #[cfg(feature = "nope")]
 // #[cortex_m_rt::entry]
 fn main() -> ! {
     let p = embassy_rp::init(Default::default());
 
+    // read config from EEPROM
+    {
+        let sda = p.PIN_6;
+        let scl = p.PIN_7;
+        let mut config = embassy_rp::i2c::Config::default();
+        config.frequency = 400_000;
+        let mut i2c = embassy_rp::i2c::I2c::new_async(p.I2C1, scl, sda, Irqs, config);
+
+        let addr = 0x50;
+        let mut memory = crate::simplefoc::memory::MemoryController::new(
+            hardware::m24c64::M24C64::new(i2c, addr),
+        );
+
+        //
+    }
+
     // #[cfg(feature = "nope")]
     let spi_bus1 = {
-        let miso = p.PIN_12;
-        let mosi = p.PIN_15;
+        // let miso = p.PIN_12;
+        // let mosi = p.PIN_15;
+        // let sck = p.PIN_14;
 
-        let sck = p.PIN_14;
-        // let cs = p.PIN_13;
+        let miso = p.PIN_4;
+        let mosi = p.PIN_3;
+        let sck = p.PIN_2;
 
         let spi = embassy_rp::spi::Spi::new(
-            p.SPI1,
+            p.SPI0,
             sck,
             mosi,
             miso,
@@ -2496,7 +2785,8 @@ fn main() -> ! {
         );
 
         // static SPI_BUS1: StaticCell<hardware::Spi1Bus> = StaticCell::new();
-        let spi_bus = hardware::SPI_BUS1.init(embassy_sync::mutex::Mutex::new(spi));
+        // let spi_bus = hardware::SPI_BUS1.init(embassy_sync::mutex::Mutex::new(spi));
+        let spi_bus = hardware::SPI_BUS0.init(embassy_sync::mutex::Mutex::new(spi));
         spi_bus
     };
 
@@ -2541,12 +2831,11 @@ fn main() -> ! {
     };
 
     // flipped
-    let (pwm_driver1, pwm_driver0) = {
+    let pwm_driver = {
         let supply_voltage = 12.0;
         let voltage_limit = 2.0;
 
         let mut c = embassy_rp::pwm::Config::default();
-        // let desired_freq_hz = 24_000 * 1;
         // let desired_freq_hz = 24_000 * 2;
         let desired_freq_hz = 24_000 * 2 * 2;
         let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
@@ -2558,65 +2847,46 @@ fn main() -> ! {
         c.divider = div.into();
         c.phase_correct = true;
 
-        // c.invert_a = true;
-        // c.invert_b = true;
+        let pwm0 = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE4, p.PIN_9, c.clone());
+        let pwm1 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE5, p.PIN_10, c.clone());
+        let pwm2 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE6, p.PIN_12, c.clone());
+        // let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_9, p.PIN_10, c.clone());
 
-        // debug!("PWM top: {}", c.top);
-        // debug!("PWM divider: {}", c.divider);
-        // debug!("PWM phase_correct: {}", c.phase_correct);
-
-        let pwm0 = embassy_rp::pwm::Pwm::new_output_a(p.PWM_SLICE1, p.PIN_2, c.clone());
-        let pwm12 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE2, p.PIN_4, p.PIN_5, c.clone());
-
-        let enable_pin0 = embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low);
-        let driver0: simplefoc::pwm_driver::PWMDriver<'static> =
+        let enable_pin = embassy_rp::gpio::Output::new(p.PIN_11, embassy_rp::gpio::Level::Low);
+        let driver: simplefoc::pwm_driver::PWMDriver<'static> =
             crate::simplefoc::pwm_driver::PWMDriver::new(
                 pwm0,
-                pwm12,
-                enable_pin0,
+                // pwm12,
+                pwm1,
+                pwm2,
+                enable_pin,
                 c.clone(),
                 voltage_limit,
                 supply_voltage,
             );
 
-        let pwm3 = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, c.clone());
-        let pwm45 = embassy_rp::pwm::Pwm::new_output_ab(p.PWM_SLICE4, p.PIN_8, p.PIN_9, c.clone());
-
-        let enable_pin1 = embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low);
-        let driver1: simplefoc::pwm_driver::PWMDriver<'static> =
-            crate::simplefoc::pwm_driver::PWMDriver::new(
-                pwm3,
-                pwm45,
-                enable_pin1,
-                c,
-                voltage_limit,
-                supply_voltage,
-            );
-
-        (driver0, driver1)
+        driver
     };
 
-    // let usb = comms::logger::CommsLogger::new();
-    // let driver = embassy_rp::usb::Driver::new(p.USB, Irqs);
+    let comms = comms::logger::CommsLogger::new();
 
     // let pre_foc = PreFOC::new(encoder, None::<()>, pwm_driver1, usb);
 
     // second core runs rs485
-    #[cfg(feature = "nope")]
+    // #[cfg(feature = "nope")]
     embassy_rp::multicore::spawn_core1(
         p.CORE1,
         unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
         move || {
             let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
             executor1.run(|spawner| {
-                crate::comms::max485::init_rs485_logger(&spawner, max485);
+                // crate::comms::max485::init_rs485_logger(&spawner, max485);
             });
         },
     );
 
     let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
     executor0.run(|spawner| {
-        // crate::comms::usb_raw::usb_init(&spawner, driver);
 
         // // TODO: check if it's better to run the comms on the other core
         // crate::comms::usb_raw::usb_init(&spawner, driver);
