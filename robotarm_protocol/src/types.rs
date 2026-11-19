@@ -21,6 +21,7 @@ pub enum MotorConfigValue {
     ZeroElectricalAngle(Option<f32>),
     DebugLogging(bool),
     VoltageLimit(f32),
+    EncoderCalibrationEnabled(bool),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
@@ -55,11 +56,11 @@ impl MotionControlType {
 //     pub feed_forward: Option<f32>,
 // }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct ADRCSettings {
-    pub b0: Option<f32>,
-    pub speed_factor: Option<f32>,
-    pub observer_bandwidth: Option<f32>,
-    pub controller_bandwidth: Option<f32>,
+pub enum ADRCParam {
+    B0(Option<f32>),
+    SpeedFactor(Option<f32>),
+    ObserverBandwidth(Option<f32>),
+    ControllerBandwidth(Option<f32>),
 }

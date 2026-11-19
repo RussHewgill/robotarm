@@ -100,9 +100,9 @@ pub async fn rs485_logger_task(
                         };
 
                         match data {
-                            SerialCommand::PingRequest { id, hardware_id } => {
-                                unimplemented!()
-                            }
+                            // SerialCommand::PingRequest { id, hardware_id } => {
+                            //     unimplemented!()
+                            // }
                             _ => {
                                 let mut retries = 0;
 

@@ -17,7 +17,7 @@ pub enum SerialLogMessage {
     MotorData {
         id: MotorId,
         timestamp: u64,
-        motion_control: MotionControlType,
+        // motion_control: MotionControlType,
         position: f32,
         angle: f32,
         velocity: f32,

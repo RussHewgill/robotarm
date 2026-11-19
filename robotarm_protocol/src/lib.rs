@@ -3,9 +3,9 @@
 #[cfg(feature = "std")]
 extern crate std;
 
-// pub mod packet;
 pub mod commands;
 pub mod messages;
+// pub mod packet;
 pub mod saved_config;
 pub mod serialize;
 pub mod types;

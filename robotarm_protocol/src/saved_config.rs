@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{ADRCSettings, MotorId};
+use crate::{ADRCParam, MotorId};
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 // #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct SavedConfig {
     pub id: MotorId,
@@ -16,7 +16,7 @@ pub struct SavedConfig {
 
     pub encoder_calibration: Option<EncoderCalibration>,
 
-    pub adrc: Option<ADRCSettings>,
+    pub adrc: Option<heapless::Vec<ADRCParam, 4>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

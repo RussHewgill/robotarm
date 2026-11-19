@@ -465,7 +465,8 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
         }
 
-        #[cfg(feature = "debug_logging")]
+        // #[cfg(feature = "debug_logging")]
+        #[cfg(feature = "nope")]
         if self.debug {
             use robotarm_protocol::MotorId;
 

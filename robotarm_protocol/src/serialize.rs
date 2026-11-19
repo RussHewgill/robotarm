@@ -9,6 +9,13 @@ pub const CRC: crc::Crc<u32, crc::Table<1>> =
     crc::Crc::<u32, crc::Table<1>>::new(&crc::CRC_32_ISO_HDLC);
 pub const CRC_SIZE: usize = CRC.algorithm.width as usize / 8;
 
+pub trait SerializablePacket {
+    fn is_command(&self) -> bool;
+    fn serialize(&self, buf: &mut [u8]) -> Option<usize>;
+    #[cfg(feature = "std")]
+    fn serialize_std(&self) -> Option<Vec<u8>>;
+}
+
 /// 1. serialize with postcard
 /// 2. calculate crc32 and append
 /// 3. serialize with COBS

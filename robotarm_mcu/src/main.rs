@@ -2485,14 +2485,27 @@ async fn main(spawner: Spawner) {
 
     debug!("Starting CRC32 test");
 
-    let mut buf = [0u8, 1, 2, 3, 4];
+    // let mut buf = [0u8, 1, 2, 3, 4];
 
-    loop {
-        buf[0] += 1;
-        let crc = robotarm_protocol::CRC.checksum(&buf);
-        debug!("CRC32: {:08x}", crc);
-        Timer::after_millis(500).await;
-    }
+    // loop {
+    //     buf[0] += 1;
+    //     let crc = robotarm_protocol::CRC.checksum(&buf);
+    //     debug!("CRC32: {:08x}", crc);
+    //     Timer::after_millis(500).await;
+    // }
+
+    use postcard::experimental::max_size::MaxSize;
+    let msg_size = robotarm_protocol::SerialLogMessage::POSTCARD_MAX_SIZE;
+    let cmd_size = robotarm_protocol::SerialCommand::POSTCARD_MAX_SIZE;
+
+    debug!("SerialLogMessage max size: {}", msg_size);
+    debug!("SerialCommand max size: {}", cmd_size);
+
+    let adrc_size = robotarm_protocol::types::ADRCParam::POSTCARD_MAX_SIZE;
+    debug!("ADRCSettings max size: {}", adrc_size);
+
+    let size = Option::<f32>::POSTCARD_MAX_SIZE;
+    debug!("max size: {}", size);
 
     //
 }

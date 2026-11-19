@@ -86,10 +86,14 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
                 self.set_voltage_limit(voltage_limit);
                 self.state_observer.set_max_voltage(voltage_limit);
             }
+            robotarm_protocol::MotorConfigValue::EncoderCalibrationEnabled(enable) => {
+                todo!()
+            }
         }
     }
 
     fn run_command_broadcast(&mut self, cmd: SerialCommand) {
+        #[cfg(feature = "nope")]
         match cmd {
             SerialCommand::BroadcastPositions { positions } => {
                 for (id, pos) in positions {
@@ -137,7 +141,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             }
         }
 
-        // #[cfg(feature = "nope")]
+        #[cfg(feature = "nope")]
         match cmd {
             SerialCommand::BroadcastPositions { positions } => {
                 //
@@ -597,6 +601,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
 
 /// EEPROM
 impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, CURRENT> {
+    #[cfg(feature = "nope")]
     async fn save_config_reboot(&mut self) {
         let adrc = {
             let (b0, r, wo, wc, inertia, torque_constant, phase_resistance) =
