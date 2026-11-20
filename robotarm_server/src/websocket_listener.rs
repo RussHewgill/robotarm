@@ -8,7 +8,7 @@ use tokio::{
 };
 use tokio_tungstenite::tungstenite::Message;
 
-use robotarm_protocol::{SerialCommand, SerialLogMessage};
+use robotarm_protocol::{SerialCommand, SerialLogMessage, SerialPacket};
 
 pub struct WebsocketListener {
     pub server_addr: String,
@@ -53,7 +53,7 @@ impl WebsocketListener {
         loop {
             tokio::select! {
                 Ok(msg) = rx_msg.recv() => {
-                    let Some(buf) = robotarm_protocol::serialize_std(msg) else {
+                    let Some(buf) = robotarm_protocol::serialize_std(SerialPacket::LogMessage(msg)) else {
                         error!("Failed to serialize message");
                         continue;
                     };
@@ -66,7 +66,7 @@ impl WebsocketListener {
                 },
                 cmd = read.next() => match cmd {
                     Some(Ok(Message::Binary(bytes))) => {
-                        let crc0 = u32::from_le_bytes(
+                        let crc0 = u16::from_le_bytes(
                             bytes[bytes.len() - robotarm_protocol::CRC_SIZE..]
                                 .try_into()
                                 .unwrap(),
@@ -76,7 +76,7 @@ impl WebsocketListener {
                             .checksum(&bytes[..bytes.len() - robotarm_protocol::CRC_SIZE]);
 
                         if crc0 != crc1 {
-                            error!("CRC mismatch: expected {:08x}, got {:08x}", crc1, crc0);
+                            error!("CRC mismatch: expected {:04x}, got {:04x}", crc1, crc0);
                             continue;
                         }
 

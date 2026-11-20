@@ -203,6 +203,7 @@ impl<'a, ENCODER: EncoderSensor, CURRENT: CurrentSensor> SimpleFOC<'a, ENCODER, 
             avg_uncalibrated += expected[i] - measured_uncalibrated[i];
             avg_calibrated += expected[i] - measured_calibrated[i];
 
+            #[cfg(feature = "nope")]
             self.send_debug_message(robotarm_protocol::SerialLogMessage::LogData {
                 id: self.id,
                 // timestamp: t_us,

@@ -9,7 +9,7 @@ pub mod comms_controller;
 pub mod logging;
 pub mod rs485_listener;
 pub mod websocket_listener;
-pub mod websocket_server;
+// pub mod websocket_server;
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use tracing::{debug, error, info, trace, warn};
@@ -18,7 +18,7 @@ use serialport::SerialPortType;
 use tokio::net::TcpListener;
 use tokio_serial::SerialPortBuilderExt;
 
-use robotarm_protocol::{SerialCommand, SerialLogMessage};
+use robotarm_protocol::{SerialCommand, SerialLogMessage, SerialPacket};
 
 pub const SERVER_ADDR: &str = "0.0.0.0:8080";
 
@@ -37,20 +37,60 @@ async fn main() -> Result<()> {
     // let port = "/dev/ttyS0";
     let port = "/dev/ttyAMA0";
     // let baud_rate = 9600;
-    let baud_rate = 115_200;
+    // let baud_rate = 115_200;
     // let baud_rate = 921_600;
     // let baud_rate = 921_600 * 2;
+    let baud_rate = robotarm_protocol::BAUD_RATE;
 
-    // let (tx_command, rx_command) = tokio::sync::mpsc::unbounded_channel();
-    // let (tx_msg, rx_msg) = tokio::sync::mpsc::unbounded_channel();
+    let (tx_command, rx_command) = tokio::sync::mpsc::unbounded_channel();
+    let (tx_msg, rx_msg) = tokio::sync::broadcast::channel(32);
 
-    // let mut rs485 = crate::rs485_listener::Rs485Listener::new(rx_command, tx_msg, port, baud_rate);
+    // let mut rs485 =
+    //     crate::rs485_listener::Rs485Listener::new(rx_command, tx_msg, port.to_string(), baud_rate);
 
-    let mut port = tokio_serial::new(port, baud_rate).open_native_async()?;
-    port.set_exclusive(false)
-        .expect("Unable to set serial port non-exclusive");
+    // let mut port = tokio_serial::new(port, baud_rate).open_native_async()?;
+    // port.set_exclusive(false)
+    //     .expect("Unable to set serial port non-exclusive");
 
-    let mut x = 0;
+    tokio::spawn(async move {
+        let mut rs485 = crate::rs485_listener::Rs485Listener::new(
+            rx_command,
+            tx_msg,
+            port.to_string(),
+            baud_rate,
+        );
+        loop {
+            if let Err(e) = rs485.listen().await {
+                error!("RS485 listener error: {:?}", e);
+            }
+        }
+    });
+
+    // rs485.listen().await.unwrap();
+
+    // #[cfg(feature = "nope")]
+    loop {
+        // debug!("Looping");
+
+        let cmd = SerialCommand::PingRequest {
+            id: robotarm_protocol::MotorId(0),
+            hardware_id: 0,
+        };
+
+        // if let Some(packet) = robotarm_protocol::serialize_std(SerialPacket::Command(cmd)) {
+        //     // debug!("packet: {:02x?}", packet);
+        //     if let Err(e) = port.try_write(&packet) {
+        //         error!("Error writing to serial port: {:?}", e);
+        //     }
+        // }
+
+        debug!("Sending ping");
+        tx_command.send(cmd).unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+    }
+
+    // let mut x = 0;
     #[cfg(feature = "nope")]
     loop {
         let msg = SerialCommand::PingRequest {
@@ -89,7 +129,7 @@ async fn main() -> Result<()> {
 
     // debug!("Size: {}", size);
 
-    Ok(())
+    // Ok(())
 }
 
 /// Main

@@ -6,6 +6,7 @@ runner = "probe-rs run --chip RP235x --log-format {L} {f}:{l} {s}"
 # rustflags = [
 #     "-C", "link-arg=-Tdefmt.x"
 # ]
+linker = "flip-link"
 
 [build]
 target = "thumbv8m.main-none-eabihf"

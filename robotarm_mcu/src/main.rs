@@ -15,6 +15,7 @@ mod panic;
 mod simplefoc;
 
 use defmt::{debug, error, info, trace, warn};
+use robotarm_protocol::SerialLogMessage;
 use static_cell::StaticCell;
 
 // use rtt_target::{rprintln, rtt_init};
@@ -1914,6 +1915,7 @@ async fn main(spawner: Spawner) {
     let mut uart_tx = embassy_rp::uart::UartTx::new(p.UART0, pin_tx, p.DMA_CH0, Irqs, config);
     // let mut uart_tx = embassy_rp::uart::BufferedUartTx::new(p.UART0, Irqs, pin_tx, tx_buf, config);
 
+    let mut uart_tx = embassy_rp::uart::UartTx::new(p.UART0, pin_tx, p.DMA_CH0, Irqs, config);
     let mut uart_rx = embassy_rp::uart::UartRx::new(p.UART1, pin_rx, Irqs, p.DMA_CH1, config);
     // let mut uart_rx = embassy_rp::uart::BufferedUartRx::new(p.UART1, Irqs, pin_rx, rx_buf, config);
 
@@ -2100,6 +2102,77 @@ async fn main(spawner: Spawner) {
     }
 
     //
+}
+
+// RS485 comms test
+// #[cfg(feature = "nope")]
+// #[embassy_executor::main]
+// async fn main(spawner: Spawner) {
+#[cortex_m_rt::entry]
+fn main() -> ! {
+    let p = embassy_rp::init(Default::default());
+
+    debug!("RS485 comms test started");
+
+    let pin_tx = p.PIN_28; // purple
+    let pin_rx = p.PIN_21; // blue
+    let pin_de = p.PIN_22; // grey
+
+    let mut config = embassy_rp::uart::Config::default();
+    // config.baudrate = 9600;
+    // config.baudrate = 115_200;
+    // config.baudrate = 921_600;
+    // config.baudrate = 921_600 * 2;
+    config.baudrate = robotarm_protocol::BAUD_RATE;
+
+    let mut pin_de = embassy_rp::gpio::Output::new(pin_de, embassy_rp::gpio::Level::Low);
+
+    let mut uart_tx = embassy_rp::uart::UartTx::new(p.UART0, pin_tx, p.DMA_CH0, Irqs, config);
+    let mut uart_rx = embassy_rp::uart::UartRx::new(p.UART1, pin_rx, Irqs, p.DMA_CH1, config);
+
+    let mut rs485 = crate::hardware::sp3485::Sp3485::new(uart_rx, uart_tx, pin_de);
+
+    let cmd_tx = crate::comms::CMD_CHAN0.sender();
+    let log_rx = crate::comms::LOG_CHAN.receiver();
+
+    let logger = comms::logger::CommsLogger::new();
+
+    // loop {
+    //     // rs485.
+    //     match rs485.receive().await {
+    //         Ok(byte) => {
+    //             debug!("Received byte: {:02x}", byte);
+    //         }
+    //         Err(e) => {
+    //             error!("Failed to receive RS485 byte: {:?}", e);
+    //         }
+    //     }
+    // }
+
+    #[cfg(feature = "nope")]
+    embassy_rp::multicore::spawn_core1(
+        p.CORE1,
+        unsafe { &mut *core::ptr::addr_of_mut!(init::CORE1_STACK) },
+        move || {
+            let executor1 = init::EXECUTOR1.init(embassy_executor::Executor::new());
+            executor1.run(|spawner| {
+                spawner.spawn(crate::comms::rs485::rs485_test_response_task(logger).unwrap());
+            });
+        },
+    );
+
+    let executor0 = init::EXECUTOR0.init(embassy_executor::Executor::new());
+    executor0.run(|spawner| {
+        spawner.spawn(
+            crate::comms::rs485::rs485_logger_task(
+                rs485,
+                cmd_tx,
+                log_rx,
+                robotarm_protocol::MotorId(0),
+            )
+            .unwrap(),
+        );
+    });
 }
 
 // Low side current sens test
@@ -2478,8 +2551,8 @@ async fn main(spawner: Spawner) {
 }
 
 // CRC32 test
-// #[cfg(feature = "nope")]
-#[embassy_executor::main]
+#[cfg(feature = "nope")]
+// #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -2500,6 +2573,16 @@ async fn main(spawner: Spawner) {
 
     debug!("SerialLogMessage max size: {}", msg_size);
     debug!("SerialCommand max size: {}", cmd_size);
+
+    let msg = SerialLogMessage::MotorData {
+        id: robotarm_protocol::MotorId(0),
+        timestamp: 0,
+        position: 0.,
+        velocity: Some(0.),
+    };
+
+    let msg_size = postcard::experimental::serialized_size(&msg).unwrap();
+    debug!("Serialized SerialLogMessage size: {}", msg_size);
 
     let adrc_size = robotarm_protocol::types::ADRCParam::POSTCARD_MAX_SIZE;
     debug!("ADRCSettings max size: {}", adrc_size);
@@ -2657,40 +2740,6 @@ async fn main(spawner: Spawner) {
 
         //
     }
-
-    // let mut led_pwr = Output::new(p.PIN_23, embassy_rp::gpio::Level::Low);
-    // led_pwr.set_high();
-
-    // let mut n = 0;
-    // for _ in 0..5 {
-    //     n = (n + 1) % 3;
-
-    //     let color = match n {
-    //         0 => smart_leds::RGB8 { r: 255, g: 0, b: 0 },
-    //         1 => smart_leds::RGB8 { r: 0, g: 255, b: 0 },
-    //         2 => smart_leds::RGB8 { r: 0, g: 0, b: 255 },
-    //         _ => smart_leds::RGB8 { r: 0, g: 0, b: 0 },
-    //     };
-
-    //     leds.set_color(color).await;
-
-    //     Timer::after_millis(300).await;
-    // }
-
-    panic!("test panic");
-
-    // let mut ticker = Ticker::every(embassy_time::Duration::from_millis(10));
-    // let mut data = [smart_leds::RGB8::default(); 1];
-    // loop {
-    //     for j in 0..(256 * 5) {
-    //         debug!("New Colors:");
-    //         data[0] = wheel(((256 as u16 / 1 as u16 + j as u16) & 255) as u8);
-    //         // debug!("R: {} G: {} B: {}", data[i].r, data[i].g, data[i].b);
-    //         leds.set_color(data[0]);
-
-    //         ticker.next().await;
-    //     }
-    // }
 
     //
 }

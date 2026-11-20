@@ -9,6 +9,24 @@ impl MotorId {
     pub const UNSET: Self = Self(255);
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct MotorConfigs {
+    configs: heapless::Vec<MotorConfigValue, 16>,
+}
+
+impl MotorConfigs {
+    pub const fn empty() -> Self {
+        Self {
+            configs: heapless::Vec::new(),
+        }
+    }
+}
+
+impl MaxSize for MotorConfigs {
+    const POSTCARD_MAX_SIZE: usize = 16 * MotorConfigValue::POSTCARD_MAX_SIZE + 4;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, MaxSize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum MotorConfigValue {

@@ -56,24 +56,24 @@
                 "isDefault": true
             }
         },
-        // {
-        //     // "label": "build_copy_run",
-        //     "label": "custom_run",
-        //     "type": "shell",
-        //     // "options": {
-        //     //     "env": {
-        //     //         "CARGO_LOG": "cargo::core::compiler::fingerprint=info",
-        //     //     }
-        //     // },
-        //     "command": "cargo run",
-        //     // "command": "cargo run --release",
-        //     "problemMatcher": []
-        // },
         {
+            // "label": "build_copy_run",
             "label": "custom_run2",
             "type": "shell",
-            "command": "cargo run --release",
+            // "options": {
+            //     "env": {
+            //         "CARGO_LOG": "cargo::core::compiler::fingerprint=info",
+            //     }
+            // },
+            "command": "cargo run",
+            // "command": "cargo run --release",
             "problemMatcher": []
-        }
+        },
+        // {
+        //     "label": "custom_run2",
+        //     "type": "shell",
+        //     "command": "cargo run --release",
+        //     "problemMatcher": []
+        // }
     ]
 }
